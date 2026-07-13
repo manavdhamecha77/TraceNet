@@ -140,9 +140,9 @@ When finished AND verified, set to `done` and note the verification method used.
 
 | # | Task | Owner/Layer | Status | Notes |
 |---|---|---|---|---|
-| 1.1 | Set up repo structure (folders above), backend `requirements.txt`, frontend `package.json` | Setup | not started | |
-| 1.2 | FastAPI skeleton with CORS, health check endpoint | Backend | not started | |
-| 1.3 | React + Vite skeleton with Tailwind configured | Frontend | not started | |
+| 1.1 | Set up repo structure (folders above), backend `requirements.txt`, frontend `package.json` | Setup | completed | |
+| 1.2 | FastAPI skeleton with CORS, health check endpoint | Backend | done | Implemented app/router skeleton; syntax-checked locally with `python -m compileall backend\app`, live smoke still depends on backend Python deps being installed. |
+| 1.3 | React + Vite skeleton with Tailwind configured | Frontend | done | Tailwind config added and verified with `npm.cmd run build`. |
 | 1.4 | Video upload endpoint (`POST /upload-video`), saves to `/data/sample_videos` | Backend | not started | Simulate camera_id via upload form field or folder name |
 | 1.5 | Frame extraction pipeline (sample every N frames, tag camera_id + timestamp) | Backend/Ingestion | not started | |
 | 1.6 | Upload UI (drag-drop, progress indicator) | Frontend | not started | |

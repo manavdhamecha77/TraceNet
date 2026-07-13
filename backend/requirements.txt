@@ -1,0 +1,46 @@
+# FastAPI Backend
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pydantic
+pydantic-settings
+
+# Database
+sqlalchemy
+alembic
+
+# Image & Video Processing
+opencv-python
+ffmpeg-python
+Pillow
+
+# Deep Learning
+torch
+torchvision
+ultralytics
+supervision
+
+# Embeddings
+open-clip-torch
+transformers
+sentence-transformers
+
+# Vector Database
+faiss-cpu
+
+# Numerical
+numpy
+scipy
+pandas
+
+# Utilities
+loguru
+tqdm
+python-dateutil
+orjson
+requests
+
+# Testing
+pytest
+httpx
