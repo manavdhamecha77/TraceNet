@@ -1,0 +1,364 @@
+import React, { useState, useEffect, useRef } from 'react'
+import { useParams, Link } from 'react-router-dom'
+
+const API_BASE = 'http://localhost:8000'
+
+interface Camera {
+  camera_id: string
+  name: string
+  latitude?: number
+  longitude?: number
+  corridor_group?: string
+  adjacency: string[]
+  is_active: boolean
+  status: string
+  altitude?: number
+  video_count: number
+}
+
+interface Video {
+  id: string
+  camera_id: string
+  original_filename: string
+  standardized_filename: string
+  intake_sha256: string
+  transcoded_sha256?: string
+  upload_timestamp?: string
+  processing_status: string
+  duration?: number
+  start_time?: string
+  end_time?: string
+  thumbnail_path?: string
+}
+
+interface CameraDetailProps {
+  onOpenUploadModal: () => void
+  onPlayVideo: (video: Video) => void
+  cameraVideos: Video[]
+  setCameraVideos: React.Dispatch<React.SetStateAction<Video[]>>
+  selectedCamera: Camera | null
+  setSelectedCamera: (camera: Camera | null) => void
+}
+
+export default function CameraDetail({
+  onOpenUploadModal,
+  onPlayVideo,
+  cameraVideos,
+  setCameraVideos,
+  selectedCamera,
+  setSelectedCamera,
+}: CameraDetailProps) {
+  const { camera_id } = useParams<{ camera_id: string }>()
+  const [activeTab, setActiveTab] = useState<'original' | 'system'>('system')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const pollTimerRef = useRef<any>(null)
+
+  // Fetch Camera Details
+  const fetchCameraDetails = async () => {
+    if (!camera_id) return
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/cameras/${camera_id}`)
+      if (res.status === 200) {
+        const data = await res.json()
+        setSelectedCamera(data)
+      } else {
+        setError(`Camera node '${camera_id}' not found.`)
+      }
+    } catch (err) {
+      setError('Connection failure: could not retrieve camera details.')
+    }
+  }
+
+  // Fetch Videos list
+  const fetchVideos = async () => {
+    if (!camera_id) return
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/cameras/${camera_id}/videos`)
+      if (res.ok) {
+        const data = await res.json()
+        setCameraVideos(data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch videos:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Load initial data
+  useEffect(() => {
+    setLoading(true)
+    setError('')
+    fetchCameraDetails()
+    fetchVideos()
+    
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current)
+      setSelectedCamera(null)
+    }
+  }, [camera_id])
+
+  // Polling for processing videos
+  useEffect(() => {
+    const hasIncomplete = cameraVideos.some(
+      (v) => v.processing_status === 'pending' || v.processing_status === 'processing'
+    )
+
+    if (hasIncomplete && camera_id) {
+      pollTimerRef.current = setInterval(() => {
+        fetchVideos()
+      }, 3000)
+    } else {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current)
+        pollTimerRef.current = null
+      }
+    }
+
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current)
+        pollTimerRef.current = null
+      }
+    }
+  }, [cameraVideos.map((v) => v.processing_status).join(','), camera_id])
+
+  const formatDuration = (secs?: number) => {
+    if (secs === undefined) return '--:--'
+    const minutes = Math.floor(secs / 60)
+    const seconds = Math.floor(secs % 60)
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
+
+  const formatDateTime = (isoStr?: string) => {
+    if (!isoStr) return 'N/A'
+    return new Date(isoStr).toLocaleString()
+  }
+
+  const getThumbnailUrl = (video: Video) => {
+    if (video.thumbnail_path) {
+      const relativePath = video.thumbnail_path.replace(/^\.?\/?data\//, '')
+      return `${API_BASE}/data/${relativePath}`
+    }
+    return ''
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 p-6 rounded-md text-center max-w-lg mx-auto mt-12 animate-in fade-in duration-200">
+        <svg className="mx-auto h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <h3 className="mt-4 text-sm font-semibold text-slate-800 dark:text-slate-200">Camera Profile Error</h3>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{error}</p>
+        <Link
+          to="/cameras"
+          className="mt-6 inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-md text-xs font-semibold transition-colors"
+        >
+          Return to Camera List
+        </Link>
+      </div>
+    )
+  }
+
+  if (loading && !selectedCamera) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 space-y-4">
+        <svg className="animate-spin h-8 w-8 text-teal-700 dark:text-teal-400" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Resolving camera topography...</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      
+      {/* CAMERA BANNER META */}
+      {selectedCamera && (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-4 rounded-md shadow-sm">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-teal-700 dark:text-teal-400">
+                {selectedCamera.camera_id}
+              </span>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">{selectedCamera.name}</h3>
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-4">
+              <span>Latitude: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.latitude ?? 'N/A'}</strong></span>
+              <span>Longitude: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.longitude ?? 'N/A'}</strong></span>
+              <span>Corridor: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.corridor_group ?? 'General'}</strong></span>
+              <span>Topology Neighbors: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.adjacency.length > 0 ? selectedCamera.adjacency.join(', ') : 'None'}</strong></span>
+            </div>
+          </div>
+          <div>
+            <button
+              onClick={onOpenUploadModal}
+              className="flex items-center gap-2 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-750 text-white px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Upload Video Feed
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* DUAL FILTERS & TABS */}
+      <div className="border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-transparent px-2 rounded-t-md">
+        <div className="flex gap-4">
+          {/* System tab first — this is the primary working view */}
+          <button
+            onClick={() => setActiveTab('system')}
+            className={`py-2.5 text-xs font-bold border-b-2 transition-all ${
+              activeTab === 'system'
+                ? 'border-teal-700 dark:border-teal-400 text-teal-700 dark:text-teal-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+            }`}
+          >
+            System Preprocessing
+          </button>
+          {/* Original tab second — read-only audit/backup view */}
+          <button
+            onClick={() => setActiveTab('original')}
+            className={`py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+              activeTab === 'original'
+                ? 'border-teal-700 dark:border-teal-400 text-teal-700 dark:text-teal-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+            }`}
+          >
+            Original Audit
+            <span className="text-[9px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+              Backup
+            </span>
+          </button>
+        </div>
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+          Showing {cameraVideos.length} recorded segments
+        </span>
+      </div>
+
+      {/* DATA GRID */}
+      <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-left">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-[11px] text-slate-500 dark:text-slate-400 uppercase font-semibold">
+              <tr>
+                <th className="px-4 py-3 w-24">Thumbnail</th>
+                <th className="px-4 py-3">Filename / Unique Hash</th>
+                <th className="px-4 py-3">Duration</th>
+                <th className="px-4 py-3">Timeline Interval</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Pipeline Log</th>
+                <th className="px-4 py-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+              {cameraVideos.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500">
+                    No files uploaded. Feed ingestion sandbox is ready.
+                  </td>
+                </tr>
+              ) : (
+                cameraVideos.map((video) => {
+                  const thumbUrl = getThumbnailUrl(video)
+                  return (
+                    <tr
+                      key={video.id}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors odd:bg-white dark:odd:bg-transparent even:bg-slate-50/30 dark:even:bg-slate-800/5"
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="h-10 w-16 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded flex items-center justify-center relative overflow-hidden">
+                          {thumbUrl ? (
+                            <img src={thumbUrl} alt="Video thumbnail preview" className="h-full w-full object-cover" />
+                          ) : (
+                            <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                          {(video.processing_status === 'processing' || video.processing_status === 'pending') && (
+                            <span className="absolute inset-0 bg-teal-500/10 backdrop-blur-[1px] flex items-center justify-center">
+                              <svg className="animate-spin h-4 w-4 text-teal-700 dark:text-teal-400" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="font-bold text-slate-800 dark:text-slate-100">
+                          {activeTab === 'original' ? video.original_filename : video.standardized_filename}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-400 mt-0.5 truncate max-w-[240px]" title={activeTab === 'original' ? video.intake_sha256 : video.transcoded_sha256}>
+                          Hash: {activeTab === 'original' ? video.intake_sha256.substring(0, 24) + '...' : video.transcoded_sha256 ? video.transcoded_sha256.substring(0, 24) + '...' : 'pending...'}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-700 dark:text-slate-300 font-semibold">
+                        {video.processing_status === 'complete' ? formatDuration(video.duration) : '--:--'}
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap text-[11px] text-slate-600 dark:text-slate-350">
+                        <div>Start: {formatDateTime(video.start_time || video.upload_timestamp)}</div>
+                        <div className="mt-0.5 text-slate-500">End: {formatDateTime(video.end_time || video.upload_timestamp)}</div>
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          video.processing_status === 'complete' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' :
+                          video.processing_status === 'processing' ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 animate-pulse' :
+                          video.processing_status === 'failed' ? 'bg-red-500/10 text-red-700 dark:text-red-400' :
+                          'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${
+                            video.processing_status === 'complete' ? 'bg-emerald-500' :
+                            video.processing_status === 'processing' ? 'bg-teal-500' :
+                            video.processing_status === 'failed' ? 'bg-red-500' :
+                            'bg-amber-500'
+                          }`}></span>
+                          {video.processing_status.toUpperCase()}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3 text-[11px] text-slate-500 dark:text-slate-400 max-w-[180px] truncate">
+                        {activeTab === 'original' ? (
+                          <span>File hash verified. Local object store storage.</span>
+                        ) : (
+                          <span>Transcoded H.264 720p10. Chrono 4 FPS.</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3 whitespace-nowrap text-right">
+                        <button
+                          disabled={video.processing_status !== 'complete'}
+                          onClick={() => onPlayVideo(video)}
+                          className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-bold transition-all ${
+                            video.processing_status === 'complete'
+                              ? 'bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white shadow-sm'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          </svg>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}

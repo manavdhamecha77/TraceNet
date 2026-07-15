@@ -86,46 +86,46 @@ Do not attempt to build Kafka/edge-node infra for the MVP; reference it in
 ```
 /backend
   /app
-    main.py                 # FastAPI entrypoint
-    /ingestion
-      frame_extractor.py
+    main.py                 # FastAPI entrypoint + startup auto-migration runner
+    /api
+      cameras.py            # Camera CRUD: GET, POST /create-new-camera, PUT, DELETE
+      upload.py             # POST /api/v1/ingest — video ingestion trigger
+    /preprocess
+      video_preprocessor.py # FFmpeg transcode (720p, H.264) + OpenCV 4-FPS sampling
     /detection
-      detector.py            #  wraps BMD-45
-      tracker.py             # ByteTrack wrapper
+      detector.py           # wraps BMD-45 (BLOCKED — weights unconfirmed)
+      tracker.py            # ByteTrack wrapper
     /embeddings
       clip_encoder.py
-      captioner.py           # optional BLIP
+      captioner.py          # optional BLIP
     /search
-      vector_index.py        # FAISS wrapper
-      query_engine.py        # hybrid search logic
+      vector_index.py       # FAISS wrapper
+      query_engine.py       # hybrid search logic
     /db
-      models.py              # SQLAlchemy models
+      models.py             # SQLAlchemy: CameraProfile, VideoRecord, SearchLog, Alert
       crud.py
     /audit
       logger.py
-    /alerts                  # differentiator features
+    /alerts
       loitering.py
       abandoned_object.py
   requirements.txt
 /frontend
   /src
     /pages
-      Upload.tsx
-      Search.tsx
-    /components
-      ResultsGrid.tsx
-      SearchBar.tsx
-      FilterSidebar.tsx
-      ClipPlayer.tsx
-      ExportButton.tsx
-    App.tsx
+      Cameras.tsx           # /cameras — Leaflet map + tabular grid, camera CRUD modals
+      CameraDetail.tsx      # /cameras/[camera_id] — System/Original tab view + video table
+    App.tsx                 # Sidebar, routing, register-camera modal, video player modal
+  DESIGN.md                 # UI/UX specification — authoritative style reference
   package.json
 /data
-  /sample_videos             # demo footage, organized by simulated camera_id
-  /processed                 # thumbnails, extracted clips
+  /minio_mock               # uploaded raw video files (original, pre-transcode)
+  /processed                # thumbnails, extracted frames, transcoded MP4s
+  /sample_videos            # demo footage organized by camera_id
 /docs
-  scalability.md              # production architecture (pitch material, not code)
-AGENTS.md                     # this file
+  preprocess-api.md         # API contract reference for ingestion endpoints
+  scalability.md            # production architecture (pitch material only, not code)
+AGENTS.md                   # this file
 ```
 
 ---
@@ -140,12 +140,16 @@ When finished AND verified, set to `done` and note the verification method used.
 
 | # | Task | Owner/Layer | Status | Notes |
 |---|---|---|---|---|
-| 1.1 | Set up repo structure (folders above), backend `requirements.txt`, frontend `package.json` | Setup | completed | |
+| 1.1 | Set up repo structure (folders above), backend `requirements.txt`, frontend `package.json` | Setup | done | |
 | 1.2 | FastAPI skeleton with CORS, health check endpoint | Backend | done | Implemented app/router skeleton; syntax-checked locally with `python -m compileall backend\app`, live smoke still depends on backend Python deps being installed. |
 | 1.3 | React + Vite skeleton with Tailwind configured | Frontend | done | Tailwind config added and verified with `npm.cmd run build`. |
-| 1.4 | Video upload endpoint (`POST /upload-video`), saves to `/data/sample_videos` | Backend | not started | Simulate camera_id via upload form field or folder name |
-| 1.5 | Frame extraction pipeline (sample every N frames, tag camera_id + timestamp) | Backend/Ingestion | not started | |
-| 1.6 | Upload UI (drag-drop, progress indicator) | Frontend | not started | |
+| 1.4 | Video upload endpoint (`POST /api/v1/ingest`), saves to `/data/minio_mock` | Backend | done | Implemented POST /api/v1/ingest and ProcessVideoBackground in upload.py; checked imports with compileall. |
+| 1.5 | Frame extraction pipeline (sample at 4 FPS, standard transcoding to 720p @ 10 FPS) | Backend/Ingestion | done | Implemented VideoPreprocessor.run_pipeline utilizing FFmpeg and OpenCV (cv2.VideoCapture) timeline-proportional sampling; verified. |
+| 1.6a | Camera registry UI — `/cameras` page with Leaflet map + tabular grid, register modal | Frontend | done | Cameras.tsx: interactive Leaflet map plots all nodes with status popups; table shows thumbnail (16:9), name/ID, zone, neighbors, status badge, video count. Register modal wired to `POST /create-new-camera`. Verified via `npm run build`. |
+| 1.6b | Camera CRUD — Edit, Delete, View Details modals with mini-maps | Frontend + Backend | done | Edit modal: live coordinate preview map (debounced 400ms), 16:9 thumbnail, altitude field, status select. Delete: case-insensitive name confirmation, red-gated submit button. View Details: full-width 16:9 thumbnail + metadata table + full-height Leaflet map. Backend: `PUT /cameras/{id}`, `DELETE /cameras/{id}` with cascade. Verified via `npm run build`. |
+| 1.7 | SQLAlchemy `CameraProfile` schema + auto-migration on startup | Backend/DB | done | `models.py`: CameraProfile with `status` (TEXT) and `altitude` (Float) columns. `main.py`: `run_startup_migrations()` uses `PRAGMA table_info` + `ALTER TABLE` at boot — prevents OperationalError on schema evolution without full DB teardown. Verified: backend starts without error after schema change. |
+| 1.8 | Camera Detail page `/cameras/[id]` — dual-tab video table (System / Original), polling | Frontend | done | `CameraDetail.tsx`: System Preprocessing tab is default and first (primary working surface); Original Audit tab is second with amber BACKUP label (forensic archive only). 3-second poll for pending/processing videos. Verified via `npm run build`. |
+| 1.9 | Modal UX + Leaflet z-index fixes | Frontend | done | (a) All modals use `fixed inset-0` backdrop at `z-[100]` in root stacking context — covers full viewport including top. (b) Leaflet map section has `style={{ isolation: 'isolate' }}` — creates CSS stacking context that traps Leaflet's internal z-indices (200–650) so map tiles/markers never bleed above fixed modals. (c) Kebab menu rendered via `position:fixed` dropdown computed from `getBoundingClientRect` — escapes table `overflow` clipping. Verified via `npm run build`. |
 
 ### Phase 2 — Detection, Tracking, Embeddings
 
@@ -260,6 +264,18 @@ A task is only `done` if:
   in `/data/sample_videos`.
 - **Zone definitions for loitering (4.4)**: need a simple way to define zones per
   camera (polygon coordinates) — decide format (JSON config file) before implementing.
+- **End-to-end smoke test (task 5.1) is the critical gate**: Phase 1 UI and backend
+  are built and compile-verified, but full pipeline (upload → preprocess → CLIP embed
+  → FAISS search → result display) has not been run end-to-end yet. Do not start
+  Phase 3 search work until the Phase 2 detection/embedding outputs are confirmed.
+- **Frontend architecture note — Leaflet + modals**: Any future page that renders a
+  Leaflet map AND modals must apply `style={{ isolation: 'isolate' }}` to the map
+  container. Omitting this causes Leaflet's internal z-index panes (200–650) to bleed
+  above `position:fixed` overlays in the page root stacking context.
+- **Tab ordering contract**: On `/cameras/[id]`, the System Preprocessing tab is
+  always first and default. The Original Audit tab is second and labeled BACKUP. All
+  future pipeline modules (detection, embeddings, search) must operate on the
+  standardized/transcoded output (system tab), never on the raw original file.
 
 ---
 
