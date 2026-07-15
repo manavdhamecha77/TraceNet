@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Cameras from './pages/Cameras'
 import CameraDetail from './pages/CameraDetail'
 import Search from './pages/Search'
+import Landing from './pages/Landing'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -15,6 +16,8 @@ interface Camera {
   corridor_group?: string
   adjacency: string[]
   is_active: boolean
+  status: string
+  altitude?: number
   video_count: number
 }
 
@@ -59,8 +62,10 @@ function App() {
   const [newCameraName, setNewCameraName] = useState('')
   const [newCameraLat, setNewCameraLat] = useState('')
   const [newCameraLon, setNewCameraLon] = useState('')
+  const [newCameraAltitude, setNewCameraAltitude] = useState('')
   const [newCameraCorridor, setNewCameraCorridor] = useState('')
   const [newCameraAdjacency, setNewCameraAdjacency] = useState('')
+  const [newCameraStatus, setNewCameraStatus] = useState('active')
   const [cameraFormError, setCameraFormError] = useState('')
 
   // Video Form State
@@ -156,6 +161,8 @@ function App() {
       longitude: newCameraLon ? parseFloat(newCameraLon) : null,
       corridor_group: newCameraCorridor.trim() || null,
       adjacency: adjacencyList,
+      status: newCameraStatus,
+      altitude: newCameraAltitude ? parseFloat(newCameraAltitude) : null,
     }
 
     try {
@@ -175,6 +182,8 @@ function App() {
         setNewCameraLon('')
         setNewCameraCorridor('')
         setNewCameraAdjacency('')
+        setNewCameraStatus('active')
+        setNewCameraAltitude('')
       } else {
         const errorData = await res.json()
         setCameraFormError(errorData.detail || 'Failed to register camera.')
@@ -258,9 +267,11 @@ function App() {
         }
       } else if (paths[0] === 'search') {
         crumbs.push({ label: 'Search', link: '/search' })
+      } else if (paths[0] === 'dashboard') {
+        crumbs.push({ label: 'Dashboard', link: '/dashboard' })
       }
     } else {
-      crumbs.push({ label: 'Dashboard', link: '/' })
+      crumbs.push({ label: 'Home', link: '/' })
     }
 
     return crumbs
@@ -309,9 +320,9 @@ function App() {
           {/* Navigation Links */}
           <nav className="px-2 space-y-1">
             <Link
-              to="/"
+              to="/dashboard"
               className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
-                location.pathname === '/'
+                location.pathname === '/dashboard'
                   ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 font-bold border-l-2 border-teal-700 dark:border-teal-400'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-800 dark:hover:text-white'
               }`}
@@ -423,7 +434,8 @@ function App() {
         <div className="flex-grow p-6 overflow-y-auto bg-slate-50 dark:bg-slate-900 transition-colors duration-150">
           
           <Routes>
-            <Route path="/" element={<Dashboard metrics={metrics} />} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/dashboard" element={<Dashboard metrics={metrics} />} />
             <Route
               path="/cameras"
               element={
@@ -522,15 +534,28 @@ function App() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Corridor Group</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Zone-A"
-                  value={newCameraCorridor}
-                  onChange={(e) => setNewCameraCorridor(e.target.value)}
-                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Corridor Group</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Zone-A"
+                    value={newCameraCorridor}
+                    onChange={(e) => setNewCameraCorridor(e.target.value)}
+                    className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Altitude (optional)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="e.g. 45.2 (meters)"
+                    value={newCameraAltitude}
+                    onChange={(e) => setNewCameraAltitude(e.target.value)}
+                    className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                  />
+                </div>
               </div>
 
               <div>
@@ -542,6 +567,19 @@ function App() {
                   onChange={(e) => setNewCameraAdjacency(e.target.value)}
                   className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Status *</label>
+                <select
+                  value={newCameraStatus}
+                  onChange={(e) => setNewCameraStatus(e.target.value)}
+                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-850 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                >
+                  <option value="active">Active</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="not-working">Not Working</option>
+                </select>
               </div>
 
               <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-700">

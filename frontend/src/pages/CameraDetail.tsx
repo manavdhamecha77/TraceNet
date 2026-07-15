@@ -11,6 +11,8 @@ interface Camera {
   corridor_group?: string
   adjacency: string[]
   is_active: boolean
+  status: string
+  altitude?: number
   video_count: number
 }
 
@@ -47,7 +49,7 @@ export default function CameraDetail({
   setSelectedCamera,
 }: CameraDetailProps) {
   const { camera_id } = useParams<{ camera_id: string }>()
-  const [activeTab, setActiveTab] = useState<'original' | 'system'>('original')
+  const [activeTab, setActiveTab] = useState<'original' | 'system'>('system')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const pollTimerRef = useRef<any>(null)
@@ -209,25 +211,30 @@ export default function CameraDetail({
       {/* DUAL FILTERS & TABS */}
       <div className="border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-transparent px-2 rounded-t-md">
         <div className="flex gap-4">
-          <button
-            onClick={() => setActiveTab('original')}
-            className={`py-2.5 text-xs font-bold border-b-2 transition-all ${
-              activeTab === 'original'
-                ? 'border-teal-750 dark:border-teal-400 text-teal-750 dark:text-teal-450'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
-            }`}
-          >
-            Original Audits
-          </button>
+          {/* System tab first — this is the primary working view */}
           <button
             onClick={() => setActiveTab('system')}
             className={`py-2.5 text-xs font-bold border-b-2 transition-all ${
               activeTab === 'system'
-                ? 'border-teal-750 dark:border-teal-400 text-teal-750 dark:text-teal-450'
+                ? 'border-teal-700 dark:border-teal-400 text-teal-700 dark:text-teal-400'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
             }`}
           >
             System Preprocessing
+          </button>
+          {/* Original tab second — read-only audit/backup view */}
+          <button
+            onClick={() => setActiveTab('original')}
+            className={`py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+              activeTab === 'original'
+                ? 'border-teal-700 dark:border-teal-400 text-teal-700 dark:text-teal-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+            }`}
+          >
+            Original Audit
+            <span className="text-[9px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+              Backup
+            </span>
           </button>
         </div>
         <span className="text-[11px] text-slate-500 dark:text-slate-400">

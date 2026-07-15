@@ -17,6 +17,17 @@ class CameraCreate(BaseModel):
     longitude: Optional[float] = Field(None, example=72.5714)
     corridor_group: Optional[str] = Field(None, example= "Zone-A")
     adjacency: List[str] = Field(default_factory=list, example=["CAM_041", "CAM_043"])
+    status: Optional[str] = Field("active", example="active")
+    altitude: Optional[float] = Field(None, example=45.2)
+
+class CameraUpdate(BaseModel):
+    name: str = Field(..., example="Intersection East", min_length=2)
+    latitude: Optional[float] = Field(None, example=23.0225)
+    longitude: Optional[float] = Field(None, example=72.5714)
+    corridor_group: Optional[str] = Field(None, example="Zone-A")
+    adjacency: List[str] = Field(default_factory=list, example=["CAM_041", "CAM_043"])
+    status: str = Field("active", example="active")
+    altitude: Optional[float] = Field(None, example=45.2)
 
 class CameraResponse(BaseModel):
     camera_id: str
@@ -26,6 +37,8 @@ class CameraResponse(BaseModel):
     corridor_group: Optional[str]
     adjacency: List[str]
     is_active: bool
+    status: str
+    altitude: Optional[float]
     video_count: int
 
     class Config:
@@ -74,7 +87,9 @@ def create_camera(payload: CameraCreate, db: Session = Depends(get_db)):
             longitude=payload.longitude,
             corridor_group=payload.corridor_group,
             adjacency=json.dumps(payload.adjacency),
-            is_active=True
+            is_active=True,
+            status=payload.status or "active",
+            altitude=payload.altitude
         )
         db.add(camera)
         db.commit()
@@ -130,3 +145,63 @@ def get_camera_videos(camera_id: str, db: Session = Depends(get_db)):
         
     videos = db.query(VideoAsset).filter(VideoAsset.camera_id == camera_id).order_by(VideoAsset.upload_timestamp.desc()).all()
     return [v.to_dict() for v in videos]
+
+@router.put("/cameras/{camera_id}", response_model=CameraResponse)
+def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(get_db)):
+    """Edits details for a camera profile. The camera ID remains read-only.
+    
+    Status codes:
+    - 200 OK: Camera profile details successfully updated.
+    - 404 Not Found: Camera profile not found.
+    """
+    camera = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+    if not camera:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera profile with ID '{camera_id}' does not exist."
+        )
+        
+    try:
+        camera.name = payload.name
+        camera.latitude = payload.latitude
+        camera.longitude = payload.longitude
+        camera.corridor_group = payload.corridor_group
+        camera.adjacency = json.dumps(payload.adjacency)
+        camera.status = payload.status
+        camera.altitude = payload.altitude
+        
+        db.commit()
+        db.refresh(camera)
+        return camera.to_dict()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to update camera: {str(e)}"
+        )
+
+@router.delete("/cameras/{camera_id}", status_code=status.HTTP_200_OK)
+def delete_camera(camera_id: str, db: Session = Depends(get_db)):
+    """Permanently deletes a camera profile and all its associated videos.
+    
+    Status codes:
+    - 200 OK: Camera and video records successfully removed.
+    - 404 Not Found: Camera profile not found.
+    """
+    camera = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+    if not camera:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera profile with ID '{camera_id}' does not exist."
+        )
+        
+    try:
+        db.delete(camera)
+        db.commit()
+        return {"message": f"Camera '{camera_id}' and all associated video feeds have been permanently deleted."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to delete camera: {str(e)}"
+        )

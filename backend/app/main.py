@@ -9,14 +9,44 @@ from app.api.upload import router as upload_router
 from app.config import get_settings
 from app.db.models import Base
 from app.db.session import engine
-
-# Ensure tables are created
-Base.metadata.create_all(bind=engine)
+import sqlite3
 
 # Ensure data folders exist
 os.makedirs("data", exist_ok=True)
 os.makedirs("data/minio_mock", exist_ok=True)
 os.makedirs("data/cameras", exist_ok=True)
+
+# Run schema migrations for SQLite dynamically to prevent OperationalError
+def run_startup_migrations():
+    db_path = "./data/drishti.db"
+    if os.path.exists(db_path):
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            # Check if cameras table exists first
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cameras'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(cameras)")
+                columns = [c[1] for c in cursor.fetchall()]
+                
+                if "status" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN status VARCHAR DEFAULT 'active'")
+                    conn.commit()
+                    print("Schema Migration: Added 'status' column to cameras.")
+                    
+                if "altitude" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN altitude FLOAT")
+                    conn.commit()
+                    print("Schema Migration: Added 'altitude' column to cameras.")
+        except Exception as e:
+            print("Startup Migration Error:", str(e))
+        finally:
+            conn.close()
+
+run_startup_migrations()
+
+# Ensure tables are created
+Base.metadata.create_all(bind=engine)
 
 settings = get_settings()
 

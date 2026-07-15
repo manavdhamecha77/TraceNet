@@ -15,6 +15,8 @@ class CameraProfile(Base):
     corridor_group = Column(String, nullable=True)
     adjacency = Column(Text, default="[]")  # JSON string of neighboring camera IDs
     is_active = Column(Boolean, default=True)
+    status = Column(String, default="active")  # 'active' | 'maintenance' | 'not-working'
+    altitude = Column(Float, nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
 
@@ -31,6 +33,8 @@ class CameraProfile(Base):
             "corridor_group": self.corridor_group,
             "adjacency": adj,
             "is_active": self.is_active,
+            "status": self.status,
+            "altitude": self.altitude,
             "video_count": len(self.videos) if self.videos else 0
         }
 
