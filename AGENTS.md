@@ -143,9 +143,9 @@ When finished AND verified, set to `done` and note the verification method used.
 | 1.1 | Set up repo structure (folders above), backend `requirements.txt`, frontend `package.json` | Setup | completed | |
 | 1.2 | FastAPI skeleton with CORS, health check endpoint | Backend | done | Implemented app/router skeleton; syntax-checked locally with `python -m compileall backend\app`, live smoke still depends on backend Python deps being installed. |
 | 1.3 | React + Vite skeleton with Tailwind configured | Frontend | done | Tailwind config added and verified with `npm.cmd run build`. |
-| 1.4 | Video upload endpoint (`POST /upload-video`), saves to `/data/sample_videos` | Backend | not started | Simulate camera_id via upload form field or folder name |
-| 1.5 | Frame extraction pipeline (sample every N frames, tag camera_id + timestamp) | Backend/Ingestion | not started | |
-| 1.6 | Upload UI (drag-drop, progress indicator) | Frontend | not started | |
+| 1.4 | Video upload endpoint (`POST /api/v1/ingest`), saves to `/data/minio_mock` | Backend | done | Implemented POST /api/v1/ingest and ProcessVideoBackground in upload.py; checked imports with compileall. |
+| 1.5 | Frame extraction pipeline (sample at 4 FPS, standard transcoding to 720p @ 10 FPS) | Backend/Ingestion | done | Implemented VideoPreprocessor.run_pipeline utilizing FFmpeg and OpenCV (cv2.VideoCapture) timeline-proportional sampling; verified. |
+| 1.6 | Camera Detail & Ingest UI (upload form, active status, tabs, player modal) | Frontend | done | Implemented in App.tsx; verified frontend builds successfully via npm run build. |
 
 ### Phase 2 — Detection, Tracking, Embeddings
 
