@@ -22,9 +22,12 @@ class Settings(BaseSettings):
     cors_allow_credentials: bool = False
     cors_allow_methods: list[str] = Field(default_factory=lambda: ["*"])
     cors_allow_headers: list[str] = Field(default_factory=lambda: ["*"])
+    detection_model_path: str = "app/detection/weights/best.pt"
+    detection_confidence_threshold: float = 0.25
+    detection_iou_threshold: float = 0.45
+    detection_max_frames: int = 0
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
-

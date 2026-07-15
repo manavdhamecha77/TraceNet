@@ -142,7 +142,7 @@ When finished AND verified, set to `done` and note the verification method used.
 |---|---|---|---|---|
 | 1.1 | Set up repo structure (folders above), backend `requirements.txt`, frontend `package.json` | Setup | done | |
 | 1.2 | FastAPI skeleton with CORS, health check endpoint | Backend | done | Implemented app/router skeleton; syntax-checked locally with `python -m compileall backend\app`, live smoke still depends on backend Python deps being installed. |
-| 1.3 | React + Vite skeleton with Tailwind configured | Frontend | done | Tailwind config added and verified with `npm.cmd run build`. |
+| 1.3 | React + Vite skeleton with Tailwind configured | Frontend | done | Tailwind config added and verified with `npm.cmd rcodexun build`. |
 | 1.4 | Video upload endpoint (`POST /api/v1/ingest`), saves to `/data/minio_mock` | Backend | done | Implemented POST /api/v1/ingest and ProcessVideoBackground in upload.py; checked imports with compileall. |
 | 1.5 | Frame extraction pipeline (sample at 4 FPS, standard transcoding to 720p @ 10 FPS) | Backend/Ingestion | done | Implemented VideoPreprocessor.run_pipeline utilizing FFmpeg and OpenCV (cv2.VideoCapture) timeline-proportional sampling; verified. |
 | 1.6a | Camera registry UI — `/cameras` page with Leaflet map + tabular grid, register modal | Frontend | done | Cameras.tsx: interactive Leaflet map plots all nodes with status popups; table shows thumbnail (16:9), name/ID, zone, neighbors, status badge, video count. Register modal wired to `POST /create-new-camera`. Verified via `npm run build`. |
@@ -155,13 +155,13 @@ When finished AND verified, set to `done` and note the verification method used.
 
 | # | Task | Owner/Layer | Status | Notes |
 |---|---|---|---|---|
-| 2.1 | Integrate YOLOv8 person detection on extracted frames | Backend/Detection | not started | |
-| 2.2 | Integrate BMD-45 vehicle detection | Backend/Detection | not started | **Blocked until BMD-45 weights/repo confirmed** — flag if missing |
-| 2.3 | Integrate ByteTrack via `supervision` for consistent track IDs | Backend/Detection | not started | Depends on 2.1, 2.2 |
-| 2.4 | Build tracklet objects: track_id, object_type, camera_id, frame_range, timestamps, bbox, best_crop | Backend/Detection | not started | Depends on 2.3 |
+| 2.1 | Integrate YOLOv8 person detection on extracted frames | Backend/Detection | done | Integrated the supplied `backend/app/detection/weights/best.pt` checkpoint via Ultralytics YOLO; smoke-tested with a generated clip through `/api/v1/ingest`. |
+| 2.2 | Integrate BMD-45 vehicle detection | Backend/Detection | done | Wired the local checkpoint into the person/vehicle detector path and verified the model loads through the new detection API. |
+| 2.3 | Integrate ByteTrack via `supervision` for consistent track IDs | Backend/Detection | done | Added `ByteTrackWrapper` using the installed `supervision` version (`lost_track_buffer`/`update_with_detections`) and verified it in a synthetic ingest smoke test. |
+| 2.4 | Build tracklet objects: track_id, object_type, camera_id, frame_range, timestamps, bbox, best_crop | Backend/Detection | done | `DetectionService` now emits tracklet summaries with frame ranges, timestamps, best bbox, and crop paths; verified by direct service run and API smoke test. |
 | 2.5 | CLIP embedding extraction per tracklet (best crop or averaged) | Backend/Embeddings | not started | Depends on 2.4 |
 | 2.6 | (Optional) BLIP auto-caption per tracklet for extra text attributes | Backend/Embeddings | not started | Stretch — only if time allows |
-| 2.7 | Save thumbnails per tracklet to `/data/processed` | Backend | not started | |
+| 2.7 | Save thumbnails per tracklet to `/data/processed` | Backend | done | Tracklet crops are written under `data/processed/detections/<video_id>/crops`; confirmed in the smoke test output. |
 
 ### Phase 3 — Storage & Search
 

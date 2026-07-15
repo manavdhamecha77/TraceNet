@@ -10,6 +10,7 @@ from loguru import logger
 
 from app.db.session import get_db, SessionLocal
 from app.db.models import CameraProfile, VideoAsset
+from app.detection.detector import DetectionService
 from app.preprocess.storage import MockStorageProvider
 from app.preprocess.preprocessor import VideoPreprocessor
 
@@ -65,8 +66,18 @@ def process_video_background(
             intake_sha256=intake_sha256,
             start_time=start_time
         )
+
+        # 4. Run detection + tracking on the standardized video output
+        detection_output_dir = os.path.join("./data/processed", "detections", asset_id)
+        detection_service = DetectionService()
+        detection_result = detection_service.analyze_video(
+            video_path=pipeline_results["standardized_video_path"],
+            output_dir=detection_output_dir,
+            camera_id=camera_id,
+            video_id=asset_id,
+        )
         
-        # 4. Commit results to DB
+        # 5. Commit results to DB
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
             video.standardized_filename = pipeline_results["standardized_filename"]
@@ -77,7 +88,10 @@ def process_video_background(
             video.thumbnail_path = pipeline_results["thumbnail_path"]
             video.processing_status = "complete"
             db.commit()
-            logger.info(f"Asset {asset_id} ingestion pipeline completed successfully.")
+            logger.info(
+                f"Asset {asset_id} ingestion pipeline completed successfully "
+                f"with {len(detection_result.tracklets)} tracklets."
+            )
             
     except Exception as e:
         logger.error(f"Ingestion pipeline failed for asset {asset_id}: {str(e)}")

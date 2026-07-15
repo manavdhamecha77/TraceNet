@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.health import router as health_router
 from app.api.cameras import router as cameras_router
+from app.api.detections import router as detections_router
 from app.api.upload import router as upload_router
 from app.config import get_settings
 from app.db.models import Base
@@ -15,6 +16,7 @@ import sqlite3
 os.makedirs("data", exist_ok=True)
 os.makedirs("data/minio_mock", exist_ok=True)
 os.makedirs("data/cameras", exist_ok=True)
+os.makedirs("data/processed/detections", exist_ok=True)
 
 # Run schema migrations for SQLite dynamically to prevent OperationalError
 def run_startup_migrations():
@@ -67,6 +69,7 @@ app.mount("/data", StaticFiles(directory="data"), name="data")
 # Register routes
 app.include_router(health_router, prefix=settings.api_prefix)
 app.include_router(cameras_router, prefix=settings.api_prefix)
+app.include_router(detections_router, prefix=settings.api_prefix)
 app.include_router(upload_router, prefix=settings.api_prefix)
 
 

@@ -213,10 +213,12 @@ class VideoPreprocessor:
         
         return {
             "standardized_filename": f"{standardized_video_name}.mp4",
+            "standardized_video_path": standardized_video_path,
             "transcoded_sha256": transcoded_sha256,
             "duration": meta["duration"],
             "start_time": start_time,
             "end_time": end_time,
             "thumbnail_path": meta["thumbnail_path"],
+            "inference_dir": inference_dir,
             "manifest_path": manifest_path
         }
