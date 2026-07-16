@@ -195,6 +195,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 5.3 | `docs/scalability.md` — production architecture writeup (edge processing, tiered storage, Kafka) for pitch, not implementation | Docs | not started | Reference the architecture diagram already agreed on |
 | 5.4 | README with setup/run instructions | Docs | not started | |
 | 5.5 | Error handling pass (empty results, failed uploads, malformed queries) | Backend + Frontend | not started | |
+| 5.6 | `docs/detection-tracking-api.md` — detection/tracking API quick guide and model placement | Docs | done | Added a short operator guide for `best.pt`, the detection endpoints, and the frontend review flow. |
 
 ---
 

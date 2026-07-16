@@ -765,13 +765,13 @@ function App() {
                   </div>
 
                   <div>
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Stage 2 Tracklets Preview</h4>
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Detection & Tracking Status</h4>
                     <div className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-3 text-center space-y-2">
                       <svg className="mx-auto h-6 w-6 text-teal-700/40 dark:text-teal-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <span className="text-[10px] text-slate-500 dark:text-slate-400 block leading-normal">
-                        YOLOv8 & ByteTrack analysis overlays will load tracklet annotations here in Stage 2.
+                        YOLOv8/BMD-45 detection and ByteTrack tracking are active. Open a completed video and click Detections to review tracklets.
                       </span>
                     </div>
                   </div>

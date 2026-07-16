@@ -98,12 +98,12 @@ export default function Dashboard({ metrics }: DashboardProps) {
             <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-full text-[10px] font-bold">Ready</span>
           </div>
 
-          <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-md flex justify-between items-center opacity-60">
+          <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-md flex justify-between items-center">
             <div className="space-y-0.5">
-              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">YOLOv8 & ByteTrack Detection (Stage 2)</h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Identifies and labels person/vehicle coordinates and tracks consistency.</p>
+              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">YOLOv8 & ByteTrack Detection</h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Detects person/vehicle objects, assigns track IDs, and writes tracklet summaries for review.</p>
             </div>
-            <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-450 rounded-full text-[10px] font-bold">Locked for Stage 2</span>
+            <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-full text-[10px] font-bold">Active</span>
           </div>
         </div>
       </section>
