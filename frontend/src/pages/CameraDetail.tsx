@@ -31,6 +31,48 @@ interface Video {
   thumbnail_path?: string
 }
 
+interface DetectionBox {
+  tracker_id: number | null
+  class_id: number | null
+  class_name: string
+  object_type: 'person' | 'vehicle' | 'unknown'
+  confidence: number
+  bbox: number[]
+}
+
+interface TrackletSummary {
+  tracklet_id: string
+  tracker_id: number
+  object_type: 'person' | 'vehicle'
+  class_name: string
+  camera_id: string
+  video_id: string
+  frame_start: number
+  frame_end: number
+  timestamp_start_seconds: number
+  timestamp_end_seconds: number
+  detection_count: number
+  mean_confidence: number
+  best_bbox: number[]
+  best_crop_path?: string | null
+}
+
+interface DetectionRunResponse {
+  video_id: string
+  camera_id: string
+  model_path: string
+  video_path: string
+  frame_count: number
+  fps: number
+  frame_detections: Array<{
+    frame_index: number
+    timestamp_seconds: number
+    detections: DetectionBox[]
+  }>
+  tracklets: TrackletSummary[]
+  artifact_path: string
+}
+
 interface CameraDetailProps {
   onOpenUploadModal: () => void
   onPlayVideo: (video: Video) => void
@@ -52,6 +94,13 @@ export default function CameraDetail({
   const [activeTab, setActiveTab] = useState<'original' | 'system'>('system')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [detectionLoadingId, setDetectionLoadingId] = useState<string | null>(null)
+  const [detectionModal, setDetectionModal] = useState<{
+    video: Video
+    result: DetectionRunResponse | null
+    error: string
+    loading: boolean
+  } | null>(null)
   const pollTimerRef = useRef<any>(null)
 
   // Fetch Camera Details
@@ -142,6 +191,43 @@ export default function CameraDetail({
       return `${API_BASE}/data/${relativePath}`
     }
     return ''
+  }
+
+  const getProcessedAssetUrl = (assetPath?: string | null) => {
+    if (!assetPath) return ''
+    const normalized = assetPath.replace(/\\/g, '/')
+    const backendDataIndex = normalized.indexOf('/backend/data/')
+    if (backendDataIndex !== -1) {
+      return `${API_BASE}${normalized.slice(backendDataIndex + '/backend'.length)}`
+    }
+    const dataIndex = normalized.indexOf('/data/')
+    if (dataIndex !== -1) {
+      return `${API_BASE}${normalized.slice(dataIndex)}`
+    }
+    return ''
+  }
+
+  const openDetections = async (video: Video) => {
+    setDetectionLoadingId(video.id)
+    setDetectionModal({ video, result: null, error: '', loading: true })
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/videos/${video.id}/detections`)
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Detection results are not available yet.')
+      }
+      const result = (await res.json()) as DetectionRunResponse
+      setDetectionModal({ video, result, error: '', loading: false })
+    } catch (err) {
+      setDetectionModal({
+        video,
+        result: null,
+        error: err instanceof Error ? err.message : 'Failed to fetch detection results.',
+        loading: false,
+      })
+    } finally {
+      setDetectionLoadingId(null)
+    }
   }
 
   if (error) {
@@ -336,20 +422,43 @@ export default function CameraDetail({
                       </td>
 
                       <td className="px-4 py-3 whitespace-nowrap text-right">
-                        <button
-                          disabled={video.processing_status !== 'complete'}
-                          onClick={() => onPlayVideo(video)}
-                          className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-bold transition-all ${
-                            video.processing_status === 'complete'
-                              ? 'bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white shadow-sm'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
-                          }`}
-                        >
-                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                          </svg>
-                          View
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            disabled={video.processing_status !== 'complete' || detectionLoadingId === video.id}
+                            onClick={() => openDetections(video)}
+                            className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-bold transition-all ${
+                              video.processing_status === 'complete'
+                                ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            {detectionLoadingId === video.id ? (
+                              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            ) : (
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.55-2.28A1 1 0 0121 8.62v6.76a1 1 0 01-1.45.89L15 14M4 7h8a2 2 0 012 2v6a2 2 0 01-2 2H4V7z" />
+                              </svg>
+                            )}
+                            Detections
+                          </button>
+                          <button
+                            disabled={video.processing_status !== 'complete'}
+                            onClick={() => onPlayVideo(video)}
+                            className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-bold transition-all ${
+                              video.processing_status === 'complete'
+                                ? 'bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+                            }`}
+                          >
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            </svg>
+                            View
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -359,6 +468,125 @@ export default function CameraDetail({
           </table>
         </div>
       </div>
+
+      {detectionModal && (
+        <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                Detections for {detectionModal.video.original_filename}
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {detectionModal.loading
+                  ? 'Loading tracklets...'
+                  : detectionModal.error
+                    ? detectionModal.error
+                    : `${detectionModal.result?.tracklets.length ?? 0} tracklets confirmed`}
+              </p>
+            </div>
+            <button
+              onClick={() => setDetectionModal(null)}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-white"
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-0">
+            <div className="p-4 space-y-3 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-700">
+              {detectionModal.loading ? (
+                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Inspecting detections...
+                </div>
+              ) : detectionModal.error ? (
+                <div className="rounded border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300 p-3 text-xs">
+                  {detectionModal.error}
+                </div>
+              ) : detectionModal.result ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-[11px]">
+                    <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
+                      <div className="text-slate-400 uppercase tracking-wider font-bold">Frames</div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{detectionModal.result.frame_count}</div>
+                    </div>
+                    <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
+                      <div className="text-slate-400 uppercase tracking-wider font-bold">Tracklets</div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{detectionModal.result.tracklets.length}</div>
+                    </div>
+                    <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
+                      <div className="text-slate-400 uppercase tracking-wider font-bold">FPS</div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{detectionModal.result.fps.toFixed(1)}</div>
+                    </div>
+                    <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
+                      <div className="text-slate-400 uppercase tracking-wider font-bold">Object Types</div>
+                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                        {Array.from(new Set(detectionModal.result.tracklets.map((tracklet) => tracklet.object_type))).join(', ') || 'None'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-3 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
+                    <div className="flex justify-between gap-4">
+                      <span>Model:</span>
+                      <span className="font-mono text-slate-800 dark:text-slate-100 truncate">{detectionModal.result.model_path}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span>Artifact:</span>
+                      <span className="font-mono text-slate-800 dark:text-slate-100 truncate">{detectionModal.result.artifact_path}</span>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            <div className="p-4 space-y-3 max-h-[420px] overflow-y-auto bg-slate-50 dark:bg-slate-900/40">
+              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tracklet Summary</h4>
+              {detectionModal.result && detectionModal.result.tracklets.length > 0 ? (
+                detectionModal.result.tracklets.map((tracklet) => {
+                  const cropUrl = getProcessedAssetUrl(tracklet.best_crop_path)
+                  return (
+                    <div key={tracklet.tracklet_id} className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-24 h-14 rounded overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0">
+                          {cropUrl ? (
+                            <img src={cropUrl} alt={tracklet.tracklet_id} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">
+                              No crop
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1 text-xs space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-slate-800 dark:text-slate-100 truncate">{tracklet.tracklet_id}</span>
+                            <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
+                              {tracklet.object_type}
+                            </span>
+                          </div>
+                          <div className="text-slate-500 dark:text-slate-400">Class: {tracklet.class_name}</div>
+                          <div className="text-slate-500 dark:text-slate-400">Frames: {tracklet.frame_start} - {tracklet.frame_end}</div>
+                          <div className="text-slate-500 dark:text-slate-400">Confidence: {(tracklet.mean_confidence * 100).toFixed(1)}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : detectionModal.result ? (
+                <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-xs text-slate-500 dark:text-slate-400">
+                  No tracklets were confirmed for this clip.
+                </div>
+              ) : (
+                <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-xs text-slate-500 dark:text-slate-400">
+                  Open a completed video and click Detections to review tracklets.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -162,6 +162,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 2.5 | CLIP embedding extraction per tracklet (best crop or averaged) | Backend/Embeddings | not started | Depends on 2.4 |
 | 2.6 | (Optional) BLIP auto-caption per tracklet for extra text attributes | Backend/Embeddings | not started | Stretch — only if time allows |
 | 2.7 | Save thumbnails per tracklet to `/data/processed` | Backend | done | Tracklet crops are written under `data/processed/detections/<video_id>/crops`; confirmed in the smoke test output. |
+| 2.8 | Frontend detections drawer on camera detail page | Frontend | done | Added a `Detections` action beside video playback and an inline tracklet summary drawer on `/cameras/[id]`; verified with `npm.cmd run build`. |
 
 ### Phase 3 — Storage & Search
 
