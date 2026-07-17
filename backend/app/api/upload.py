@@ -11,6 +11,7 @@ from loguru import logger
 from app.db.session import get_db, SessionLocal
 from app.db.models import CameraProfile, VideoAsset
 from app.detection.detector import DetectionService
+from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
 from app.preprocess.storage import MockStorageProvider
 from app.preprocess.preprocessor import VideoPreprocessor
 
@@ -76,6 +77,11 @@ def process_video_background(
             camera_id=camera_id,
             video_id=asset_id,
         )
+
+        embedding_service = TrackletEmbeddingService()
+        embedding_result = embedding_service.embed_detection_artifact(
+            os.path.join(detection_output_dir, "detections.json")
+        )
         
         # 5. Commit results to DB
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
@@ -90,7 +96,8 @@ def process_video_background(
             db.commit()
             logger.info(
                 f"Asset {asset_id} ingestion pipeline completed successfully "
-                f"with {len(detection_result.tracklets)} tracklets."
+                f"with {len(detection_result.tracklets)} tracklets and "
+                f"{embedding_result.embedded_tracklets} embeddings."
             )
             
     except Exception as e:

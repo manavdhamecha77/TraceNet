@@ -11,6 +11,7 @@ from app.config import get_settings
 from app.db.models import VideoAsset
 from app.db.session import get_db
 from app.detection.detector import DetectionService, resolve_standardized_video_path
+from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
 
 router = APIRouter(prefix="/api/v1", tags=["detection"])
 
@@ -33,6 +34,30 @@ class DetectionRunResponse(BaseModel):
     frame_detections: list[dict]
     tracklets: list[dict]
     artifact_path: str
+
+
+class TrackletEmbeddingRecordResponse(BaseModel):
+    tracklet_id: str
+    video_id: str
+    camera_id: str
+    object_type: str
+    best_crop_path: str
+    embedding_dim: int
+    embedding: list[float]
+
+
+class TrackletEmbeddingRunResponse(BaseModel):
+    video_id: str
+    camera_id: str
+    source_artifact_path: str
+    embeddings_artifact_path: str
+    model_name: str
+    pretrained: str
+    embedding_dim: int
+    total_tracklets: int
+    embedded_tracklets: int
+    skipped_tracklets: int
+    tracklets: list[TrackletEmbeddingRecordResponse]
 
 
 class DetectionRunRequest(BaseModel):
@@ -72,6 +97,7 @@ def run_video_detections(
     artifact_path = os.path.join(artifact_dir, "detections.json")
     if os.path.exists(artifact_path) and not payload.force:
         with open(artifact_path, "r", encoding="utf-8") as handle:
+            TrackletEmbeddingService().embed_detection_artifact(artifact_path)
             return DetectionRunResponse.model_validate_json(handle.read())
 
     try:
@@ -83,6 +109,7 @@ def run_video_detections(
             camera_id=video.camera_id,
             video_id=video.id,
         )
+        TrackletEmbeddingService().embed_detection_artifact(artifact_path)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return DetectionRunResponse.model_validate(result.to_dict())
@@ -106,3 +133,43 @@ def get_video_detections(video_id: str, db: Session = Depends(get_db)) -> Detect
 
     with open(artifact_path, "r", encoding="utf-8") as handle:
         return DetectionRunResponse.model_validate_json(handle.read())
+
+
+@router.post("/videos/{video_id}/embeddings", response_model=TrackletEmbeddingRunResponse)
+def run_video_embeddings(video_id: str, db: Session = Depends(get_db)) -> TrackletEmbeddingRunResponse:
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video asset with ID '{video_id}' does not exist.",
+        )
+
+    artifact_path = os.path.join("./data/processed", "detections", video_id, "detections.json")
+    if not os.path.exists(artifact_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No detection artifact found for video '{video_id}'. Run detection first.",
+        )
+
+    result = TrackletEmbeddingService().embed_detection_artifact(artifact_path)
+    return TrackletEmbeddingRunResponse.model_validate(result.to_dict())
+
+
+@router.get("/videos/{video_id}/embeddings", response_model=TrackletEmbeddingRunResponse)
+def get_video_embeddings(video_id: str, db: Session = Depends(get_db)) -> TrackletEmbeddingRunResponse:
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video asset with ID '{video_id}' does not exist.",
+        )
+
+    artifact_path = os.path.join("./data/processed", "detections", video_id, "embeddings.json")
+    if not os.path.exists(artifact_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No embedding artifact found for video '{video_id}'. Run embeddings first.",
+        )
+
+    with open(artifact_path, "r", encoding="utf-8") as handle:
+        return TrackletEmbeddingRunResponse.model_validate_json(handle.read())

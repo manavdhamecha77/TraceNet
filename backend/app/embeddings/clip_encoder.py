@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Optional
+from pathlib import Path
+from typing import Optional, Sequence
 
+from PIL import Image
+import torch.nn.functional as F
 import torch
 import open_clip
 from loguru import logger
@@ -73,6 +76,40 @@ class ClipEncoder:
         if self._tokenizer is None:
             raise RuntimeError("CLIP encoder has not been loaded yet.")
         return self._tokenizer
+
+    def embed_image(self, image_path: str | Path) -> list[float]:
+        """Embed one image crop into a normalized CLIP feature vector."""
+        with Image.open(image_path) as image:
+            image_tensor = self.preprocess(image.convert("RGB")).unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            features = self.model.encode_image(image_tensor)
+            features = F.normalize(features, dim=-1)
+        return features.squeeze(0).detach().cpu().tolist()
+
+    def embed_images(self, image_paths: Sequence[str | Path]) -> list[list[float]]:
+        """Embed multiple image crops in a single batched forward pass."""
+        paths = list(image_paths)
+        if not paths:
+            return []
+
+        batch = []
+        for image_path in paths:
+            with Image.open(image_path) as image:
+                batch.append(self.preprocess(image.convert("RGB")))
+
+        image_tensor = torch.stack(batch).to(self.device)
+        with torch.no_grad():
+            features = self.model.encode_image(image_tensor)
+            features = F.normalize(features, dim=-1)
+        return features.detach().cpu().tolist()
+
+    def embed_text(self, text: str) -> list[float]:
+        """Embed text into the shared CLIP feature space."""
+        tokens = self.tokenizer([text]).to(self.device)
+        with torch.no_grad():
+            features = self.model.encode_text(tokens)
+            features = F.normalize(features, dim=-1)
+        return features.squeeze(0).detach().cpu().tolist()
 
 
 @lru_cache(maxsize=1)
