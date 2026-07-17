@@ -8,6 +8,7 @@ from app.api.cameras import router as cameras_router
 from app.api.detections import router as detections_router
 from app.api.upload import router as upload_router
 from app.config import get_settings
+from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
 from app.db.session import engine
 import sqlite3
@@ -53,6 +54,17 @@ Base.metadata.create_all(bind=engine)
 settings = get_settings()
 
 app = FastAPI(title=settings.app_name)
+
+
+@app.on_event("startup")
+def load_startup_singletons() -> None:
+    """Load shared ML models once at app startup."""
+    clip_encoder = get_clip_encoder()
+    app.state.clip_encoder = clip_encoder
+    print(
+        "Startup: CLIP encoder loaded "
+        f"(model={clip_encoder.model_name}, pretrained={clip_encoder.pretrained}, device={clip_encoder.device})."
+    )
 
 # Enable CORS for frontend integration
 app.add_middleware(
