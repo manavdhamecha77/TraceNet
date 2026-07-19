@@ -5,6 +5,13 @@ const API_BASE = 'http://localhost:8000'
 interface Camera {
   camera_id: string
   name: string
+  model_id?: string | null
+}
+
+interface MLModel {
+  id: string
+  name: string
+  model_type: string
 }
 
 interface SearchResult {
@@ -25,6 +32,7 @@ interface SearchResult {
   video_original_filename: string
   video_start_time: string
   video_standardized_filename: string
+  video_thumbnail_path?: string | null
 }
 
 interface SearchLog {
@@ -46,6 +54,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
   // Filters & State
   const [query, setQuery] = useState('')
   const [selectedCameras, setSelectedCameras] = useState<string[]>([])
+  const [selectedModels, setSelectedModels] = useState<string[]>([]) // Empty list means ALL models
   const [timeStart, setTimeStart] = useState('')
   const [timeEnd, setTimeEnd] = useState('')
   const [objectType, setObjectType] = useState<string>('all')
@@ -53,6 +62,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
   // DB Metadata
   const [cameras, setCameras] = useState<Camera[]>([])
+  const [models, setModels] = useState<MLModel[]>([])
   const [searchLogs, setSearchLogs] = useState<SearchLog[]>([])
   const [results, setResults] = useState<SearchResult[]>([])
   const [modelInfo, setModelInfo] = useState<any>(null)
@@ -86,18 +96,22 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length]
   }
 
-  // Load cameras, logs, model info
+  // Load cameras, models, logs, current active model info
   const loadMetadata = async () => {
     try {
       // 1. Fetch Cameras
       const camRes = await fetch(`${API_BASE}/api/v1/cameras`)
       if (camRes.ok) setCameras(await camRes.json())
 
-      // 2. Fetch Search logs
+      // 2. Fetch Models
+      const modelsRes = await fetch(`${API_BASE}/api/v1/models`)
+      if (modelsRes.ok) setModels(await modelsRes.json())
+
+      // 3. Fetch Search logs
       const logRes = await fetch(`${API_BASE}/api/v1/search/logs`)
       if (logRes.ok) setSearchLogs(await logRes.json())
 
-      // 3. Fetch model details
+      // 4. Fetch loaded active model details
       const modelRes = await fetch(`${API_BASE}/api/v1/detection/model`)
       if (modelRes.ok) setModelInfo(await modelRes.json())
     } catch (err) {
@@ -111,6 +125,21 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     loadMetadata()
   }, [])
 
+  // Check if camera is disabled due to model filtering
+  const isCameraDisabled = (cam: Camera): boolean => {
+    if (selectedModels.length === 0) return false
+    // Disable if camera is not assigned to a selected model
+    return !cam.model_id || !selectedModels.includes(cam.model_id)
+  }
+
+  // Auto-deselect cameras that become disabled due to model selections
+  useEffect(() => {
+    setSelectedCameras(prev => prev.filter(camId => {
+      const cam = cameras.find(c => c.camera_id === camId)
+      return cam ? !isCameraDisabled(cam) : true
+    }))
+  }, [selectedModels, cameras])
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!query.trim()) return
@@ -120,9 +149,14 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     setResults([])
     setExportHash(null)
 
+    // Collect enabled cameras
+    const activeCameraIds = selectedCameras.length > 0 
+      ? selectedCameras 
+      : cameras.filter(c => !isCameraDisabled(c)).map(c => c.camera_id)
+
     const payload = {
       query: query.trim(),
-      camera_ids: selectedCameras.length > 0 ? selectedCameras : null,
+      camera_ids: activeCameraIds.length > 0 ? activeCameraIds : null,
       time_start: timeStart ? new Date(timeStart).toISOString() : null,
       time_end: timeEnd ? new Date(timeEnd).toISOString() : null,
       object_type: objectType,
@@ -211,6 +245,19 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       prev.includes(camId) ? prev.filter(c => c !== camId) : [...prev, camId]
     )
   }
+
+  const handleModelToggle = (modelId: string) => {
+    setSelectedModels(prev =>
+      prev.includes(modelId) ? prev.filter(m => m !== modelId) : [...prev, modelId]
+    )
+  }
+
+  // Filter search results dynamically by model selection
+  const visibleResults = results.filter(r => {
+    const cam = cameras.find(c => c.camera_id === r.camera_id)
+    if (!cam) return true
+    return !isCameraDisabled(cam)
+  })
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -355,29 +402,68 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           </form>
         </div>
 
-        {/* Camera node scopes */}
-        <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-5 shadow-sm flex flex-col justify-between max-h-[290px] overflow-hidden">
-          <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Scope Camera nodes</label>
-            <p className="text-[10px] text-slate-400 shrink-0">Filter search target to specific topography nodes. If none selected, indexes are scanned citywide.</p>
-            <div className="overflow-y-auto mt-2 space-y-1.5 pr-2 flex-1 min-h-0">
-              {cameras.map((c) => (
-                <label key={c.camera_id} className="flex items-center gap-2 cursor-pointer text-xs text-slate-650 dark:text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={selectedCameras.includes(c.camera_id)}
-                    onChange={() => handleCameraToggle(c.camera_id)}
-                    className="rounded text-teal-700 border-slate-350 dark:border-slate-700 focus:ring-teal-500"
-                  />
-                  <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px] text-teal-650 dark:text-teal-400 font-bold shrink-0">{c.camera_id}</span>
-                  <span className="truncate">{c.name}</span>
-                </label>
-              ))}
-              {cameras.length === 0 && (
-                <span className="text-xs text-slate-400 block py-4">No cameras configured. Register cameras first.</span>
-              )}
+        {/* Sidebar Filters: Models & Cameras */}
+        <div className="space-y-4 flex flex-col">
+          
+          {/* Model Registry Filter */}
+          <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-4 shadow-sm flex flex-col justify-between max-h-[170px] overflow-hidden">
+            <div className="space-y-2 flex-1 min-h-0 flex flex-col">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Model Filter (drift guard)</label>
+              <p className="text-[9px] text-slate-400 shrink-0">Select model source. De-selecting a model hides its predictions and locks corresponding cameras.</p>
+              <div className="overflow-y-auto mt-2 space-y-1.5 pr-2 flex-1 min-h-0">
+                {models.map((m) => (
+                  <label key={m.id} className="flex items-center gap-2 cursor-pointer text-xs text-slate-650 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={selectedModels.includes(m.id)}
+                      onChange={() => handleModelToggle(m.id)}
+                      className="rounded text-amber-600 border-slate-300 dark:border-slate-700 focus:ring-amber-500"
+                    />
+                    <span className="font-mono bg-amber-500/10 px-1 py-0.5 rounded text-[10px] text-amber-700 dark:text-amber-400 font-bold shrink-0">{m.model_type}</span>
+                    <span className="truncate">{m.name}</span>
+                  </label>
+                ))}
+                {models.length === 0 && (
+                  <span className="text-xs text-slate-400 block py-1">No uploaded models found.</span>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Camera node scopes */}
+          <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-4 shadow-sm flex flex-col justify-between max-h-[220px] overflow-hidden">
+            <div className="space-y-2 flex-1 min-h-0 flex flex-col">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Scope Camera nodes</label>
+              <p className="text-[9px] text-slate-400 shrink-0">Filter targets. Cameras connected to deselected models are disabled.</p>
+              <div className="overflow-y-auto mt-2 space-y-1.5 pr-2 flex-1 min-h-0">
+                {cameras.map((c) => {
+                  const disabled = isCameraDisabled(c)
+                  return (
+                    <label 
+                      key={c.camera_id} 
+                      className={`flex items-center gap-2 text-xs transition-opacity ${
+                        disabled ? 'opacity-35 cursor-not-allowed text-slate-400' : 'cursor-pointer text-slate-650 dark:text-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        disabled={disabled}
+                        checked={selectedCameras.includes(c.camera_id)}
+                        onChange={() => handleCameraToggle(c.camera_id)}
+                        className="rounded text-teal-700 border-slate-350 dark:border-slate-700 focus:ring-teal-500 disabled:bg-slate-200"
+                      />
+                      <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px] text-teal-650 dark:text-teal-400 font-bold shrink-0">{c.camera_id}</span>
+                      <span className="truncate">{c.name}</span>
+                    </label>
+                  )
+                })}
+                {cameras.length === 0 && (
+                  <span className="text-xs text-slate-400 block py-4">No cameras configured.</span>
+                )}
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -392,11 +478,11 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       <div className="space-y-4">
         
         {/* Results title & actions bar */}
-        {results.length > 0 && (
+        {visibleResults.length > 0 && (
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
             <div>
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Search Results</h3>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Found {results.length} matching candidate tracklets</p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Found {visibleResults.length} matching candidate tracklets</p>
             </div>
             
             <div className="flex items-center gap-3">
@@ -418,7 +504,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
         {/* Detections grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {results.map((result) => {
+          {visibleResults.map((result) => {
             const cropUrl = result.best_crop_path ? `${API_BASE}${result.best_crop_path}` : ''
             const scorePercent = (result.score * 100).toFixed(1)
             const scoreColor =
@@ -433,13 +519,13 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                 key={result.tracklet_id}
                 className="group flex flex-col rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 hover:border-teal-400 dark:hover:border-teal-500 hover:-translate-y-0.5"
               >
-                {/* Crop display */}
-                <div className="relative w-full h-28 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                {/* Crop display (object-contain with background fill to keep original aspect ratio) */}
+                <div className="relative w-full h-28 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
                   {cropUrl ? (
                     <img
                       src={cropUrl}
                       alt={result.tracklet_id}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      className="w-full h-full object-contain bg-slate-200/50 dark:bg-slate-800/50 transition-transform duration-300 group-hover:scale-102"
                     />
                   ) : (
                     <span className="text-[10px] text-slate-400">No Crop Saved</span>
@@ -475,7 +561,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                       </span>
                     </div>
 
-                    <div className="text-[10px] text-slate-600 dark:text-slate-350 space-y-0.5">
+                    <div className="text-[10px] text-slate-650 dark:text-slate-350 space-y-0.5 font-sans">
                       <div>Timeline: <strong className="text-slate-800 dark:text-slate-100">{new Date(result.video_start_time).toLocaleString()}</strong></div>
                       <div>Relative Start: <strong className="text-slate-800 dark:text-slate-100">{result.timestamp_start_seconds.toFixed(2)}s</strong> (Frame {result.frame_start})</div>
                       <div>Mean Conf: <strong className="text-slate-850 dark:text-slate-200">{(result.mean_confidence * 100).toFixed(0)}%</strong></div>
@@ -489,7 +575,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                         id: result.video_id,
                         camera_id: result.camera_id,
                         standardized_filename: result.video_standardized_filename,
-                        thumbnail_path: `cameras/${result.camera_id}/inference/thumbnail.jpg`, // standard location helper
+                        thumbnail_path: result.video_thumbnail_path || '',
                         processing_status: 'complete'
                       }
                       onPlayVideoAtTime(mockVideoObj, result.timestamp_start_seconds)
@@ -507,7 +593,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
             )
           })}
 
-          {results.length === 0 && !searching && query.trim() && (
+          {visibleResults.length === 0 && !searching && query.trim() && (
             <div className="col-span-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-xs text-slate-400 dark:text-slate-500">
               No matching tracklets found in indices. Try refining the query descriptor or shifting search parameters.
             </div>
@@ -520,7 +606,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-5 shadow-sm space-y-4">
         <div>
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Evidentiary Search Audit Logs</h3>
-          <p className="text-[10px] text-slate-400 mt-0.5">Logs of recent transactions forSmart City surveillance compliance audits.</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Logs of recent transactions for Smart City surveillance compliance audits.</p>
         </div>
         
         <div className="overflow-x-auto">

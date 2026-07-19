@@ -287,13 +287,25 @@ function App() {
   }
 
   const handlePlayVideoAtTime = (video: Video, timestamp: number) => {
+    const cam = cameras.find((c) => c.camera_id === video.camera_id)
+    if (cam) {
+      setSelectedCamera(cam)
+    } else {
+      setSelectedCamera({
+        camera_id: video.camera_id,
+        name: `Camera ${video.camera_id}`,
+        status: 'active',
+        is_active: true,
+      } as any)
+    }
     setSelectedVideoToPlay(video)
     setPlayerView('annotated')
     setTimeout(() => {
       if (videoRef.current) {
         videoRef.current.currentTime = timestamp
+        videoRef.current.pause()
       }
-    }, 400)
+    }, 500)
   }
 
   // Helper formats

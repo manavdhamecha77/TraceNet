@@ -160,7 +160,8 @@ class QueryEngine:
                 "best_bbox": best_bbox,
                 "video_original_filename": video.original_filename,
                 "video_start_time": video_ref_time.isoformat(),
-                "video_standardized_filename": video.standardized_filename
+                "video_standardized_filename": video.standardized_filename,
+                "video_thumbnail_path": video.thumbnail_path or ""
             })
 
         # Sort combined results by cosine similarity score desc

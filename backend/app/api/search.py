@@ -41,6 +41,7 @@ class SearchQueryResultItem(BaseModel):
     video_original_filename: str
     video_start_time: str
     video_standardized_filename: str
+    video_thumbnail_path: Optional[str] = None
 
 
 class SearchLogItem(BaseModel):
