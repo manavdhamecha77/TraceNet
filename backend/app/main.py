@@ -7,21 +7,23 @@ from app.api.health import router as health_router
 from app.api.cameras import router as cameras_router
 from app.api.detections import router as detections_router
 from app.api.upload import router as upload_router
-from app.config import get_settings
+from app.api.models import router as models_router
+from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
 from app.db.session import engine
 import sqlite3
 
-# Ensure data folders exist
-os.makedirs("data", exist_ok=True)
-os.makedirs("data/minio_mock", exist_ok=True)
-os.makedirs("data/cameras", exist_ok=True)
-os.makedirs("data/processed/detections", exist_ok=True)
+# Ensure data folders exist absolutely in backend/data/
+os.makedirs(get_data_path(""), exist_ok=True)
+os.makedirs(get_data_path("minio_mock"), exist_ok=True)
+os.makedirs(get_data_path("cameras"), exist_ok=True)
+os.makedirs(get_data_path("processed/detections"), exist_ok=True)
+os.makedirs(get_data_path("models"), exist_ok=True)
 
 # Run schema migrations for SQLite dynamically to prevent OperationalError
 def run_startup_migrations():
-    db_path = "./data/drishti.db"
+    db_path = get_data_path("drishti.db")
     if os.path.exists(db_path):
         conn = sqlite3.connect(db_path)
         try:
@@ -41,6 +43,11 @@ def run_startup_migrations():
                     cursor.execute("ALTER TABLE cameras ADD COLUMN altitude FLOAT")
                     conn.commit()
                     print("Schema Migration: Added 'altitude' column to cameras.")
+
+                if "model_id" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN model_id VARCHAR REFERENCES models(id)")
+                    conn.commit()
+                    print("Schema Migration: Added 'model_id' column to cameras.")
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -76,13 +83,14 @@ app.add_middleware(
 )
 
 # Serve the data directory statically to allow access to thumbnails and transcoded clips
-app.mount("/data", StaticFiles(directory="data"), name="data")
+app.mount("/data", StaticFiles(directory=get_data_path("")), name="data")
 
 # Register routes
 app.include_router(health_router, prefix=settings.api_prefix)
 app.include_router(cameras_router, prefix=settings.api_prefix)
 app.include_router(detections_router, prefix=settings.api_prefix)
 app.include_router(upload_router, prefix=settings.api_prefix)
+app.include_router(models_router, prefix=settings.api_prefix)
 
 
 @app.get("/", include_in_schema=False)

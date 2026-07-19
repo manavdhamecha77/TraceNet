@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import get_settings, get_data_path
 from app.db.models import VideoAsset
 from app.db.session import get_db
 from app.detection.detector import DetectionService, resolve_standardized_video_path
@@ -70,7 +70,12 @@ def get_detection_model_info() -> DetectionServiceInfo:
     model_path = settings.detection_model_path
     resolved_path = Path(model_path)
     if not resolved_path.is_absolute():
-        resolved_path = Path(__file__).resolve().parents[2] / resolved_path
+        local_path = resolved_path.resolve()
+        fallback_path = Path(__file__).resolve().parents[2] / resolved_path
+        if local_path.exists():
+            resolved_path = local_path
+        else:
+            resolved_path = fallback_path
     return DetectionServiceInfo(
         model_path=model_path,
         confidence_threshold=settings.detection_confidence_threshold,
@@ -93,7 +98,7 @@ def run_video_detections(
             detail=f"Video asset with ID '{video_id}' does not exist.",
         )
 
-    artifact_dir = os.path.join("./data/processed", "detections", video_id)
+    artifact_dir = get_data_path(os.path.join("processed/detections", video_id))
     artifact_path = os.path.join(artifact_dir, "detections.json")
     if os.path.exists(artifact_path) and not payload.force:
         with open(artifact_path, "r", encoding="utf-8") as handle:
@@ -124,7 +129,7 @@ def get_video_detections(video_id: str, db: Session = Depends(get_db)) -> Detect
             detail=f"Video asset with ID '{video_id}' does not exist.",
         )
 
-    artifact_path = os.path.join("./data/processed", "detections", video_id, "detections.json")
+    artifact_path = get_data_path(os.path.join("processed/detections", video_id, "detections.json"))
     if not os.path.exists(artifact_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -144,7 +149,7 @@ def run_video_embeddings(video_id: str, db: Session = Depends(get_db)) -> Trackl
             detail=f"Video asset with ID '{video_id}' does not exist.",
         )
 
-    artifact_path = os.path.join("./data/processed", "detections", video_id, "detections.json")
+    artifact_path = get_data_path(os.path.join("processed/detections", video_id, "detections.json"))
     if not os.path.exists(artifact_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -164,7 +169,7 @@ def get_video_embeddings(video_id: str, db: Session = Depends(get_db)) -> Trackl
             detail=f"Video asset with ID '{video_id}' does not exist.",
         )
 
-    artifact_path = os.path.join("./data/processed", "detections", video_id, "embeddings.json")
+    artifact_path = get_data_path(os.path.join("processed/detections", video_id, "embeddings.json"))
     if not os.path.exists(artifact_path):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

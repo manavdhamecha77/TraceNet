@@ -7,6 +7,7 @@ import subprocess
 from datetime import datetime, timezone, timedelta
 import cv2
 from loguru import logger
+from app.config import get_data_path
 
 def sanitize_filename(filename: str) -> str:
     """Sanitizes filename to prevent path traversal and ensure safety."""
@@ -163,7 +164,7 @@ class VideoPreprocessor:
         
         # Build physical layout folders
         camera_dir_name = f"{camera_id}_{sanitize_filename(camera_name)}"
-        camera_dir = os.path.join("./data/cameras", camera_dir_name)
+        camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
         original_assets_dir = os.path.join(camera_dir, "original_assets")
         inference_dir = os.path.join(camera_dir, "inference", standardized_video_name)
         

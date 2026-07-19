@@ -2,10 +2,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/drishti.db")
+from app.config import get_data_path
 
+db_path = get_data_path("drishti.db")
 # Ensure data directory exists
-os.makedirs("./data", exist_ok=True)
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{db_path}")
 
 engine = create_engine(
     DATABASE_URL, 

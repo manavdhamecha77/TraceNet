@@ -1,9 +1,40 @@
 import json
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Float, DateTime, Text, ForeignKey, Boolean
+from sqlalchemy import Column, String, Float, DateTime, Text, ForeignKey, Boolean, Integer
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
+
+
+class MLModel(Base):
+    __tablename__ = "models"
+
+    id = Column(String, primary_key=True, index=True)  # PK, e.g. UUID
+    name = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    model_type = Column(String, nullable=False)  # 'YOLOv8' | 'YOLOv11' | 'YOLOv12' | 'RT-DETR' | 'GroundingDino'
+    classes = Column(Text, default="[]")  # JSON string of class names
+    last_used_timestamp = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    cameras = relationship("CameraProfile", back_populates="assigned_model")
+    logs = relationship("ModelExecutionLog", back_populates="model", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        try:
+            cls_list = json.loads(self.classes) if self.classes else []
+        except Exception:
+            cls_list = []
+        return {
+            "id": self.id,
+            "name": self.name,
+            "file_path": self.file_path,
+            "model_type": self.model_type,
+            "classes": cls_list,
+            "last_used_timestamp": self.last_used_timestamp.isoformat() if self.last_used_timestamp else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
 
 class CameraProfile(Base):
     __tablename__ = "cameras"
@@ -17,8 +48,10 @@ class CameraProfile(Base):
     is_active = Column(Boolean, default=True)
     status = Column(String, default="active")  # 'active' | 'maintenance' | 'not-working'
     altitude = Column(Float, nullable=True)
+    model_id = Column(String, ForeignKey("models.id"), nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
+    assigned_model = relationship("MLModel", back_populates="cameras")
 
     def to_dict(self):
         try:
@@ -35,8 +68,10 @@ class CameraProfile(Base):
             "is_active": self.is_active,
             "status": self.status,
             "altitude": self.altitude,
+            "model_id": self.model_id,
             "video_count": len(self.videos) if self.videos else 0
         }
+
 
 class VideoAsset(Base):
     __tablename__ = "videos"
@@ -57,6 +92,7 @@ class VideoAsset(Base):
     thumbnail_path = Column(String, nullable=True)
 
     camera = relationship("CameraProfile", back_populates="videos")
+    execution_logs = relationship("ModelExecutionLog", back_populates="video", cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
@@ -72,4 +108,32 @@ class VideoAsset(Base):
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "thumbnail_path": self.thumbnail_path
+        }
+
+
+class ModelExecutionLog(Base):
+    __tablename__ = "model_execution_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_id = Column(String, ForeignKey("models.id"), nullable=False)
+    video_id = Column(String, ForeignKey("videos.id"), nullable=False)
+    camera_id = Column(String, ForeignKey("cameras.camera_id"), nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    frames_processed = Column(Integer, nullable=False)
+    inference_duration_seconds = Column(Float, nullable=False)
+    objects_detected_count = Column(Integer, nullable=False)
+
+    model = relationship("MLModel", back_populates="logs")
+    video = relationship("VideoAsset", back_populates="execution_logs")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "model_id": self.model_id,
+            "video_id": self.video_id,
+            "camera_id": self.camera_id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "frames_processed": self.frames_processed,
+            "inference_duration_seconds": self.inference_duration_seconds,
+            "objects_detected_count": self.objects_detected_count,
         }

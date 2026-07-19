@@ -15,10 +15,11 @@ class CameraCreate(BaseModel):
     name: str = Field(..., example="Intersection East", min_length=2)
     latitude: Optional[float] = Field(None, example=23.0225)
     longitude: Optional[float] = Field(None, example=72.5714)
-    corridor_group: Optional[str] = Field(None, example= "Zone-A")
+    corridor_group: Optional[str] = Field(None, example="Zone-A")
     adjacency: List[str] = Field(default_factory=list, example=["CAM_041", "CAM_043"])
     status: Optional[str] = Field("active", example="active")
     altitude: Optional[float] = Field(None, example=45.2)
+    model_id: Optional[str] = Field(None, example="yolov8-person")
 
 class CameraUpdate(BaseModel):
     name: str = Field(..., example="Intersection East", min_length=2)
@@ -28,6 +29,7 @@ class CameraUpdate(BaseModel):
     adjacency: List[str] = Field(default_factory=list, example=["CAM_041", "CAM_043"])
     status: str = Field("active", example="active")
     altitude: Optional[float] = Field(None, example=45.2)
+    model_id: Optional[str] = Field(None, example="yolov8-person")
 
 class CameraResponse(BaseModel):
     camera_id: str
@@ -39,6 +41,7 @@ class CameraResponse(BaseModel):
     is_active: bool
     status: str
     altitude: Optional[float]
+    model_id: Optional[str]
     video_count: int
 
     class Config:
@@ -89,7 +92,8 @@ def create_camera(payload: CameraCreate, db: Session = Depends(get_db)):
             adjacency=json.dumps(payload.adjacency),
             is_active=True,
             status=payload.status or "active",
-            altitude=payload.altitude
+            altitude=payload.altitude,
+            model_id=payload.model_id
         )
         db.add(camera)
         db.commit()
@@ -169,6 +173,7 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
         camera.adjacency = json.dumps(payload.adjacency)
         camera.status = payload.status
         camera.altitude = payload.altitude
+        camera.model_id = payload.model_id
         
         db.commit()
         db.refresh(camera)

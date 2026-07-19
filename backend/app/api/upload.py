@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 from loguru import logger
 
 from app.db.session import get_db, SessionLocal
-from app.db.models import CameraProfile, VideoAsset
+from app.db.models import CameraProfile, VideoAsset, MLModel, ModelExecutionLog
 from app.detection.detector import DetectionService
 from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
 from app.preprocess.storage import MockStorageProvider
 from app.preprocess.preprocessor import VideoPreprocessor
+
+from app.config import get_data_path
 
 router = APIRouter(prefix="/api/v1", tags=["upload"])
 
@@ -69,8 +71,26 @@ def process_video_background(
         )
 
         # 4. Run detection + tracking on the standardized video output
-        detection_output_dir = os.path.join("./data/processed", "detections", asset_id)
-        detection_service = DetectionService()
+        detection_output_dir = get_data_path(os.path.join("processed/detections", asset_id))
+        
+        # Resolve camera-assigned model path if it exists
+        model_path = None
+        assigned_model_id = None
+        
+        camera_record = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+        if camera_record and camera_record.model_id:
+            model_record = db.query(MLModel).filter(MLModel.id == camera_record.model_id).first()
+            if model_record and os.path.exists(model_record.file_path):
+                model_path = model_record.file_path
+                assigned_model_id = model_record.id
+                logger.info(f"Using assigned model '{model_record.name}' ({model_path}) for camera {camera_id}")
+            else:
+                logger.warning("Assigned model record or file not found. Falling back to default detector.")
+
+        import time
+        start_inference = time.time()
+        
+        detection_service = DetectionService(model_path=model_path)
         detection_result = detection_service.analyze_video(
             video_path=pipeline_results["standardized_video_path"],
             output_dir=detection_output_dir,
@@ -82,6 +102,34 @@ def process_video_background(
         embedding_result = embedding_service.embed_detection_artifact(
             os.path.join(detection_output_dir, "detections.json")
         )
+        
+        inference_duration = time.time() - start_inference
+        
+        # Log serving execution if custom model was used
+        if assigned_model_id:
+            try:
+                # Count total detections across all frame detections
+                total_dets = 0
+                for f in detection_result.frame_detections:
+                    total_dets += len(f.detections)
+                
+                log_entry = ModelExecutionLog(
+                    model_id=assigned_model_id,
+                    video_id=asset_id,
+                    camera_id=camera_id,
+                    frames_processed=detection_result.frame_count,
+                    inference_duration_seconds=inference_duration,
+                    objects_detected_count=total_dets
+                )
+                db.add(log_entry)
+                
+                # Update last used timestamp
+                model_rec = db.query(MLModel).filter(MLModel.id == assigned_model_id).first()
+                if model_rec:
+                    model_rec.last_used_timestamp = datetime.now(timezone.utc)
+                db.commit()
+            except Exception as log_err:
+                logger.warning(f"Failed to log model execution stats: {str(log_err)}")
         
         # 5. Commit results to DB
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()

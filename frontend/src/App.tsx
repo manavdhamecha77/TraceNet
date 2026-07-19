@@ -5,6 +5,7 @@ import Cameras from './pages/Cameras'
 import CameraDetail from './pages/CameraDetail'
 import Search from './pages/Search'
 import Landing from './pages/Landing'
+import Models from './pages/Models'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -18,6 +19,7 @@ interface Camera {
   is_active: boolean
   status: string
   altitude?: number
+  model_id?: string | null
   video_count: number
 }
 
@@ -49,6 +51,7 @@ function App() {
 
   // Data state
   const [cameras, setCameras] = useState<Camera[]>([])
+  const [models, setModels] = useState<any[]>([])
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
   const [cameraVideos, setCameraVideos] = useState<Video[]>([])
 
@@ -66,6 +69,7 @@ function App() {
   const [newCameraCorridor, setNewCameraCorridor] = useState('')
   const [newCameraAdjacency, setNewCameraAdjacency] = useState('')
   const [newCameraStatus, setNewCameraStatus] = useState('active')
+  const [newCameraModelId, setNewCameraModelId] = useState('')
   const [cameraFormError, setCameraFormError] = useState('')
 
   // Video Form State
@@ -106,10 +110,27 @@ function App() {
     }
   }
 
-  // Fetch cameras on mount, location change, and periodically every 5 seconds
+  // Fetch models
+  const fetchModels = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/models`)
+      if (res.ok) {
+        const data = await res.json()
+        setModels(data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch models:', err)
+    }
+  }
+
+  // Fetch cameras and models on mount, location change, and periodically every 5 seconds
   useEffect(() => {
     fetchCameras()
-    const timer = setInterval(fetchCameras, 5000)
+    fetchModels()
+    const timer = setInterval(() => {
+      fetchCameras()
+      fetchModels()
+    }, 5000)
     return () => clearInterval(timer)
   }, [location.pathname])
 
@@ -166,6 +187,7 @@ function App() {
       adjacency: adjacencyList,
       status: newCameraStatus,
       altitude: newCameraAltitude ? parseFloat(newCameraAltitude) : null,
+      model_id: newCameraModelId || null,
     }
 
     try {
@@ -187,6 +209,7 @@ function App() {
         setNewCameraAdjacency('')
         setNewCameraStatus('active')
         setNewCameraAltitude('')
+        setNewCameraModelId('')
       } else {
         const errorData = await res.json()
         setCameraFormError(errorData.detail || 'Failed to register camera.')
@@ -351,6 +374,20 @@ function App() {
             </Link>
 
             <Link
+              to="/models"
+              className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
+                location.pathname.startsWith('/models')
+                  ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 font-bold border-l-2 border-teal-700 dark:border-teal-400'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-800 dark:hover:text-white'
+              }`}
+            >
+              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+              </svg>
+              {!isSidebarCollapsed && <span>ML Models</span>}
+            </Link>
+
+            <Link
               to="/search"
               className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
                 location.pathname === '/search'
@@ -444,6 +481,7 @@ function App() {
               element={
                 <Cameras
                   cameras={cameras}
+                  models={models}
                   onOpenRegisterModal={() => setIsCameraModalOpen(true)}
                   onRefreshCameras={fetchCameras}
                 />
@@ -462,6 +500,7 @@ function App() {
                 />
               }
             />
+            <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
             <Route path="/search" element={<Search />} />
           </Routes>
 
@@ -583,6 +622,23 @@ function App() {
                   <option value="active">Active</option>
                   <option value="maintenance">Maintenance</option>
                   <option value="not-working">Not Working</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Assigned ML Model *</label>
+                <select
+                  value={newCameraModelId}
+                  onChange={(e) => setNewCameraModelId(e.target.value)}
+                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-850 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                  required
+                >
+                  <option value="">-- Select Model --</option>
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.model_type})
+                    </option>
+                  ))}
                 </select>
               </div>
 

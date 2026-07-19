@@ -13,11 +13,13 @@ interface Camera {
   is_active: boolean
   status: string
   altitude?: number
+  model_id?: string | null
   video_count: number
 }
 
 interface CamerasProps {
   cameras: Camera[]
+  models: any[]
   onOpenRegisterModal: () => void
   onRefreshCameras?: () => void
 }
@@ -109,7 +111,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputCls = "w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-[7px] text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 transition-colors"
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
-export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras }: CamerasProps) {
+export default function Cameras({ cameras, models, onOpenRegisterModal, onRefreshCameras }: CamerasProps) {
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({})
   const [localCameras, setLocalCameras] = useState<Camera[]>(cameras)
 
@@ -129,6 +131,7 @@ export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras
   const [editAdjacency, setEditAdjacency] = useState('')
   const [editStatus, setEditStatus] = useState('active')
   const [editAltitude, setEditAltitude] = useState('')
+  const [editModelId, setEditModelId] = useState('')
   const [editFormError, setEditFormError] = useState('')
   const editMapContainerRef = useRef<HTMLDivElement>(null)
   const editMapRef = useRef<any>(null)
@@ -195,10 +198,13 @@ export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras
 
       valid.forEach(cam => {
         const color = cam.status === 'active' ? '#059669' : cam.status === 'maintenance' ? '#D97706' : '#DC2626'
+        const assignedModel = models.find(m => m.id === cam.model_id)
+        const modelLabel = assignedModel ? `${assignedModel.name} (${assignedModel.model_type})` : 'None (Default)'
         const popup = `
           <div style="font-family:Inter,sans-serif;font-size:12px;min-width:160px">
             <div style="font-weight:700;color:#1F2937;margin-bottom:5px">${cam.name}</div>
             <div style="color:#6B7280;font-size:11px;margin-bottom:2px">ID: <b>${cam.camera_id}</b></div>
+            <div style="color:#6B7280;font-size:11px;margin-bottom:2px">Model: <b>${modelLabel}</b></div>
             <div style="color:#6B7280;font-size:11px;margin-bottom:5px">${cam.latitude?.toFixed(5)}, ${cam.longitude?.toFixed(5)}</div>
             <div style="font-weight:700;font-size:11px;color:${color};text-transform:uppercase">${cam.status}</div>
           </div>`
@@ -260,6 +266,7 @@ export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras
     setEditAdjacency(cam.adjacency.join(', '))
     setEditStatus(cam.status)
     setEditAltitude(cam.altitude?.toString() ?? '')
+    setEditModelId(cam.model_id ?? '')
     setEditFormError('')
     setActiveMenuId(null)
   }
@@ -276,6 +283,7 @@ export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras
       adjacency: editAdjacency ? editAdjacency.split(',').map(s => s.trim()).filter(Boolean) : [],
       status: editStatus,
       altitude: editAltitude ? parseFloat(editAltitude) : null,
+      model_id: editModelId || null,
     }
     try {
       const r = await fetch(`${API_BASE}/api/v1/cameras/${editCamera.camera_id}`, {
@@ -351,6 +359,7 @@ export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras
               <th className="px-3 py-2.5">Zone</th>
               <th className="px-3 py-2.5">Neighbors</th>
               <th className="px-3 py-2.5">Status</th>
+              <th className="px-3 py-2.5">Assigned Model</th>
               <th className="px-3 py-2.5 text-center">Feeds</th>
               <th className="px-3 py-2.5 text-right w-[110px]">Actions</th>
             </tr>
@@ -358,7 +367,7 @@ export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
             {localCameras.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-16 text-xs text-slate-400 dark:text-slate-600">
+                <td colSpan={8} className="text-center py-16 text-xs text-slate-400 dark:text-slate-600">
                   No camera nodes configured. Use <strong>Register Camera</strong> to add the first node.
                 </td>
               </tr>
@@ -398,6 +407,21 @@ export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras
                   {/* STATUS */}
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <StatusBadge status={cam.status} />
+                  </td>
+
+                  {/* ASSIGNED MODEL */}
+                  <td className="px-3 py-2.5 whitespace-nowrap text-xs">
+                    {(() => {
+                      const model = models.find(m => m.id === cam.model_id)
+                      return model ? (
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-slate-800 dark:text-slate-100">{model.name}</span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{model.model_type}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 dark:text-slate-500 italic">None (Default)</span>
+                      )
+                    })()}
                   </td>
 
                   {/* FEEDS COUNT */}
@@ -672,6 +696,22 @@ export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras
                       <option value="active">Active</option>
                       <option value="maintenance">Maintenance</option>
                       <option value="not-working">Not Working</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Assigned ML Model *">
+                    <select
+                      value={editModelId}
+                      onChange={e => setEditModelId(e.target.value)}
+                      className={inputCls}
+                      required
+                    >
+                      <option value="">-- Select Model --</option>
+                      {models.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.model_type})
+                        </option>
+                      ))}
                     </select>
                   </Field>
                 </div>

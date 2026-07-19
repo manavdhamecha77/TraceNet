@@ -126,11 +126,38 @@ def _clip_bbox(bbox: list[float], width: int, height: int) -> tuple[int, int, in
     return left, top, right, bottom
 
 
+# NOTE FOR FUTURE DEVELOPERS (SCALING GPU VRAM CACHE PLAN):
+# -------------------------------------------------------------
+# Currently, the detection pipeline runs on CPU/GPU utilizing a simple `lru_cache` of maxsize=1.
+# During concurrent multi-camera execution, if Camera A and Camera B use different model files,
+# this single-entry cache will trigger constant weight reloads ("thrashing"), causing significant
+# latency and I/O bottlenecks.
+#
+# WHY IT IS KEPT THIS WAY NOW:
+# Local dev runs primarily on CPU with a single model. Keeping multiple weights files fully resident
+# in GPU memory (CUDA) will lead to Out-Of-Memory (OOM) failures on low-end or consumer-grade hardware.
+#
+# THE FUTURE SCALING PLAN:
+# To support concurrent multi-camera inference across distinct custom models:
+# 1. Define a VRAM-aware Model Cache Manager:
+#    - Maintain a dict of `{model_path: model_instance}` with a configurable capacity (e.g. max_resident_models=3).
+#    - Track VRAM consumption dynamically (using `torch.cuda.memory_allocated()`).
+# 2. Implement an eviction policy (e.g., Least Recently Used - LRU):
+#    - When loading a new model violates VRAM capacity, unload the oldest active model from memory.
+#    - Call `del model_instance`, then run `torch.cuda.empty_cache()` and Python `gc.collect()` to force garbage collection.
+#    - Ensure thread safety around model loads using an asyncio Lock per model target.
+# -------------------------------------------------------------
 @lru_cache(maxsize=1)
 def load_detection_model(model_path: str) -> YOLO:
     path = Path(model_path)
     if not path.is_absolute():
-        path = Path(__file__).resolve().parents[2] / path
+        # First try resolving relative to current working directory (e.g. project root)
+        local_path = path.resolve()
+        fallback_path = Path(__file__).resolve().parents[2] / path
+        if local_path.exists():
+            path = local_path
+        else:
+            path = fallback_path
 
     if not path.exists():
         raise FileNotFoundError(

@@ -31,3 +31,25 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
+
+from pathlib import Path
+# Centralized absolute path to backend/data
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BACKEND_DIR / "data"
+
+def get_data_path(relative_path: str) -> str:
+    """Resolves a relative path to backend/data/ absolutely.
+    Strips leading './data' or 'data' prefix if present.
+    """
+    path_str = relative_path
+    if path_str.startswith("./data"):
+        path_str = path_str[6:]
+    elif path_str.startswith("data"):
+        path_str = path_str[4:]
+    
+    # Strip any leading slash or backslash
+    if path_str.startswith("/") or path_str.startswith("\\"):
+        path_str = path_str[1:]
+        
+    return str(DATA_DIR / path_str)

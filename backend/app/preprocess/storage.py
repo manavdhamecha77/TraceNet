@@ -5,13 +5,15 @@ class WORMStorageError(Exception):
     """Raised when a file operation violates Write-Once-Read-Many semantics."""
     pass
 
+from app.config import get_data_path
+
 class MockStorageProvider:
     """Mock Object Store with Write-Once-Read-Many (WORM) semantics.
     
     Outputs raw assets straight to data/minio_mock/ but exposes clean API boundaries.
     """
-    def __init__(self, base_dir: str = "./data/minio_mock"):
-        self.base_dir = base_dir
+    def __init__(self, base_dir: str = ""):
+        self.base_dir = base_dir if base_dir else get_data_path("minio_mock")
         os.makedirs(self.base_dir, exist_ok=True)
 
     def upload_file(self, file_content: bytes, object_name: str) -> str:
