@@ -40,10 +40,11 @@ def process_video_background(
     logger.info(f"Background processing started for video asset {asset_id}")
     db = SessionLocal()
     try:
-        # 1. Update status to 'processing'
+        # 1. Update status to 'transcoding'
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
-            video.processing_status = "processing"
+            video.processing_status = "transcoding"
+            video.progress_percentage = 15
             db.commit()
         else:
             logger.error(f"Asset {asset_id} not found in database.")
@@ -57,9 +58,7 @@ def process_video_background(
             except ValueError:
                 logger.warning(f"Could not parse start_time '{start_time_iso}', defaulting to now.")
 
-        # 3. Run transcoding and indexing
-        # Note: In future message-queue systems (Celery/Redis), this block will be offloaded
-        # to a worker task definition instead of a FastAPI background task thread.
+        # 3. Run transcoding and indexing (FFmpeg + sampling)
         pipeline_results = VideoPreprocessor.run_pipeline(
             raw_video_path=raw_filepath,
             camera_id=camera_id,
@@ -70,7 +69,27 @@ def process_video_background(
             start_time=start_time
         )
 
+        # Update status to 'preprocessed' (View button is enabled on frontend now)
+        video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
+        if video:
+            video.standardized_filename = pipeline_results["standardized_filename"]
+            video.transcoded_sha256 = pipeline_results["transcoded_sha256"]
+            video.duration = pipeline_results["duration"]
+            video.start_time = pipeline_results["start_time"]
+            video.end_time = pipeline_results["end_time"]
+            video.thumbnail_path = pipeline_results["thumbnail_path"]
+            video.processing_status = "preprocessed"
+            video.progress_percentage = 40
+            db.commit()
+            logger.info(f"Asset {asset_id} transcoding completed. Standardized video viewable.")
+
         # 4. Run detection + tracking on the standardized video output
+        video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
+        if video:
+            video.processing_status = "indexing"
+            video.progress_percentage = 60
+            db.commit()
+
         detection_output_dir = get_data_path(os.path.join("processed/detections", asset_id))
         
         # Resolve camera-assigned model path if it exists
@@ -97,6 +116,12 @@ def process_video_background(
             camera_id=camera_id,
             video_id=asset_id,
         )
+
+        # Update progress to embeddings phase
+        video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
+        if video:
+            video.progress_percentage = 85
+            db.commit()
 
         embedding_service = TrackletEmbeddingService()
         embedding_result = embedding_service.embed_detection_artifact(
@@ -131,16 +156,11 @@ def process_video_background(
             except Exception as log_err:
                 logger.warning(f"Failed to log model execution stats: {str(log_err)}")
         
-        # 5. Commit results to DB
+        # 5. Ingestion completed fully
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
-            video.standardized_filename = pipeline_results["standardized_filename"]
-            video.transcoded_sha256 = pipeline_results["transcoded_sha256"]
-            video.duration = pipeline_results["duration"]
-            video.start_time = pipeline_results["start_time"]
-            video.end_time = pipeline_results["end_time"]
-            video.thumbnail_path = pipeline_results["thumbnail_path"]
             video.processing_status = "complete"
+            video.progress_percentage = 100
             db.commit()
             logger.info(
                 f"Asset {asset_id} ingestion pipeline completed successfully "
@@ -154,6 +174,7 @@ def process_video_background(
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
             video.processing_status = "failed"
+            video.progress_percentage = 0
             db.commit()
     finally:
         db.close()

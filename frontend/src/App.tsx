@@ -32,6 +32,7 @@ interface Video {
   transcoded_sha256?: string
   upload_timestamp?: string
   processing_status: string
+  progress_percentage?: number
   duration?: number
   start_time?: string
   end_time?: string

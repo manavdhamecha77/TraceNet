@@ -25,6 +25,7 @@ interface Video {
   transcoded_sha256?: string
   upload_timestamp?: string
   processing_status: string
+  progress_percentage?: number
   duration?: number
   start_time?: string
   end_time?: string
@@ -166,7 +167,7 @@ export default function CameraDetail({
   // Polling for processing videos
   useEffect(() => {
     const hasIncomplete = cameraVideos.some(
-      (v) => v.processing_status === 'pending' || v.processing_status === 'processing'
+      (v) => v.processing_status !== 'complete' && v.processing_status !== 'failed'
     )
 
     if (hasIncomplete && camera_id) {
@@ -186,7 +187,7 @@ export default function CameraDetail({
         pollTimerRef.current = null
       }
     }
-  }, [cameraVideos.map((v) => v.processing_status).join(','), camera_id])
+  }, [cameraVideos.map((v) => `${v.processing_status}:${v.progress_percentage}`).join(','), camera_id])
 
   const formatDuration = (secs?: number) => {
     if (secs === undefined) return '--:--'
@@ -382,7 +383,7 @@ export default function CameraDetail({
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                             </svg>
                           )}
-                          {(video.processing_status === 'processing' || video.processing_status === 'pending') && (
+                          {!['complete', 'failed', 'preprocessed'].includes(video.processing_status) && (
                             <span className="absolute inset-0 bg-teal-500/10 backdrop-blur-[1px] flex items-center justify-center">
                               <svg className="animate-spin h-4 w-4 text-teal-700 dark:text-teal-400" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -406,7 +407,7 @@ export default function CameraDetail({
                       </td>
 
                       <td className="px-4 py-3 whitespace-nowrap text-slate-700 dark:text-slate-300 font-semibold">
-                        {video.processing_status === 'complete' ? formatDuration(video.duration) : '--:--'}
+                        {['preprocessed', 'indexing', 'complete'].includes(video.processing_status) ? formatDuration(video.duration) : '--:--'}
                       </td>
 
                       <td className="px-4 py-3 whitespace-nowrap text-[11px] text-slate-600 dark:text-slate-350">
@@ -415,20 +416,39 @@ export default function CameraDetail({
                       </td>
 
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          video.processing_status === 'complete' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' :
-                          video.processing_status === 'processing' ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 animate-pulse' :
-                          video.processing_status === 'failed' ? 'bg-red-500/10 text-red-700 dark:text-red-400' :
-                          'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                        }`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${
-                            video.processing_status === 'complete' ? 'bg-emerald-500' :
-                            video.processing_status === 'processing' ? 'bg-teal-500' :
-                            video.processing_status === 'failed' ? 'bg-red-500' :
-                            'bg-amber-500'
-                          }`}></span>
-                          {video.processing_status.toUpperCase()}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                            video.processing_status === 'complete' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' :
+                            video.processing_status === 'failed' ? 'bg-red-500/10 text-red-700 dark:text-red-400' :
+                            ['transcoding', 'indexing'].includes(video.processing_status) ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 animate-pulse' :
+                            video.processing_status === 'preprocessed' ? 'bg-sky-500/10 text-sky-700 dark:text-sky-400' :
+                            'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                          }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${
+                              video.processing_status === 'complete' ? 'bg-emerald-500' :
+                              video.processing_status === 'failed' ? 'bg-red-500' :
+                              ['transcoding', 'indexing'].includes(video.processing_status) ? 'bg-teal-500' :
+                              video.processing_status === 'preprocessed' ? 'bg-sky-500' :
+                              'bg-amber-500'
+                            }`}></span>
+                            {video.processing_status.toUpperCase()}
+                          </span>
+
+                          {video.processing_status !== 'complete' && video.processing_status !== 'failed' && (
+                            <div className="mt-1 w-24">
+                              <div className="flex items-center justify-between text-[8px] text-slate-500 dark:text-slate-400 mb-0.5 font-bold">
+                                <span>PROGRESS</span>
+                                <span>{video.progress_percentage ?? 0}%</span>
+                              </div>
+                              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1 overflow-hidden">
+                                <div 
+                                  className="bg-teal-600 dark:bg-teal-400 h-1 rounded-full transition-all duration-300"
+                                  style={{ width: `${video.progress_percentage ?? 0}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-4 py-3 text-[11px] text-slate-500 dark:text-slate-400 max-w-[180px] truncate">
@@ -463,10 +483,10 @@ export default function CameraDetail({
                             Detections
                           </button>
                           <button
-                            disabled={video.processing_status !== 'complete'}
+                            disabled={!['preprocessed', 'indexing', 'complete'].includes(video.processing_status)}
                             onClick={() => onPlayVideo(video)}
                             className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-bold transition-all ${
-                              video.processing_status === 'complete'
+                              ['preprocessed', 'indexing', 'complete'].includes(video.processing_status)
                                 ? 'bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white shadow-sm'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
                             }`}

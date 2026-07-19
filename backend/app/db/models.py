@@ -83,7 +83,8 @@ class VideoAsset(Base):
     intake_sha256 = Column(String, nullable=False)
     transcoded_sha256 = Column(String, nullable=True)
     upload_timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    processing_status = Column(String, default="pending")  # 'pending' | 'processing' | 'complete' | 'failed'
+    processing_status = Column(String, default="pending")  # 'pending' | 'transcoding' | 'preprocessed' | 'indexing' | 'complete' | 'failed'
+    progress_percentage = Column(Integer, default=0)
     
     # Metadata and properties
     duration = Column(Float, nullable=True)  # In seconds
@@ -104,6 +105,7 @@ class VideoAsset(Base):
             "transcoded_sha256": self.transcoded_sha256,
             "upload_timestamp": self.upload_timestamp.isoformat() if self.upload_timestamp else None,
             "processing_status": self.processing_status,
+            "progress_percentage": self.progress_percentage or 0,
             "duration": self.duration,
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,

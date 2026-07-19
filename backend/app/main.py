@@ -48,6 +48,17 @@ def run_startup_migrations():
                     cursor.execute("ALTER TABLE cameras ADD COLUMN model_id VARCHAR REFERENCES models(id)")
                     conn.commit()
                     print("Schema Migration: Added 'model_id' column to cameras.")
+
+            # Check if videos table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(videos)")
+                columns = [c[1] for c in cursor.fetchall()]
+                
+                if "progress_percentage" not in columns:
+                    cursor.execute("ALTER TABLE videos ADD COLUMN progress_percentage INTEGER DEFAULT 0")
+                    conn.commit()
+                    print("Schema Migration: Added 'progress_percentage' column to videos.")
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
