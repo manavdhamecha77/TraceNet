@@ -117,7 +117,7 @@ def process_video_background(
             video_id=asset_id,
         )
 
-        # Update progress to embeddings phase
+        # 5. Embed and Index tracklets
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
             video.progress_percentage = 85
@@ -127,9 +127,20 @@ def process_video_background(
         embedding_result = embedding_service.embed_detection_artifact(
             os.path.join(detection_output_dir, "detections.json")
         )
-        
+
+        video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
+        if video:
+            video.processing_status = "indexing"
+            video.progress_percentage = 90
+            db.commit()
+
+        # Run vector indexing (SQLite + Qdrant local persistence)
+        from app.search.vector_index import VectorIndexService
+        index_service = VectorIndexService()
+        index_result = index_service.index_video_tracklets(asset_id, db)
+
         inference_duration = time.time() - start_inference
-        
+
         # Log serving execution if custom model was used
         if assigned_model_id:
             try:
@@ -137,7 +148,7 @@ def process_video_background(
                 total_dets = 0
                 for f in detection_result.frame_detections:
                     total_dets += len(f.detections)
-                
+
                 log_entry = ModelExecutionLog(
                     model_id=assigned_model_id,
                     video_id=asset_id,
@@ -147,7 +158,7 @@ def process_video_background(
                     objects_detected_count=total_dets
                 )
                 db.add(log_entry)
-                
+
                 # Update last used timestamp
                 model_rec = db.query(MLModel).filter(MLModel.id == assigned_model_id).first()
                 if model_rec:
@@ -155,8 +166,8 @@ def process_video_background(
                 db.commit()
             except Exception as log_err:
                 logger.warning(f"Failed to log model execution stats: {str(log_err)}")
-        
-        # 5. Ingestion completed fully
+
+        # Complete status
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
             video.processing_status = "complete"
@@ -164,8 +175,7 @@ def process_video_background(
             db.commit()
             logger.info(
                 f"Asset {asset_id} ingestion pipeline completed successfully "
-                f"with {len(detection_result.tracklets)} tracklets and "
-                f"{embedding_result.embedded_tracklets} embeddings."
+                f"with {len(detection_result.tracklets)} tracklets, indexed to Qdrant."
             )
             
     except Exception as e:

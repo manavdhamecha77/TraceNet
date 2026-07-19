@@ -286,6 +286,16 @@ function App() {
     }
   }
 
+  const handlePlayVideoAtTime = (video: Video, timestamp: number) => {
+    setSelectedVideoToPlay(video)
+    setPlayerView('annotated')
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = timestamp
+      }
+    }, 400)
+  }
+
   // Helper formats
   const formatDuration = (secs?: number) => {
     if (secs === undefined) return '--:--'
@@ -329,17 +339,45 @@ function App() {
     return ''
   }
 
-  // Class color map — matches backend _CLASS_COLORS_BGR (in RGB for canvas)
-  const CLASS_COLORS: Record<string, string> = {
-    person: '#ffbe00',
-    car: '#3b82f6',
-    truck: '#a855f7',
-    bus: '#eab308',
-    motorcycle: '#22c55e',
-    bicycle: '#84cc16',
-    van: '#64748b',
+  // ─── Roboflow-style diverse 20-color palette ────────────────────────────────
+  // Named classes get a stable, visually distinct color.
+  // Any unknown class gets a deterministic color via djb2 hash over the name.
+  const NAMED_CLASS_COLORS: Record<string, string> = {
+    person:       '#FF3838', // vivid red
+    car:          '#FF9D97', // salmon pink
+    truck:        '#FF701F', // deep orange
+    bus:          '#FFB21D', // amber gold
+    motorcycle:   '#CFD231', // acid lime
+    bicycle:      '#48F90A', // neon green
+    van:          '#92CC17', // olive green
+    // extended palette slots for other possible YOLO classes
+    cat:          '#3DDB86',
+    dog:          '#1A9334',
+    bird:         '#00D4BB',
+    horse:        '#2C99A8',
+    cow:          '#00C2FF',
+    sheep:        '#344593',
+    airplane:     '#6473FF',
+    boat:         '#0018EC',
+    train:        '#8438FF',
+    traffic_light:'#520085',
+    stop_sign:    '#CB38FF',
+    fire_hydrant: '#FF95C8',
   }
-  const classColor = (cn: string) => CLASS_COLORS[cn.toLowerCase()] ?? '#94a3b8'
+  // Fallback palette — cycles through 12 distinct vivid hues for any unknown class
+  const FALLBACK_PALETTE = [
+    '#E6194B','#3CB44B','#4363D8','#F58231','#911EB4',
+    '#42D4F4','#F032E6','#BFEF45','#FABED4','#469990',
+    '#DCBEFF','#9A6324',
+  ]
+  const classColor = (cn: string): string => {
+    const key = cn.toLowerCase()
+    if (NAMED_CLASS_COLORS[key]) return NAMED_CLASS_COLORS[key]
+    // djb2 hash for consistent color per unknown class name
+    let hash = 5381
+    for (let i = 0; i < key.length; i++) hash = ((hash << 5) + hash) + key.charCodeAt(i)
+    return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length]
+  }
 
   // Load detections.json for a video when switching to annotated view
   const loadPlayerDetections = async (video: Video) => {
@@ -645,7 +683,7 @@ function App() {
               }
             />
             <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
-            <Route path="/search" element={<Search />} />
+            <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
           </Routes>
 
         </div>
@@ -1057,13 +1095,31 @@ function App() {
                         </div>
                       )}
                       {exportState === 'ready' && exportUrl && (
-                        <a
-                          href={exportUrl}
-                          download
+                        <button
+                          onClick={async () => {
+                            // Blob-fetch download: avoids cross-origin navigation
+                            // The browser would navigate (not download) for cross-origin MP4 URLs.
+                            // Fetching as blob + creating an objectURL keeps the user on the same page.
+                            try {
+                              const res = await fetch(exportUrl)
+                              const blob = await res.blob()
+                              const objectUrl = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = objectUrl
+                              const filename = exportUrl.split('/').pop() ?? 'annotated.mp4'
+                              a.download = filename
+                              document.body.appendChild(a)
+                              a.click()
+                              document.body.removeChild(a)
+                              setTimeout(() => URL.revokeObjectURL(objectUrl), 10000)
+                            } catch (_) {
+                              alert('Download failed. Check backend connectivity.')
+                            }
+                          }}
                           className="block w-full text-center rounded bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 text-[10px] font-bold transition-colors"
                         >
                           ↓ Download Annotated MP4
-                        </a>
+                        </button>
                       )}
                       {exportState === 'error' && (
                         <p className="text-[10px] text-rose-500 font-semibold">Export failed. Check backend logs.</p>

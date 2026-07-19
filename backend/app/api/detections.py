@@ -31,21 +31,56 @@ router = APIRouter(prefix="/api/v1", tags=["detection"])
 #   The FastAPI endpoint shape (request/response schema) stays unchanged.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Color palette per class_name (BGR for OpenCV). Any class not in the map gets a default.
+# ─── Roboflow-style diverse palette (BGR for OpenCV) ─────────────────────────
+# Hex RGB → BGR: #RRGGBB → (BB, GG, RR)
 _CLASS_COLORS_BGR: dict[str, tuple[int, int, int]] = {
-    "person":       (0, 200, 255),   # amber-orange
-    "car":          (255, 100,  50),  # blue
-    "truck":        (255,  50, 200),  # purple
-    "bus":          (50,  200, 255),  # yellow
-    "motorcycle":   (0,  255, 100),  # green
-    "bicycle":      (100, 255,   0),  # lime
-    "van":          (200, 150,  50),  # steel-blue
+    "person":        (56,  56,  255),  # vivid red      #FF3838
+    "car":           (151, 157, 255),  # salmon pink    #FF9D97
+    "truck":         (31, 112,  255),  # deep orange    #FF701F
+    "bus":           (29, 178,  255),  # amber gold     #FFB21D
+    "motorcycle":    (49, 210,  207),  # acid lime      #CFD231
+    "bicycle":       (10, 249,  72),   # neon green     #48F90A
+    "van":           (23, 204,  146),  # olive green    #92CC17
+    "cat":           (134, 219, 61),   # mint           #3DDB86
+    "dog":           (52,  147,  26),  # forest green   #1A9334
+    "bird":          (187, 212,  0),   # teal           #00D4BB
+    "horse":         (168, 153, 44),   # steel blue     #2C99A8
+    "cow":           (255, 194,  0),   # sky blue       #00C2FF
+    "sheep":         (147,  69,  52),  # navy           #344593
+    "airplane":      (255, 115, 100),  # periwinkle     #6473FF
+    "boat":          (236,  24,   0),  # deep blue      #0018EC
+    "train":         (255,  56, 132),  # violet         #8438FF
+    "traffic_light": (133,   0,  82),  # dark purple    #520085
+    "stop_sign":     (255,  56, 203),  # magenta        #CB38FF
+    "fire_hydrant":  (200, 149, 255),  # blush          #FF95C8
 }
-_DEFAULT_COLOR_BGR = (180, 180, 180)
+# Fallback palette \u2014 12 vivid hues cycling for any unknown class
+_FALLBACK_BGR = [
+    (75,  25,  230),  # #E6194B
+    (75,  180,  60),  # #3CB44B
+    (216, 99,   67),  # #4363D8
+    (49,  130, 245),  # #F58231
+    (180,  30, 145),  # #911EB4
+    (244, 212,  66),  # #42D4F4
+    (230,  50, 240),  # #F032E6
+    (69,  239, 191),  # #BFEF45
+    (212, 190, 250),  # #FABED4
+    (144, 153,  70),  # #469990
+    (255, 190, 220),  # #DCBEFF
+    (36,  99,  154),  # #9A6324
+]
 
 
 def _class_color_bgr(class_name: str) -> tuple[int, int, int]:
-    return _CLASS_COLORS_BGR.get(class_name.lower(), _DEFAULT_COLOR_BGR)
+    key = class_name.lower()
+    if key in _CLASS_COLORS_BGR:
+        return _CLASS_COLORS_BGR[key]
+    # djb2 hash \u2014 same algorithm as frontend classColor() for consistency
+    h = 5381
+    for ch in key:
+        h = ((h << 5) + h) + ord(ch)
+    return _FALLBACK_BGR[abs(h) % len(_FALLBACK_BGR)]
+
 
 
 def _render_annotated_video(
