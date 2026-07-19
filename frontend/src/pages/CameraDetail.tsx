@@ -73,6 +73,15 @@ interface DetectionRunResponse {
   artifact_path: string
 }
 
+function truncateMiddle(str: string, maxLength: number = 28): string {
+  if (!str || str.length <= maxLength) return str
+  const sep = '...'
+  const charsToShow = maxLength - sep.length
+  const frontChars = Math.ceil(charsToShow / 2)
+  const backChars = Math.floor(charsToShow / 2)
+  return str.substring(0, frontChars) + sep + str.substring(str.length - backChars)
+}
+
 interface CameraDetailProps {
   onOpenUploadModal: () => void
   onPlayVideo: (video: Video) => void
@@ -379,8 +388,11 @@ export default function CameraDetail({
                       </td>
 
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="font-bold text-slate-800 dark:text-slate-100">
-                          {activeTab === 'original' ? video.original_filename : video.standardized_filename}
+                        <div 
+                          className="font-bold text-slate-800 dark:text-slate-100 cursor-help"
+                          title={activeTab === 'original' ? video.original_filename : video.standardized_filename}
+                        >
+                          {truncateMiddle(activeTab === 'original' ? video.original_filename : video.standardized_filename)}
                         </div>
                         <div className="text-[10px] font-mono text-slate-400 mt-0.5 truncate max-w-[240px]" title={activeTab === 'original' ? video.intake_sha256 : video.transcoded_sha256}>
                           Hash: {activeTab === 'original' ? video.intake_sha256.substring(0, 24) + '...' : video.transcoded_sha256 ? video.transcoded_sha256.substring(0, 24) + '...' : 'pending...'}

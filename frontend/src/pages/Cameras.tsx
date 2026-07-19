@@ -19,6 +19,7 @@ interface Camera {
 interface CamerasProps {
   cameras: Camera[]
   onOpenRegisterModal: () => void
+  onRefreshCameras?: () => void
 }
 
 declare global {
@@ -108,7 +109,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputCls = "w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-[7px] text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 transition-colors"
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
-export default function Cameras({ cameras, onOpenRegisterModal }: CamerasProps) {
+export default function Cameras({ cameras, onOpenRegisterModal, onRefreshCameras }: CamerasProps) {
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({})
   const [localCameras, setLocalCameras] = useState<Camera[]>(cameras)
 
@@ -145,7 +146,12 @@ export default function Cameras({ cameras, onOpenRegisterModal }: CamerasProps) 
   const refreshCameras = async () => {
     try {
       const r = await fetch(`${API_BASE}/api/v1/cameras`)
-      if (r.ok) setLocalCameras(await r.json())
+      if (r.ok) {
+        setLocalCameras(await r.json())
+        if (onRefreshCameras) {
+          onRefreshCameras()
+        }
+      }
     } catch { /* ignore */ }
   }
 

@@ -106,9 +106,12 @@ function App() {
     }
   }
 
+  // Fetch cameras on mount, location change, and periodically every 5 seconds
   useEffect(() => {
     fetchCameras()
-  }, [])
+    const timer = setInterval(fetchCameras, 5000)
+    return () => clearInterval(timer)
+  }, [location.pathname])
 
   // Aggregate global metrics for dashboard
   useEffect(() => {
@@ -442,6 +445,7 @@ function App() {
                 <Cameras
                   cameras={cameras}
                   onOpenRegisterModal={() => setIsCameraModalOpen(true)}
+                  onRefreshCameras={fetchCameras}
                 />
               }
             />
@@ -592,7 +596,7 @@ function App() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded bg-teal-705 dark:bg-teal-600 hover:brightness-110 text-white px-3.5 py-1.5 text-xs font-bold transition-all shadow-sm"
+                  className="rounded bg-teal-700 dark:bg-teal-600 hover:brightness-110 text-white px-3.5 py-1.5 text-xs font-bold transition-all shadow-sm"
                 >
                   Register Node
                 </button>
@@ -693,7 +697,7 @@ function App() {
                 <button
                   type="submit"
                   disabled={uploadProgress === 'uploading'}
-                  className="rounded bg-teal-705 dark:bg-teal-600 hover:brightness-110 text-white px-3.5 py-1.5 text-xs font-bold transition-all shadow-sm"
+                  className="rounded bg-teal-700 dark:bg-teal-600 hover:brightness-110 text-white px-3.5 py-1.5 text-xs font-bold transition-all shadow-sm"
                 >
                   Start Ingest
                 </button>
