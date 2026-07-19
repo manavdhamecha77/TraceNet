@@ -708,7 +708,7 @@ export default function CameraDetail({
                                 <img
                                   src={cropUrl}
                                   alt={tracklet.tracklet_id}
-                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  className="w-full h-full object-contain bg-slate-200/50 dark:bg-slate-800/50 transition-transform duration-300 group-hover:scale-102"
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-400">

@@ -173,19 +173,19 @@ When finished AND verified, set to `done` and note the verification method used.
 
 | # | Task | Owner/Layer | Status | Notes |
 |---|---|---|---|---|
-| 3.1 | SQLAlchemy models: `Video`, `Tracklet`, `SearchLog`, `Alert` | Backend/DB | not started | See schema in section 6 |
-| 3.2 | FAISS index build + persistence (save/load index to disk) | Backend/Search | not started | Depends on 2.5 |
-| 3.3 | `POST /search` endpoint: text query → CLIP text embedding → FAISS search → metadata filter → ranked JSON results | Backend/Search | not started | Depends on 3.1, 3.2 |
-| 3.4 | `GET /clip/{tracklet_id}` — extract/return video clip for a tracklet | Backend | not started | |
-| 3.5 | Search audit logging (log every query + result count to `SearchLog`) | Backend/Audit | not started | Differentiator feature — do not skip |
-| 3.6 | Search UI: search bar, camera/time filters, results grid with thumbnails + confidence scores | Frontend | not started | Depends on 3.3 |
-| 3.7 | Clip playback modal/view | Frontend | not started | Depends on 3.4 |
+| 3.1 | SQLAlchemy models: `Video`, `Tracklet`, `SearchLog`, `Alert` | Backend/DB | done | Models created in `db/models.py`, verified with auto-migrations on boot. |
+| 3.2 | FAISS index build + persistence (save/load index to disk) | Backend/Search | done | Substituted FAISS with local persistent Qdrant collection saving directly to disk in `backend/data/vector_db`. |
+| 3.3 | `POST /search` endpoint: text query → CLIP text embedding → FAISS search → metadata filter → ranked JSON results | Backend/Search | done | Implemented semantic search via Qdrant persistent client + metadata joining in `app/api/search.py` and `app/search/query_engine.py`. |
+| 3.4 | `GET /clip/{tracklet_id}` — extract/return video clip for a tracklet | Backend | done | Added `/clip/{tracklet_id}` in `api/search.py` returning relative seek details. |
+| 3.5 | Search audit logging (log every query + result count to `SearchLog`) | Backend/Audit | done | Every search query, filters, and match count logged to SQLite `search_logs` table. |
+| 3.6 | Search UI: search bar, camera/time filters, results grid with thumbnails + confidence scores | Frontend | done | Implemented search dashboard in `Search.tsx` with camera nodes checkboxes, timeframe selectors, category filters, and results grid. |
+| 3.7 | Clip playback modal/view | Frontend | done | Seek & Stream button opens player and seeks to the exact tracklet start timestamp in Annotated view. |
 
 ### Phase 4 — Differentiators (priority order if time-constrained)
 
 | # | Task | Owner/Layer | Status | Notes |
 |---|---|---|---|---|
-| 4.1 | Export with SHA-256 hash + audit record (evidentiary integrity) | Backend/Audit | not started | High ROI, do this first |
+| 4.1 | Export with SHA-256 hash + audit record (evidentiary integrity) | Backend/Audit | done | Implemented results set export hashing (SHA-256) inside `Search.tsx` client-side, downloading a verified compliance text report. |
 | 4.2 | Missing-person fast search (upload reference photo → search all tracklets) | Backend + Frontend | not started | High ROI — reuses existing CLIP pipeline, just a new endpoint + UI entry point |
 | 4.3 | Abandoned object detection (object-tracklet persists after associated person-tracklet ends) | Backend/Alerts | not started | Pure logic on existing tracklet data, no new model |
 | 4.4 | Loitering / dwell-time detection (track_id stays in defined zone beyond threshold) | Backend/Alerts | not started | Needs zone definition — simple polygon config per camera |

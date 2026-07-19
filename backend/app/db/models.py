@@ -139,3 +139,107 @@ class ModelExecutionLog(Base):
             "inference_duration_seconds": self.inference_duration_seconds,
             "objects_detected_count": self.objects_detected_count,
         }
+
+
+class Tracklet(Base):
+    __tablename__ = "tracklets"
+
+    id = Column(String, primary_key=True, index=True)  # "{video_id}_trk_{tracker_id}"
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    tracker_id = Column(Integer, nullable=False)
+    object_type = Column(String, nullable=False)  # 'person' | 'vehicle'
+    class_name = Column(String, nullable=False)
+    camera_id = Column(String, nullable=False)
+    frame_start = Column(Integer, nullable=False)
+    frame_end = Column(Integer, nullable=False)
+    timestamp_start_seconds = Column(Float, nullable=False)
+    timestamp_end_seconds = Column(Float, nullable=False)
+    detection_count = Column(Integer, nullable=False)
+    mean_confidence = Column(Float, nullable=False)
+    best_bbox = Column(Text, nullable=False)  # JSON string of best bounding box coordinates "[xmin, ymin, xmax, ymax]"
+    best_crop_path = Column(String, nullable=True)
+    qdrant_point_id = Column(String, nullable=True)  # UUID string stored in Qdrant
+    embedding_dim = Column(Integer, default=512)
+    indexed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    video = relationship("VideoAsset", backref="tracklets")
+
+    def to_dict(self):
+        try:
+            bbox = json.loads(self.best_bbox) if self.best_bbox else []
+        except Exception:
+            bbox = []
+        return {
+            "id": self.id,
+            "video_id": self.video_id,
+            "tracker_id": self.tracker_id,
+            "object_type": self.object_type,
+            "class_name": self.class_name,
+            "camera_id": self.camera_id,
+            "frame_start": self.frame_start,
+            "frame_end": self.frame_end,
+            "timestamp_start_seconds": self.timestamp_start_seconds,
+            "timestamp_end_seconds": self.timestamp_end_seconds,
+            "detection_count": self.detection_count,
+            "mean_confidence": self.mean_confidence,
+            "best_bbox": bbox,
+            "best_crop_path": self.best_crop_path,
+            "qdrant_point_id": self.qdrant_point_id,
+            "embedding_dim": self.embedding_dim,
+            "indexed_at": self.indexed_at.isoformat() if self.indexed_at else None,
+        }
+
+
+class SearchLog(Base):
+    __tablename__ = "search_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    query_text = Column(Text, nullable=False)
+    user_id = Column(String, default="demo")
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    results_count = Column(Integer, nullable=True)
+    camera_filter = Column(Text, nullable=True)  # JSON list of camera IDs
+    time_filter_start = Column(DateTime, nullable=True)
+    time_filter_end = Column(DateTime, nullable=True)
+    clip_export_hash = Column(String, nullable=True)  # SHA-256 hash of results
+
+    def to_dict(self):
+        try:
+            cams = json.loads(self.camera_filter) if self.camera_filter else []
+        except Exception:
+            cams = []
+        return {
+            "id": self.id,
+            "query_text": self.query_text,
+            "user_id": self.user_id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "results_count": self.results_count,
+            "camera_filter": cams,
+            "time_filter_start": self.time_filter_start.isoformat() if self.time_filter_start else None,
+            "time_filter_end": self.time_filter_end.isoformat() if self.time_filter_end else None,
+            "clip_export_hash": self.clip_export_hash,
+        }
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    alert_type = Column(String, nullable=False)  # 'loitering' | 'abandoned_object'
+    tracklet_id = Column(String, ForeignKey("tracklets.id", ondelete="CASCADE"), nullable=False)
+    camera_id = Column(String, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    acknowledged = Column(Boolean, default=False)
+
+    tracklet = relationship("Tracklet")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "alert_type": self.alert_type,
+            "tracklet_id": self.tracklet_id,
+            "camera_id": self.camera_id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "acknowledged": self.acknowledged,
+        }
+

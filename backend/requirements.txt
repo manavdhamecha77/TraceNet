@@ -28,6 +28,7 @@ sentence-transformers
 
 # Vector Database
 faiss-cpu
+qdrant-client
 
 # Numerical
 numpy
