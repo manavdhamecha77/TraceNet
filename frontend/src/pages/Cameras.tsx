@@ -167,7 +167,18 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
         const vids = await r.json()
         const v = vids.find((x: any) => x.thumbnail_path && x.processing_status === 'complete')
         if (v?.thumbnail_path) {
-          const rel = v.thumbnail_path.replace(/^\.?\/?data\//, '')
+          let rel = v.thumbnail_path.replace(/\\/g, '/')
+          const backendDataIndex = rel.indexOf('/backend/data/')
+          if (backendDataIndex !== -1) {
+            rel = rel.substring(backendDataIndex + 14)
+          } else {
+            const dataIndex = rel.indexOf('/data/')
+            if (dataIndex !== -1) {
+              rel = rel.substring(dataIndex + 6)
+            } else {
+              rel = rel.replace(/^\.?\/?data\//, '')
+            }
+          }
           setThumbnails(p => ({ ...p, [cam.camera_id]: `${API_BASE}/data/${rel}` }))
         }
       } catch { /* ignore */ }
@@ -181,10 +192,10 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
     return () => window.removeEventListener('click', h)
   }, [])
 
-  // ── MAIN MAP
+  // ── INITIALIZE MAP ONCE
   useEffect(() => {
     if (!window.L || !mainMapRef.current) return
-    if (mainMapInstanceRef.current) { mainMapInstanceRef.current.remove(); mainMapInstanceRef.current = null }
+    if (mainMapInstanceRef.current) return // Already initialized
 
     const valid = localCameras.filter(c => c.latitude != null && c.longitude != null)
     const center: [number, number] = valid.length > 0 ? [valid[0].latitude!, valid[0].longitude!] : [23.0225, 72.5714]
@@ -196,24 +207,43 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
         attribution: '© OpenStreetMap contributors',
       }).addTo(map)
 
-      valid.forEach(cam => {
-        const color = cam.status === 'active' ? '#059669' : cam.status === 'maintenance' ? '#D97706' : '#DC2626'
-        const assignedModel = models.find(m => m.id === cam.model_id)
-        const modelLabel = assignedModel ? `${assignedModel.name} (${assignedModel.model_type})` : 'None (Default)'
-        const popup = `
-          <div style="font-family:Inter,sans-serif;font-size:12px;min-width:160px">
-            <div style="font-weight:700;color:#1F2937;margin-bottom:5px">${cam.name}</div>
-            <div style="color:#6B7280;font-size:11px;margin-bottom:2px">ID: <b>${cam.camera_id}</b></div>
-            <div style="color:#6B7280;font-size:11px;margin-bottom:2px">Model: <b>${modelLabel}</b></div>
-            <div style="color:#6B7280;font-size:11px;margin-bottom:5px">${cam.latitude?.toFixed(5)}, ${cam.longitude?.toFixed(5)}</div>
-            <div style="font-weight:700;font-size:11px;color:${color};text-transform:uppercase">${cam.status}</div>
-          </div>`
-        window.L.marker([cam.latitude!, cam.longitude!]).bindPopup(popup).addTo(map)
-      })
-    } catch { /* ignore */ }
+      const markerGroup = window.L.layerGroup().addTo(map)
+      map.markerGroup = markerGroup
+    } catch (err) {
+      console.error("Leaflet Map init failed:", err)
+    }
 
-    return () => { if (mainMapInstanceRef.current) { mainMapInstanceRef.current.remove(); mainMapInstanceRef.current = null } }
-  }, [localCameras])
+    return () => {
+      if (mainMapInstanceRef.current) {
+        mainMapInstanceRef.current.remove()
+        mainMapInstanceRef.current = null
+      }
+    }
+  }, []) // Empty dependency -> runs only ONCE on mount
+
+  // ── UPDATE MARKERS ON THE EXISTING MAP
+  useEffect(() => {
+    const map = mainMapInstanceRef.current
+    if (!map || !map.markerGroup || !window.L) return
+
+    map.markerGroup.clearLayers()
+
+    const valid = localCameras.filter(c => c.latitude != null && c.longitude != null)
+    valid.forEach(cam => {
+      const color = cam.status === 'active' ? '#059669' : cam.status === 'maintenance' ? '#D97706' : '#DC2626'
+      const assignedModel = models.find(m => m.id === cam.model_id)
+      const modelLabel = assignedModel ? `${assignedModel.name} (${assignedModel.model_type})` : 'None (Default)'
+      const popup = `
+        <div style="font-family:Inter,sans-serif;font-size:12px;min-width:160px">
+          <div style="font-weight:700;color:#1F2937;margin-bottom:5px">${cam.name}</div>
+          <div style="color:#6B7280;font-size:11px;margin-bottom:2px">ID: <b>${cam.camera_id}</b></div>
+          <div style="color:#6B7280;font-size:11px;margin-bottom:2px">Model: <b>${modelLabel}</b></div>
+          <div style="color:#6B7280;font-size:11px;margin-bottom:5px">${cam.latitude?.toFixed(5)}, ${cam.longitude?.toFixed(5)}</div>
+          <div style="font-weight:700;font-size:11px;color:${color};text-transform:uppercase">${cam.status}</div>
+        </div>`
+      window.L.marker([cam.latitude!, cam.longitude!]).bindPopup(popup).addTo(map.markerGroup)
+    })
+  }, [localCameras, models])
 
   // ── DETAIL MAP
   function initLeafletMap(

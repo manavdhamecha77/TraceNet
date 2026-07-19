@@ -110,6 +110,12 @@ export default function CameraDetail({
     error: string
     loading: boolean
   } | null>(null)
+  
+  // Tracklet Filters & Sorting
+  const [detectionFilterType, setDetectionFilterType] = useState<string>('all')
+  const [detectionFilterClass, setDetectionFilterClass] = useState<string>('all')
+  const [detectionSortOrder, setDetectionSortOrder] = useState<'desc' | 'asc'>('desc')
+  
   const pollTimerRef = useRef<any>(null)
 
   // Fetch Camera Details
@@ -554,42 +560,184 @@ export default function CameraDetail({
               ) : null}
             </div>
 
-            <div className="p-4 space-y-3 max-h-[420px] overflow-y-auto bg-slate-50 dark:bg-slate-900/40">
-              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tracklet Summary</h4>
+            <div className="p-4 space-y-4 max-h-[480px] overflow-y-auto bg-slate-50 dark:bg-slate-900/40 flex flex-col">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+                <div>
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tracklet Reviewer</h4>
+                </div>
+                
+                {/* Dynamic Filters Row */}
+                {detectionModal.result && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Object Type Switcher */}
+                    <div className="flex rounded bg-slate-200 dark:bg-slate-800 p-0.5 text-[9px] font-semibold">
+                      <button
+                        onClick={() => setDetectionFilterType('all')}
+                        className={`rounded px-1.5 py-0.5 transition-all ${
+                          detectionFilterType === 'all'
+                            ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={() => setDetectionFilterType('person')}
+                        className={`rounded px-1.5 py-0.5 transition-all ${
+                          detectionFilterType === 'person'
+                            ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        People
+                      </button>
+                      <button
+                        onClick={() => setDetectionFilterType('vehicle')}
+                        className={`rounded px-1.5 py-0.5 transition-all ${
+                          detectionFilterType === 'vehicle'
+                            ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        Vehicles
+                      </button>
+                    </div>
+
+                    {/* Class Dropdown */}
+                    <select
+                      value={detectionFilterClass}
+                      onChange={(e) => setDetectionFilterClass(e.target.value)}
+                      className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 dark:text-slate-300 outline-none focus:border-teal-500"
+                    >
+                      <option value="all">All Classes</option>
+                      {Array.from(
+                        new Set(
+                          detectionModal.result.tracklets
+                            .map((t) => t.class_name)
+                            .filter(Boolean)
+                        )
+                      ).map((clsName) => (
+                        <option key={clsName} value={clsName}>
+                          {clsName.charAt(0).toUpperCase() + clsName.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+
+                    {/* Confidence Sorter */}
+                    <button
+                      onClick={() => setDetectionSortOrder((p) => (p === 'desc' ? 'asc' : 'desc'))}
+                      className="inline-flex items-center gap-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                      title="Sort by Confidence"
+                    >
+                      <span>Conf:</span>
+                      <span className="font-bold text-teal-600 dark:text-teal-400">
+                        {detectionSortOrder === 'desc' ? '▲ High' : '▼ Low'}
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Detections Grid */}
               {detectionModal.result && detectionModal.result.tracklets.length > 0 ? (
-                detectionModal.result.tracklets.map((tracklet) => {
-                  const cropUrl = getProcessedAssetUrl(tracklet.best_crop_path)
-                  return (
-                    <div key={tracklet.tracklet_id} className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-24 h-14 rounded overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0">
-                          {cropUrl ? (
-                            <img src={cropUrl} alt={tracklet.tracklet_id} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">
-                              No crop
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1 text-xs space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-mono text-slate-800 dark:text-slate-100 truncate">{tracklet.tracklet_id}</span>
-                            <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
-                              {tracklet.object_type}
-                            </span>
-                          </div>
-                          <div className="text-slate-500 dark:text-slate-400">Class: {tracklet.class_name}</div>
-                          <div className="text-slate-500 dark:text-slate-400">Frames: {tracklet.frame_start} - {tracklet.frame_end}</div>
-                          <div className="text-slate-500 dark:text-slate-400">Confidence: {(tracklet.mean_confidence * 100).toFixed(1)}%</div>
-                        </div>
+                (() => {
+                  const filtered = detectionModal.result.tracklets
+                    .filter((t) => {
+                      const typeMatch = detectionFilterType === 'all' || t.object_type === detectionFilterType
+                      const classMatch =
+                        detectionFilterClass === 'all' || t.class_name.toLowerCase() === detectionFilterClass.toLowerCase()
+                      return typeMatch && classMatch
+                    })
+                    .sort((a, b) => {
+                      return detectionSortOrder === 'desc'
+                        ? b.mean_confidence - a.mean_confidence
+                        : a.mean_confidence - b.mean_confidence
+                    })
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                        No tracklets match the selected filters.
                       </div>
+                    )
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {filtered.map((tracklet) => {
+                        const cropUrl = getProcessedAssetUrl(tracklet.best_crop_path)
+                        const conf = tracklet.mean_confidence * 100
+                        const confColor =
+                          conf >= 80
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                            : conf >= 60
+                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
+                            : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
+
+                        return (
+                          <div
+                            key={tracklet.tracklet_id}
+                            className="group flex flex-col rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-650 hover:-translate-y-0.5"
+                          >
+                            {/* Card Crop Header */}
+                            <div className="relative w-full h-24 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
+                              {cropUrl ? (
+                                <img
+                                  src={cropUrl}
+                                  alt={tracklet.tracklet_id}
+                                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-400">
+                                  No Crop
+                                </div>
+                              )}
+                              {/* Confidence Badge overlay */}
+                              <div className="absolute top-1.5 right-1.5">
+                                <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold ${confColor}`}>
+                                  {conf.toFixed(0)}%
+                                </span>
+                              </div>
+                              {/* Tracker ID overlay */}
+                              <div className="absolute bottom-1.5 left-1.5">
+                                <span className="inline-flex rounded bg-slate-900/70 backdrop-blur-sm px-1 py-0.5 text-[8px] font-mono text-white">
+                                  ID: {tracklet.tracker_id}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Card Info Details */}
+                            <div className="p-2 space-y-1 flex-1 flex flex-col justify-between">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide truncate">
+                                    {tracklet.class_name}
+                                  </span>
+                                  <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 uppercase shrink-0">
+                                    {tracklet.object_type}
+                                  </span>
+                                </div>
+                                <div className="text-[9px] text-slate-500 dark:text-slate-400">
+                                  Frames:{' '}
+                                  <span className="font-mono text-slate-700 dark:text-slate-300">
+                                    {tracklet.frame_start} - {tracklet.frame_end}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px] text-slate-400">
+                                <span>Ref:</span>
+                                <span className="font-mono text-slate-500 truncate max-w-[60px]" title={tracklet.tracklet_id}>
+                                  {tracklet.tracklet_id.substring(0, 6)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )
-                })
-              ) : detectionModal.result ? (
-                <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-xs text-slate-500 dark:text-slate-400">
-                  No tracklets were confirmed for this clip.
-                </div>
+                })()
               ) : (
                 <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-xs text-slate-500 dark:text-slate-400">
                   Open a completed video and click Detections to review tracklets.

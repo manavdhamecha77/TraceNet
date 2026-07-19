@@ -133,6 +133,10 @@ class VideoPreprocessor:
                 
         cap.release()
         
+        # Convert thumbnail_path to relative path under backend/data/ with standard forward slashes
+        if thumbnail_path:
+            thumbnail_path = os.path.relpath(thumbnail_path, get_data_path("")).replace("\\", "/")
+         
         return {
             "duration": duration,
             "width": width,
