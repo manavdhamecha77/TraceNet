@@ -86,6 +86,7 @@ function truncateMiddle(str: string, maxLength: number = 28): string {
 interface CameraDetailProps {
   onOpenUploadModal: () => void
   onPlayVideo: (video: Video) => void
+  onInspectTracklet: (tracklet: TrackletSummary, video: Video) => void
   cameraVideos: Video[]
   setCameraVideos: React.Dispatch<React.SetStateAction<Video[]>>
   selectedCamera: Camera | null
@@ -95,6 +96,7 @@ interface CameraDetailProps {
 export default function CameraDetail({
   onOpenUploadModal,
   onPlayVideo,
+  onInspectTracklet,
   cameraVideos,
   setCameraVideos,
   selectedCamera,
@@ -697,7 +699,8 @@ export default function CameraDetail({
                         return (
                           <div
                             key={tracklet.tracklet_id}
-                            className="group flex flex-col rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-slate-300 dark:hover:border-slate-650 hover:-translate-y-0.5"
+                            onClick={() => onInspectTracklet(tracklet, detectionModal.video)}
+                            className="group flex flex-col rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 hover:border-teal-400 dark:hover:border-teal-500 hover:-translate-y-0.5 cursor-pointer ring-0 hover:ring-2 hover:ring-teal-400/30 active:scale-[0.98]"
                           >
                             {/* Card Crop Header */}
                             <div className="relative w-full h-24 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
@@ -746,7 +749,7 @@ export default function CameraDetail({
                               </div>
 
                               <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px] text-slate-400">
-                                <span>Ref:</span>
+                                <span className="text-teal-500 dark:text-teal-400 font-semibold">Click to inspect ↗</span>
                                 <span className="font-mono text-slate-500 truncate max-w-[60px]" title={tracklet.tracklet_id}>
                                   {tracklet.tracklet_id.substring(0, 6)}
                                 </span>

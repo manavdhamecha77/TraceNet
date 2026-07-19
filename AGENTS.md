@@ -35,6 +35,10 @@ surveillance team could realistically use.
    result count) — this is a differentiator feature, not optional polish.
 5. Scope discipline: person + vehicle **attribute search** only. Do not let scope
    creep into open-vocabulary action/activity recognition.
+6. **Centralized Backend Storage (Strictly Mandatory):**
+   * **ALL** database files (`drishti.db`), video uploads, processed frames, tracking assets, and weight files must be stored absolutely inside `backend/data/` (or subdirectories of it).
+   * **NEVER** write or read files from the root `/data/` folder, `.gemini/` folders, or direct system directories.
+   * Central path resolution must be resolved through `app.config.get_data_path` to guarantee absolute storage paths under `backend/data/` regardless of the uvicorn launch execution context.
 
 ---
 
@@ -150,6 +154,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 1.7 | SQLAlchemy `CameraProfile` schema + auto-migration on startup | Backend/DB | done | `models.py`: CameraProfile with `status` (TEXT) and `altitude` (Float) columns. `main.py`: `run_startup_migrations()` uses `PRAGMA table_info` + `ALTER TABLE` at boot — prevents OperationalError on schema evolution without full DB teardown. Verified: backend starts without error after schema change. |
 | 1.8 | Camera Detail page `/cameras/[id]` — dual-tab video table (System / Original), polling | Frontend | done | `CameraDetail.tsx`: System Preprocessing tab is default and first (primary working surface); Original Audit tab is second with amber BACKUP label (forensic archive only). 3-second poll for pending/processing videos. Verified via `npm run build`. |
 | 1.9 | Modal UX + Leaflet z-index fixes | Frontend | done | (a) All modals use `fixed inset-0` backdrop at `z-[100]` in root stacking context — covers full viewport including top. (b) Leaflet map section has `style={{ isolation: 'isolate' }}` — creates CSS stacking context that traps Leaflet's internal z-indices (200–650) so map tiles/markers never bleed above fixed modals. (c) Kebab menu rendered via `position:fixed` dropdown computed from `getBoundingClientRect` — escapes table `overflow` clipping. Verified via `npm run build`. |
+| 1.10 | Ingestion Scaling Plan Phase 1 (Intermediate statuses, progress bars, early view enabling) | Backend + Frontend | done | Implemented progressive statuses (pending->transcoding->preprocessed->indexing->complete), progress bars in video list table, and unblocked video playback at the preprocessed stage. Verified via `npm run build`. |
 
 ### Phase 2 — Detection, Tracking, Embeddings
 
@@ -185,6 +190,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 4.3 | Abandoned object detection (object-tracklet persists after associated person-tracklet ends) | Backend/Alerts | not started | Pure logic on existing tracklet data, no new model |
 | 4.4 | Loitering / dwell-time detection (track_id stays in defined zone beyond threshold) | Backend/Alerts | not started | Needs zone definition — simple polygon config per camera |
 | 4.5 | Explainability display: show per-attribute match breakdown, not just overall confidence % | Frontend + Backend | not started | Strengthens human-in-the-loop principle — worth doing over more alert types |
+| 4.6 | Dynamic ML Model Registry (/models) and camera assignment | Backend + Frontend | done | Implemented model upload, dynamic file-system weights resolution, auto YOLO class parsing, and serving execution logs in UI. |
 
 ### Phase 5 — Polish & Demo Prep
 

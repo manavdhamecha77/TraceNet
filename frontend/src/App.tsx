@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Cameras from './pages/Cameras'
@@ -60,6 +60,19 @@ function App() {
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [selectedVideoToPlay, setSelectedVideoToPlay] = useState<Video | null>(null)
+
+  // Annotated player state
+  const [playerView, setPlayerView] = useState<'clean' | 'annotated'>('clean')
+  const [playerDetections, setPlayerDetections] = useState<any | null>(null)
+  const [playerDetectionsLoading, setPlayerDetectionsLoading] = useState(false)
+  const [playerClassFilter, setPlayerClassFilter] = useState<string>('all')
+  const [exportState, setExportState] = useState<'idle' | 'rendering' | 'ready' | 'error'>('idle')
+  const [exportUrl, setExportUrl] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Tracklet inspect modal (opened from detection card grid)
+  const [inspectTracklet, setInspectTracklet] = useState<{ tracklet: any; video: Video } | null>(null)
 
   // Camera Form State
   const [newCameraId, setNewCameraId] = useState('')
@@ -306,7 +319,7 @@ function App() {
 
   const getVideoPlayerUrl = (video: Video) => {
     if (video.thumbnail_path && video.standardized_filename) {
-      const pathParts = video.thumbnail_path.split(/[/\\]/)
+      const pathParts = video.thumbnail_path.split(/[\/\\]/)
       const camerasIndex = pathParts.indexOf('cameras')
       if (camerasIndex !== -1 && pathParts.length > camerasIndex + 1) {
         const cameraFolder = pathParts[camerasIndex + 1]
@@ -315,6 +328,135 @@ function App() {
     }
     return ''
   }
+
+  // Class color map — matches backend _CLASS_COLORS_BGR (in RGB for canvas)
+  const CLASS_COLORS: Record<string, string> = {
+    person: '#ffbe00',
+    car: '#3b82f6',
+    truck: '#a855f7',
+    bus: '#eab308',
+    motorcycle: '#22c55e',
+    bicycle: '#84cc16',
+    van: '#64748b',
+  }
+  const classColor = (cn: string) => CLASS_COLORS[cn.toLowerCase()] ?? '#94a3b8'
+
+  // Load detections.json for a video when switching to annotated view
+  const loadPlayerDetections = async (video: Video) => {
+    setPlayerDetectionsLoading(true)
+    setPlayerDetections(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/videos/${video.id}/detections`)
+      if (res.ok) setPlayerDetections(await res.json())
+    } catch (_) {}
+    setPlayerDetectionsLoading(false)
+  }
+
+  // Canvas bounding box draw — called on every timeupdate
+  const drawBoundingBoxes = useCallback(() => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas || !playerDetections) return
+
+    const frameIndex = Math.round(video.currentTime * (playerDetections.fps || 10))
+    const frameData = (playerDetections.frame_detections ?? []).find(
+      (fd: any) => fd.frame_index === frameIndex
+    )
+
+    canvas.width = video.videoWidth || video.clientWidth
+    canvas.height = video.videoHeight || video.clientHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    if (!frameData) return
+
+    const scaleX = canvas.width / 1280  // source is always 720p (1280×720)
+    const scaleY = canvas.height / 720
+
+    for (const det of frameData.detections ?? []) {
+      const cn = det.class_name ?? 'unknown'
+      if (playerClassFilter !== 'all' && cn.toLowerCase() !== playerClassFilter) continue
+      const [x1, y1, x2, y2] = (det.bbox ?? []).map((v: number, i: number) => i % 2 === 0 ? v * scaleX : v * scaleY)
+      const color = classColor(cn)
+      const conf = ((det.confidence ?? 0) * 100).toFixed(0)
+      const tid = det.tracker_id != null ? ` #${det.tracker_id}` : ''
+      const label = `${cn}${tid} ${conf}%`
+
+      ctx.strokeStyle = color
+      ctx.lineWidth = 2
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1)
+
+      // Label background
+      ctx.font = 'bold 11px monospace'
+      const tw = ctx.measureText(label).width
+      ctx.fillStyle = color
+      ctx.fillRect(x1, y1 - 17, tw + 8, 17)
+      ctx.fillStyle = '#000'
+      ctx.fillText(label, x1 + 4, y1 - 4)
+    }
+  }, [playerDetections, playerClassFilter])
+
+  // Sync canvas on timeupdate
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.addEventListener('timeupdate', drawBoundingBoxes)
+    video.addEventListener('seeked', drawBoundingBoxes)
+    return () => {
+      video.removeEventListener('timeupdate', drawBoundingBoxes)
+      video.removeEventListener('seeked', drawBoundingBoxes)
+    }
+  }, [drawBoundingBoxes])
+
+  // Clear canvas when switching back to clean view
+  useEffect(() => {
+    if (playerView === 'clean') {
+      const canvas = canvasRef.current
+      if (canvas) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+    } else if (selectedVideoToPlay) {
+      loadPlayerDetections(selectedVideoToPlay)
+    }
+  }, [playerView, selectedVideoToPlay])
+
+  // Reset player state when closing
+  const closePlayer = () => {
+    setSelectedVideoToPlay(null)
+    setPlayerView('clean')
+    setPlayerDetections(null)
+    setPlayerClassFilter('all')
+    setExportState('idle')
+    setExportUrl(null)
+  }
+
+  // Export annotated video
+  const handleExportAnnotated = async () => {
+    if (!selectedVideoToPlay) return
+    setExportState('rendering')
+    setExportUrl(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/videos/${selectedVideoToPlay.id}/export-annotated`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filter_class: playerClassFilter === 'all' ? null : playerClassFilter, force: false }),
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const data = await res.json()
+      setExportUrl(`${API_BASE}${data.output_url}`)
+      setExportState('ready')
+    } catch (_) {
+      setExportState('error')
+    }
+  }
+
+  // Unique class names in loaded detections (for filter dropdown)
+  const playerClasses: string[] = playerDetections
+    ? Array.from(new Set(
+        (playerDetections.frame_detections ?? []).flatMap((fd: any) =>
+          (fd.detections ?? []).map((d: any) => d.class_name as string)
+        )
+      ))
+    : []
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 antialiased font-sans transition-colors duration-150">
@@ -488,12 +630,13 @@ function App() {
                 />
               }
             />
-            <Route
+              <Route
               path="/cameras/:camera_id"
               element={
                 <CameraDetail
                   onOpenUploadModal={() => setIsUploadModalOpen(true)}
                   onPlayVideo={(video) => setSelectedVideoToPlay(video)}
+                  onInspectTracklet={(tracklet, video) => setInspectTracklet({ tracklet, video })}
                   cameraVideos={cameraVideos}
                   setCameraVideos={setCameraVideos}
                   selectedCamera={selectedCamera}
@@ -764,19 +907,227 @@ function App() {
         </div>
       )}
 
-      {/* VIDEO PLAYER PREVIEW WINDOW */}
+      {/* VIDEO PLAYER PREVIEW WINDOW — Clean / Annotated tabs */}
       {selectedVideoToPlay && selectedCamera && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6 backdrop-blur-[2px]">
-          <div className="w-full max-w-4xl rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 overflow-hidden shadow-lg animate-in fade-in zoom-in-95 duration-100">
-            
-            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-              <div>
-                <h3 className="text-xs font-bold text-slate-850 dark:text-slate-100">{selectedVideoToPlay.original_filename}</h3>
-                <span className="text-[10px] text-slate-400 block mt-0.5">Device: {selectedCamera.name} ({selectedCamera.camera_id})</span>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-[3px]">
+          <div className="w-full max-w-5xl rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-[92vh]">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <div className="min-w-0">
+                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{selectedVideoToPlay.original_filename}</h3>
+                <span className="text-[10px] text-slate-400 block mt-0.5">Device: {selectedCamera.name} · {selectedCamera.camera_id}</span>
+              </div>
+              <div className="flex items-center gap-3 shrink-0 ml-4">
+                {/* View tab switcher */}
+                <div className="flex rounded-md bg-slate-200 dark:bg-slate-700 p-0.5 text-[10px] font-bold gap-0.5">
+                  <button
+                    onClick={() => setPlayerView('clean')}
+                    className={`rounded px-3 py-1 transition-all ${
+                      playerView === 'clean'
+                        ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    Clean
+                  </button>
+                  <button
+                    onClick={() => setPlayerView('annotated')}
+                    className={`rounded px-3 py-1 transition-all flex items-center gap-1.5 ${
+                      playerView === 'annotated'
+                        ? 'bg-teal-600 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 7h4l2-3h6l2 3h4a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V8a1 1 0 011-1z" />
+                    </svg>
+                    Annotated
+                  </button>
+                </div>
+                <button
+                  onClick={closePlayer}
+                  className="text-slate-400 hover:text-slate-800 dark:hover:text-white p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-700 flex-1 min-h-0">
+
+              {/* Video + Canvas column */}
+              <div className="relative flex-1 bg-slate-950 flex items-center justify-center min-h-[280px]">
+                <video
+                  ref={videoRef}
+                  src={getVideoPlayerUrl(selectedVideoToPlay)}
+                  controls
+                  autoPlay
+                  className="w-full max-h-[460px] object-contain"
+                />
+                {/* Canvas overlay — always rendered, cleared when in clean view */}
+                <canvas
+                  ref={canvasRef}
+                  className={`absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-200 ${
+                    playerView === 'annotated' && playerDetections ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  style={{ objectFit: 'contain' }}
+                />
+                {/* Loading overlay for annotated */}
+                {playerView === 'annotated' && playerDetectionsLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="h-6 w-6 animate-spin text-teal-400" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      <span className="text-[11px] text-slate-300">Loading detections...</span>
+                    </div>
+                  </div>
+                )}
+                {playerView === 'annotated' && !playerDetectionsLoading && !playerDetections && (
+                  <div className="absolute bottom-4 left-4 right-4">
+                    <div className="rounded border border-amber-500/30 bg-amber-500/10 text-amber-300 text-[10px] p-2.5 text-center">
+                      No detection data available. Run Detections first.
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right panel */}
+              <div className="w-full md:w-64 shrink-0 bg-white dark:bg-slate-900 flex flex-col divide-y divide-slate-100 dark:divide-slate-800 overflow-y-auto">
+
+                {/* Annotated controls */}
+                {playerView === 'annotated' && playerDetections && (
+                  <div className="p-4 space-y-3">
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Annotation Controls</h4>
+
+                    {/* Class filter */}
+                    <div>
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase block mb-1">Filter Class</label>
+                      <select
+                        value={playerClassFilter}
+                        onChange={(e) => setPlayerClassFilter(e.target.value)}
+                        className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] text-slate-700 dark:text-slate-200 focus:outline-none focus:border-teal-500"
+                      >
+                        <option value="all">All Classes</option>
+                        {playerClasses.map((cn) => (
+                          <option key={cn} value={cn.toLowerCase()}>{cn.charAt(0).toUpperCase() + cn.slice(1)}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Color legend */}
+                    <div>
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase block mb-1.5">Class Legend</label>
+                      <div className="space-y-1">
+                        {playerClasses.map((cn) => (
+                          <div key={cn} className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-sm shrink-0" style={{ backgroundColor: classColor(cn) }} />
+                            <span className="text-[10px] text-slate-600 dark:text-slate-300 capitalize">{cn}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Export */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <label className="text-[9px] font-semibold text-slate-400 uppercase block mb-1.5">Export Annotated Video</label>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500 mb-2 leading-relaxed">
+                        Renders bounding boxes onto the video on the server. May take a moment.
+                      </p>
+                      {exportState === 'idle' && (
+                        <button
+                          onClick={handleExportAnnotated}
+                          className="w-full rounded bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white py-1.5 text-[10px] font-bold transition-colors"
+                        >
+                          Generate & Download
+                        </button>
+                      )}
+                      {exportState === 'rendering' && (
+                        <div className="flex items-center gap-2 text-[10px] text-teal-600 dark:text-teal-400 font-semibold">
+                          <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Rendering on server...
+                        </div>
+                      )}
+                      {exportState === 'ready' && exportUrl && (
+                        <a
+                          href={exportUrl}
+                          download
+                          className="block w-full text-center rounded bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 text-[10px] font-bold transition-colors"
+                        >
+                          ↓ Download Annotated MP4
+                        </a>
+                      )}
+                      {exportState === 'error' && (
+                        <p className="text-[10px] text-rose-500 font-semibold">Export failed. Check backend logs.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Forensic metadata (always shown) */}
+                <div className="p-4 space-y-3 flex-1">
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Footprint Properties</h4>
+                  <div className="space-y-1.5 text-[11px] text-slate-600 dark:text-slate-350">
+                    {[
+                      ['Format', 'H.264 MP4'],
+                      ['Resolution', '1280×720 (720p)'],
+                      ['Framerate', '10.0 FPS (CFR)'],
+                      ['Sampler', '4.0 FPS Timeline'],
+                      ['Duration', formatDuration(selectedVideoToPlay.duration)],
+                    ].map(([k, v]) => (
+                      <div key={k} className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-0.5">
+                        <span>{k}:</span>
+                        <span className="text-slate-800 dark:text-slate-100 font-medium">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SHA-256 */}
+                <div className="p-4 shrink-0">
+                  <span className="text-[9px] text-slate-400 block font-semibold">Verification SHA-256:</span>
+                  <span className="text-[9px] text-teal-700 dark:text-teal-400 font-mono break-all mt-0.5 block">
+                    {selectedVideoToPlay.transcoded_sha256 ?? 'Calculating...'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TRACKLET INSPECT MODAL — crop + seek-to-frame context */}
+      {inspectTracklet && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 p-4 backdrop-blur-[4px]">
+          <div className="w-full max-w-2xl rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className={`h-2 w-2 rounded-full ${
+                  inspectTracklet.tracklet.object_type === 'person' ? 'bg-amber-400' : 'bg-blue-400'
+                }`} />
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 capitalize">
+                    {inspectTracklet.tracklet.class_name} — Track #{inspectTracklet.tracklet.tracker_id}
+                  </h3>
+                  <span className="text-[10px] text-slate-400">
+                    Frames {inspectTracklet.tracklet.frame_start}–{inspectTracklet.tracklet.frame_end} ·{' '}
+                    {inspectTracklet.tracklet.timestamp_start_seconds?.toFixed(2)}s – {inspectTracklet.tracklet.timestamp_end_seconds?.toFixed(2)}s
+                  </span>
+                </div>
               </div>
               <button
-                onClick={() => setSelectedVideoToPlay(null)}
-                className="text-slate-400 hover:text-slate-800 dark:hover:text-white p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                onClick={() => setInspectTracklet(null)}
+                className="text-slate-400 hover:text-slate-800 dark:hover:text-white p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -784,66 +1135,90 @@ function App() {
               </button>
             </div>
 
-            <div className="grid md:grid-cols-[1.6fr_0.4fr] divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-700">
-              
-              {/* Media viewer */}
-              <div className="bg-slate-950 p-4 flex items-center justify-center min-h-[300px]">
-                <video
-                  src={getVideoPlayerUrl(selectedVideoToPlay)}
-                  controls
-                  autoPlay
-                  className="w-full max-h-[400px] rounded border border-slate-800 shadow"
-                />
-              </div>
+            <div className="grid md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-700">
 
-              {/* Forensic side panel */}
-              <div className="p-4 bg-white dark:bg-slate-900 space-y-5 flex flex-col justify-between">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Footprint properties</h4>
-                    <div className="space-y-1.5 text-[11px] text-slate-600 dark:text-slate-350">
-                      <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-0.5">
-                        <span>Format:</span>
-                        <span className="text-slate-850 dark:text-slate-100 font-mono">H.264 MP4</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-0.5">
-                        <span>Resolution:</span>
-                        <span className="text-slate-850 dark:text-slate-100">1280x720 (720p)</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-0.5">
-                        <span>Framerate:</span>
-                        <span className="text-slate-850 dark:text-slate-100">10.0 FPS</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-0.5">
-                        <span>Sampler:</span>
-                        <span className="text-teal-700 dark:text-teal-400 font-semibold">4.0 FPS (Timeline)</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-0.5">
-                        <span>Duration:</span>
-                        <span className="text-slate-850 dark:text-slate-100">{formatDuration(selectedVideoToPlay.duration)}</span>
-                      </div>
-                    </div>
+              {/* Best Crop */}
+              <div className="bg-slate-950 flex items-center justify-center min-h-[240px] relative">
+                {inspectTracklet.tracklet.best_crop_path ? (
+                  <img
+                    src={(() => {
+                      const p = (inspectTracklet.tracklet.best_crop_path as string).replace(/\\/g, '/')
+                      const di = p.indexOf('/data/')
+                      return di !== -1 ? `${API_BASE}${p.slice(di)}` : ''
+                    })()}
+                    alt="Best crop"
+                    className="max-w-full max-h-[320px] object-contain rounded"
+                  />
+                ) : (
+                  <div className="text-slate-500 text-xs text-center p-8">
+                    <svg className="mx-auto h-8 w-8 mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" />
+                    </svg>
+                    No crop saved
                   </div>
-
-                  <div>
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Detection & Tracking Status</h4>
-                    <div className="rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-3 text-center space-y-2">
-                      <svg className="mx-auto h-6 w-6 text-teal-700/40 dark:text-teal-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block leading-normal">
-                        YOLOv8/BMD-45 detection and ByteTrack tracking are active. Open a completed video and click Detections to review tracklets.
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-150 dark:border-slate-800">
-                  <span className="text-[9px] text-slate-400 block font-semibold">Verification SHA-256 Hash:</span>
-                  <span className="text-[9px] text-teal-700 dark:text-teal-450 font-mono break-all mt-0.5 block">
-                    {selectedVideoToPlay.transcoded_sha256 ?? 'Calculating...'}
+                )}
+                {/* Confidence badge */}
+                <div className="absolute top-3 right-3">
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    (inspectTracklet.tracklet.mean_confidence * 100) >= 80
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : (inspectTracklet.tracklet.mean_confidence * 100) >= 60
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  }`}>
+                    {(inspectTracklet.tracklet.mean_confidence * 100).toFixed(0)}% conf
                   </span>
                 </div>
+              </div>
+
+              {/* Details + Actions */}
+              <div className="p-5 space-y-4 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Tracklet Info</h4>
+                    <div className="space-y-1.5 text-[11px]">
+                      {[
+                        ['Type', inspectTracklet.tracklet.object_type],
+                        ['Class', inspectTracklet.tracklet.class_name],
+                        ['Tracker ID', `#${inspectTracklet.tracklet.tracker_id}`],
+                        ['Detections', inspectTracklet.tracklet.detection_count],
+                        ['Confidence', `${(inspectTracklet.tracklet.mean_confidence * 100).toFixed(1)}%`],
+                        ['Frame Range', `${inspectTracklet.tracklet.frame_start} – ${inspectTracklet.tracklet.frame_end}`],
+                        ['Time Range', `${inspectTracklet.tracklet.timestamp_start_seconds?.toFixed(2)}s – ${inspectTracklet.tracklet.timestamp_end_seconds?.toFixed(2)}s`],
+                      ].map(([k, v]) => (
+                        <div key={String(k)} className="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-0.5">
+                          <span className="text-slate-500 dark:text-slate-400">{k}</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-100 capitalize">{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="text-[9px] font-mono text-slate-400 break-all">
+                    ID: {inspectTracklet.tracklet.tracklet_id}
+                  </div>
+                </div>
+
+                {/* Seek to frame in video */}
+                <button
+                  onClick={() => {
+                    setInspectTracklet(null)
+                    setSelectedVideoToPlay(inspectTracklet.video)
+                    setPlayerView('annotated')
+                    // Seek after a short delay to let the video element mount
+                    setTimeout(() => {
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = inspectTracklet.tracklet.timestamp_start_seconds ?? 0
+                      }
+                    }, 400)
+                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white py-2.5 text-xs font-bold transition-colors shadow-sm"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  </svg>
+                  Seek to Frame {inspectTracklet.tracklet.frame_start} in Annotated View
+                </button>
               </div>
             </div>
           </div>

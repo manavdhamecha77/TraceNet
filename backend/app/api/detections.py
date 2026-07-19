@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -14,6 +16,108 @@ from app.detection.detector import DetectionService, resolve_standardized_video_
 from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
 
 router = APIRouter(prefix="/api/v1", tags=["detection"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ANNOTATED VIDEO EXPORT LOGIC
+# ─────────────────────────────────────────────────────────────────────────────
+# DESIGN NOTE (Decoupling contract for future GPU service):
+# The actual render work is isolated in `_render_annotated_video()` — a pure
+# function that takes the artifact dict + video path + output path.
+# To move this to a dedicated GPU/worker service later:
+#   1. Extract `_render_annotated_video` into a Celery task (e.g. @celery_app.task)
+#   2. Replace the direct call below with `task.delay(...)` or enqueue via RQ
+#   3. Return a 202 Accepted with a job_id; poll a /jobs/{id} endpoint for status
+#   The FastAPI endpoint shape (request/response schema) stays unchanged.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Color palette per class_name (BGR for OpenCV). Any class not in the map gets a default.
+_CLASS_COLORS_BGR: dict[str, tuple[int, int, int]] = {
+    "person":       (0, 200, 255),   # amber-orange
+    "car":          (255, 100,  50),  # blue
+    "truck":        (255,  50, 200),  # purple
+    "bus":          (50,  200, 255),  # yellow
+    "motorcycle":   (0,  255, 100),  # green
+    "bicycle":      (100, 255,   0),  # lime
+    "van":          (200, 150,  50),  # steel-blue
+}
+_DEFAULT_COLOR_BGR = (180, 180, 180)
+
+
+def _class_color_bgr(class_name: str) -> tuple[int, int, int]:
+    return _CLASS_COLORS_BGR.get(class_name.lower(), _DEFAULT_COLOR_BGR)
+
+
+def _render_annotated_video(
+    artifact: dict,
+    source_video_path: str,
+    output_path: str,
+    filter_class: Optional[str] = None,
+) -> None:
+    """
+    Pure function: reads source video + detection artifact, draws bounding boxes
+    with class labels per frame, writes annotated MP4 to output_path.
+
+    ISOLATION CONTRACT: This function MUST remain dependency-free from FastAPI.
+    It is designed to be extracted as a Celery/RQ task body verbatim.
+    """
+    import cv2  # local import — keeps this function fully portable
+
+    frame_detections_by_index: dict[int, list[dict]] = {}
+    for fd in artifact.get("frame_detections", []):
+        frame_detections_by_index[fd["frame_index"]] = fd.get("detections", [])
+
+    cap = cv2.VideoCapture(source_video_path)
+    if not cap.isOpened():
+        raise RuntimeError(f"Cannot open source video: {source_video_path}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 10.0
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+    frame_index = 0
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+
+            boxes = frame_detections_by_index.get(frame_index, [])
+            for box in boxes:
+                class_name = box.get("class_name", "unknown")
+                if filter_class and class_name.lower() != filter_class.lower():
+                    frame_index += 1
+                    continue
+                bbox = box.get("bbox", [])
+                if len(bbox) < 4:
+                    continue
+                x1, y1, x2, y2 = (int(v) for v in bbox[:4])
+                color = _class_color_bgr(class_name)
+                conf = box.get("confidence", 0.0)
+                tid = box.get("tracker_id")
+                label = f"{class_name}"
+                if tid is not None:
+                    label += f" #{tid}"
+                label += f" {conf:.0%}"
+
+                # Draw filled rect header + bounding box
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                label_y = max(y1 - 6, 12)
+                (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
+                cv2.rectangle(frame, (x1, label_y - lh - 4), (x1 + lw + 4, label_y + 2), color, -1)
+                cv2.putText(frame, label, (x1 + 2, label_y - 2),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1, cv2.LINE_AA)
+
+            writer.write(frame)
+            frame_index += 1
+    finally:
+        cap.release()
+        writer.release()
+
 
 
 class DetectionServiceInfo(BaseModel):
@@ -178,3 +282,108 @@ def get_video_embeddings(video_id: str, db: Session = Depends(get_db)) -> Trackl
 
     with open(artifact_path, "r", encoding="utf-8") as handle:
         return TrackletEmbeddingRunResponse.model_validate_json(handle.read())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ANNOTATED VIDEO EXPORT ENDPOINT
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AnnotatedExportRequest(BaseModel):
+    filter_class: Optional[str] = Field(
+        default=None,
+        description="If set, only draw boxes for this class name (e.g. 'person', 'car')."
+    )
+    force: bool = Field(
+        default=False,
+        description="Re-render even if a cached export already exists."
+    )
+
+
+class AnnotatedExportResponse(BaseModel):
+    video_id: str
+    output_url: str           # Relative URL served via /data/ static mount
+    output_path: str          # Absolute path on disk
+    filter_class: Optional[str]
+    cached: bool              # True if the file already existed and was reused
+
+
+@router.post("/videos/{video_id}/export-annotated", response_model=AnnotatedExportResponse)
+def export_annotated_video(
+    video_id: str,
+    payload: AnnotatedExportRequest,
+    db: Session = Depends(get_db),
+) -> AnnotatedExportResponse:
+    """
+    On-demand annotated video generation.
+    Renders bounding boxes from detections.json onto the standardized video
+    and saves the result as an MP4 that the frontend can stream.
+
+    SCALING NOTE: When a dedicated GPU rendering service is introduced,
+    replace the _render_annotated_video() call with a queue enqueue call
+    and return 202 Accepted + job_id. The endpoint signature stays unchanged.
+    """
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video asset with ID '{video_id}' does not exist.",
+        )
+
+    artifact_path = get_data_path(os.path.join("processed/detections", video_id, "detections.json"))
+    if not os.path.exists(artifact_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No detection artifact found for video '{video_id}'. Run detection first.",
+        )
+
+    # Determine output filename (include filter_class in name to allow caching per class)
+    class_suffix = f"_{payload.filter_class}" if payload.filter_class else "_all"
+    output_filename = f"annotated{class_suffix}.mp4"
+    output_dir = get_data_path(os.path.join("processed/detections", video_id))
+    output_path = os.path.join(output_dir, output_filename)
+
+    # Cache hit — return existing file if not forcing
+    if os.path.exists(output_path) and not payload.force:
+        output_url = f"/data/processed/detections/{video_id}/{output_filename}"
+        return AnnotatedExportResponse(
+            video_id=video_id,
+            output_url=output_url,
+            output_path=output_path,
+            filter_class=payload.filter_class,
+            cached=True,
+        )
+
+    # Resolve source video path
+    source_video_path = resolve_standardized_video_path(video)
+    if not os.path.exists(source_video_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source video file not found at '{source_video_path}'.",
+        )
+
+    # Load artifact and render
+    with open(artifact_path, "r", encoding="utf-8") as fh:
+        artifact = json.load(fh)
+
+    try:
+        _render_annotated_video(
+            artifact=artifact,
+            source_video_path=source_video_path,
+            output_path=output_path,
+            filter_class=payload.filter_class,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Annotated video render failed: {exc}",
+        ) from exc
+
+    output_url = f"/data/processed/detections/{video_id}/{output_filename}"
+    return AnnotatedExportResponse(
+        video_id=video_id,
+        output_url=output_url,
+        output_path=output_path,
+        filter_class=payload.filter_class,
+        cached=False,
+    )
+
