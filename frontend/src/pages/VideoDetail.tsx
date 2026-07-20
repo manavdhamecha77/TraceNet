@@ -129,6 +129,7 @@ export default function VideoDetail() {
   // Seek highlight: track which tracklet is "focused" for dynamic green box & trajectory
   const [seekedTrackletId, setSeekedTrackletId] = useState<string | null>(null)
   const [seekedBbox, setSeekedBbox]             = useState<number[] | null>(null)
+  const [seekedTrackletClass, setSeekedTrackletClass] = useState<string | null>(null)
 
   // Seek toast
   const [seekToast, setSeekToast]   = useState<string | null>(null)
@@ -330,46 +331,50 @@ export default function VideoDetail() {
         const label = `${cn}${tid} ${conf}%`
 
         if (isSeeked) {
-          // Thick bright green highlight for seeked tracklet (DYNAMIC as video plays!)
+          // Thinner bright green highlight for seeked tracklet (DYNAMIC as video plays!)
           ctx.strokeStyle = '#00FF41'
-          ctx.lineWidth   = 4.5
+          ctx.lineWidth   = 3
           ctx.strokeRect(cx1, cy1, cw, ch)
 
           // Outer glowing aura
           ctx.save()
           ctx.strokeStyle = 'rgba(0,255,65,0.45)'
-          ctx.lineWidth   = 9
-          ctx.strokeRect(cx1 - 2, cy1 - 2, cw + 4, ch + 4)
+          ctx.lineWidth   = 6
+          ctx.strokeRect(cx1 - 1, cy1 - 1, cw + 2, ch + 2)
           ctx.restore()
 
           // Label background
-          ctx.font = 'bold 12px monospace'
-          const tw = ctx.measureText(label).width
-          ctx.fillStyle = '#00FF41'
-          ctx.fillRect(cx1, cy1 - 20, tw + 10, 20)
-          ctx.fillStyle = '#000'
-          ctx.fillText(label, cx1 + 5, cy1 - 5)
-        } else {
-          ctx.strokeStyle = color
-          ctx.lineWidth   = 2
-          ctx.strokeRect(cx1, cy1, cw, ch)
-
           ctx.font = 'bold 11px monospace'
           const tw = ctx.measureText(label).width
-          ctx.fillStyle = color
-          ctx.fillRect(cx1, cy1 - 17, tw + 8, 17)
+          ctx.fillStyle = '#00FF41'
+          ctx.fillRect(cx1, cy1 - 18, tw + 8, 18)
           ctx.fillStyle = '#000'
           ctx.fillText(label, cx1 + 4, cy1 - 4)
+        } else {
+          ctx.strokeStyle = color
+          ctx.lineWidth   = 1.5
+          ctx.strokeRect(cx1, cy1, cw, ch)
+
+          ctx.font = 'bold 10px monospace'
+          const tw = ctx.measureText(label).width
+          ctx.fillStyle = color
+          ctx.fillRect(cx1, cy1 - 15, tw + 6, 15)
+          ctx.fillStyle = '#000'
+          ctx.fillText(label, cx1 + 3, cy1 - 3)
         }
       }
     }
 
     // Static fallback box if video is paused outside detections range
     if (seekedBbox && seekedTrackletId) {
+      const targetId = extractTrackerId(seekedTrackletId)
       const hasSeekedInFrame = frameData?.detections.some(
-        d => String(d.tracker_id) === String(seekedTrackletId)
+        d => {
+          const detId = extractTrackerId(d.tracker_id)
+          return targetId !== null && detId !== null && targetId === detId
+        }
       )
-      if (!hasSeekedInFrame) {
+      if (!hasSeekedInFrame && video.paused) {
         const [bx1, by1, bx2, by2] = seekedBbox
         const cx1 = toCanvasX(bx1)
         const cy1 = toCanvasY(by1)
@@ -377,14 +382,29 @@ export default function VideoDetail() {
         const ch  = toCanvasY(by2) - cy1
 
         ctx.save()
+        // Thinner bright green highlight for fallback box (same as active)
         ctx.strokeStyle = '#00FF41'
         ctx.lineWidth   = 3
-        ctx.setLineDash([6, 4])
         ctx.strokeRect(cx1, cy1, cw, ch)
+
+        // Outer glowing aura
+        ctx.strokeStyle = 'rgba(0,255,65,0.45)'
+        ctx.lineWidth   = 6
+        ctx.strokeRect(cx1 - 1, cy1 - 1, cw + 2, ch + 2)
+
+        // Label background
+        const displayClass = seekedTrackletClass || 'object'
+        const label = `${displayClass} #${seekedTrackletId}`
+        ctx.font = 'bold 11px monospace'
+        const tw = ctx.measureText(label).width
+        ctx.fillStyle = '#00FF41'
+        ctx.fillRect(cx1, cy1 - 18, tw + 8, 18)
+        ctx.fillStyle = '#000'
+        ctx.fillText(label, cx1 + 4, cy1 - 4)
         ctx.restore()
       }
     }
-  }, [playerDetections, playerClassFilter, showMotionPaths, seekedTrackletId, seekedBbox])
+  }, [playerDetections, playerClassFilter, showMotionPaths, seekedTrackletId, seekedBbox, seekedTrackletClass])
 
   useEffect(() => {
     const video = videoRef.current
@@ -436,6 +456,7 @@ export default function VideoDetail() {
       const tid = extractTrackerId(rawTid)
       setSeekedTrackletId(tid)
       setSeekedBbox(tracklet.best_bbox ?? null)
+      setSeekedTrackletClass(tracklet.class_name || tracklet.object_type || null)
     }
 
     const doSeek = () => {
@@ -714,41 +735,45 @@ export default function VideoDetail() {
         </div>
       )}
 
-      {/* ── 1. HEADER ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="font-bold text-slate-800 dark:text-slate-100">{camera.name || camera_id}</div>
-          <div className="text-xs text-slate-500 font-mono">{camera.camera_id || camera_id}</div>
+      {/* ── 1. HEADER & METADATA BANNER ───────────────────────────────────────── */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-2 px-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <span className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">
+            {camera.name || camera_id}
+          </span>
+          <span className="text-[10px] text-slate-500 font-mono bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded">
+            ID: {camera.camera_id || camera_id}
+          </span>
+          <span className="text-slate-300 dark:text-slate-600">|</span>
+          <span className="font-mono text-slate-400 truncate max-w-[200px]" title={video.original_filename}>
+            {video.original_filename}
+          </span>
         </div>
-        <div className="font-mono text-xs text-slate-500 dark:text-slate-400 truncate max-w-sm">
-          {video.original_filename}
-        </div>
-      </div>
 
-      {/* ── 2. METADATA BANNER ────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-xs">
-        <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-          <Clock className="h-3.5 w-3.5 text-slate-400" />
-          Duration: <strong className="font-mono">{video.duration ? `${video.duration.toFixed(1)}s` : '--'}</strong>
-        </span>
-        <span className="text-slate-300 dark:text-slate-600">|</span>
-        <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
-          <Layers className="h-3.5 w-3.5 text-slate-400" />
-          Tracklets: <strong className="font-mono text-teal-700 dark:text-teal-400">{tracklets.length}</strong>
-        </span>
-        <span className="text-slate-300 dark:text-slate-600">|</span>
-        <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-          Status:
-          <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded font-bold uppercase tracking-wide">{video.processing_status}</span>
-        </span>
-        <span className="text-slate-300 dark:text-slate-600">|</span>
-        <span
-          className="text-slate-500 font-mono truncate max-w-[180px] cursor-help flex items-center gap-1"
-          title={`Intake SHA-256: ${video.intake_sha256}`}
-        >
-          <FileText className="h-3.5 w-3.5 text-slate-400" />
-          SHA: {video.intake_sha256}
-        </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600 dark:text-slate-300">
+          <span className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5 text-slate-400" />
+            Duration: <strong className="font-mono">{video.duration ? `${video.duration.toFixed(1)}s` : '--'}</strong>
+          </span>
+          <span className="text-slate-300 dark:text-slate-600">|</span>
+          <span className="flex items-center gap-1">
+            <Layers className="h-3.5 w-3.5 text-slate-400" />
+            Tracklets: <strong className="font-mono text-teal-700 dark:text-teal-400">{tracklets.length}</strong>
+          </span>
+          <span className="text-slate-300 dark:text-slate-600">|</span>
+          <span className="flex items-center gap-1">
+            Status:
+            <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded font-bold uppercase tracking-wide text-[10px]">{video.processing_status}</span>
+          </span>
+          <span className="text-slate-300 dark:text-slate-600">|</span>
+          <span
+            className="font-mono truncate max-w-[150px] cursor-help flex items-center gap-1 text-slate-400"
+            title={`Intake SHA-256: ${video.intake_sha256}`}
+          >
+            <FileText className="h-3.5 w-3.5 text-slate-400" />
+            SHA: {video.intake_sha256 ? video.intake_sha256.substring(0, 8) + '...' : '--'}
+          </span>
+        </div>
       </div>
 
       {/* ── 3. MAIN GRID: Player + Controls ───────────────────────────────────── */}
@@ -893,7 +918,7 @@ export default function VideoDetail() {
                   Track #{seekedTrackletId} dynamically tracked
                 </span>
                 <button
-                  onClick={() => { setSeekedTrackletId(null); setSeekedBbox(null) }}
+                  onClick={() => { setSeekedTrackletId(null); setSeekedBbox(null); setSeekedTrackletClass(null) }}
                   className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white underline flex items-center gap-1"
                 >
                   <X className="h-3 w-3" /> Clear Special BBox
