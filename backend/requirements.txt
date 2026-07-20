@@ -16,10 +16,10 @@ ffmpeg-python
 Pillow
 
 # Deep Learning
-torch
-torchvision
-ultralytics
-supervision
+torch>=2.5.0
+torchvision>=0.20.0
+ultralytics>=8.2.0
+supervision>=0.28.0
 
 # Embeddings
 open-clip-torch

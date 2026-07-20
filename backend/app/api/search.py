@@ -6,9 +6,10 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from loguru import logger
 
 from app.db.session import get_db
-from app.db.models import SearchLog
+from app.db.models import SearchLog, Tracklet
 from app.search.query_engine import QueryEngine
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
