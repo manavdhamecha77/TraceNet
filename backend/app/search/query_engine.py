@@ -154,6 +154,7 @@ class QueryEngine:
             filtered_results.append({
                 "score": score,
                 "tracklet_id": tracklet.id,
+                "tracker_id": tracklet.tracker_id,
                 "video_id": tracklet.video_id,
                 "camera_id": tracklet.camera_id,
                 "camera_name": video.camera.name if video.camera else tracklet.camera_id,

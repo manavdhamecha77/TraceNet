@@ -114,4 +114,9 @@ class ClipEncoder:
 
 @lru_cache(maxsize=1)
 def get_clip_encoder() -> ClipEncoder:
-    return ClipEncoder().load()
+    from app.api.embedding_models import load_active_config
+    cfg = load_active_config()
+    model_name = cfg.get("architecture", "ViT-B-32")
+    pretrained = cfg.get("pretrained", "openai")
+    return ClipEncoder(model_name=model_name, pretrained=pretrained).load()
+
