@@ -20,6 +20,7 @@ class SearchQueryRequest(BaseModel):
     time_start: Optional[str] = Field(default=None, description="Start date-time in ISO format")
     time_end: Optional[str] = Field(default=None, description="End date-time in ISO format")
     object_type: Optional[str] = Field(default="all", description="'all' | 'person' | 'vehicle'")
+    video_id: Optional[str] = Field(default=None, description="Scope search to a single video asset")
     top_k: int = Field(default=15, ge=1, le=50)
 
 
@@ -96,6 +97,7 @@ def search_footage(
             time_start=parsed_start,
             time_end=parsed_end,
             object_type=payload.object_type,
+            video_id=payload.video_id,
             top_k=payload.top_k
         )
         return results

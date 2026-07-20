@@ -6,6 +6,7 @@ import CameraDetail from './pages/CameraDetail'
 import Search from './pages/Search'
 import Landing from './pages/Landing'
 import Models from './pages/Models'
+import VideoDetail from './pages/VideoDetail'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -325,12 +326,19 @@ function App() {
       if (paths[0] === 'cameras') {
         crumbs.push({ label: 'Cameras', link: '/cameras' })
         if (paths[1]) {
-          crumbs.push({ label: selectedCamera ? selectedCamera.name : paths[1], link: `/cameras/${paths[1]}` })
+          const camLabel = selectedCamera ? selectedCamera.name : paths[1]
+          crumbs.push({ label: camLabel, link: `/cameras/${paths[1]}` })
+          // /cameras/:id/videos/:vid_id
+          if (paths[2] === 'videos' && paths[3]) {
+            crumbs.push({ label: 'Video Investigation', link: `/cameras/${paths[1]}/videos/${paths[3]}` })
+          }
         }
       } else if (paths[0] === 'search') {
         crumbs.push({ label: 'Search', link: '/search' })
       } else if (paths[0] === 'dashboard') {
         crumbs.push({ label: 'Dashboard', link: '/dashboard' })
+      } else if (paths[0] === 'models') {
+        crumbs.push({ label: 'Model Registry', link: '/models' })
       }
     } else {
       crumbs.push({ label: 'Home', link: '/' })
@@ -696,6 +704,7 @@ function App() {
             />
             <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
 
         </div>
@@ -969,6 +978,13 @@ function App() {
                 <span className="text-[10px] text-slate-400 block mt-0.5">Device: {selectedCamera.name} · {selectedCamera.camera_id}</span>
               </div>
               <div className="flex items-center gap-3 shrink-0 ml-4">
+                <Link
+                  to={`/cameras/${selectedCamera.camera_id}/videos/${selectedVideoToPlay.id}`}
+                  onClick={() => setSelectedVideoToPlay(null)}
+                  className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-bold flex items-center gap-1"
+                >
+                  Open Full Workspace ↗
+                </Link>
                 {/* View tab switcher */}
                 <div className="flex rounded-md bg-slate-200 dark:bg-slate-700 p-0.5 text-[10px] font-bold gap-0.5">
                   <button
