@@ -60,8 +60,10 @@ def test_camera_list():
 def test_camera_create():
     """Test POST /cameras to create a test camera"""
     try:
+        import time
+        unique_id = f"TEST_CAM_{int(time.time() % 100000)}"
         camera_data = {
-            "camera_id": "TEST_CAM_001",
+            "camera_id": unique_id,
             "name": "Test Camera 1",
             "latitude": 21.1458,
             "longitude": 79.0882,
