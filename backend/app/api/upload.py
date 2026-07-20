@@ -292,3 +292,40 @@ async def ingest_video(
         status="pending",
         message="Upload accepted. Video transcoding and analysis started in the background."
     )
+
+
+@router.get("/videos/{video_id}")
+def get_video_detail(video_id: str, db: Session = Depends(get_db)):
+    """Retrieve detailed single video asset record with associated camera details and tracklets."""
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video asset with ID '{video_id}' not found."
+        )
+
+    camera = video.camera
+    tracklets_list = [t.to_dict() for t in video.tracklets] if video.tracklets else []
+
+    # Load detections.json summary if present
+    detections_path = get_data_path(os.path.join("processed/detections", video_id, "detections.json"))
+    detections_summary = {}
+    if os.path.exists(detections_path):
+        try:
+            with open(detections_path, "r", encoding="utf-8") as f:
+                det_data = json.load(f)
+                detections_summary = {
+                    "frame_count": det_data.get("frame_count", 0),
+                    "fps": det_data.get("fps", 0),
+                    "total_tracklets": len(det_data.get("tracklets", [])),
+                }
+        except Exception:
+            pass
+
+    return {
+        "video": video.to_dict(),
+        "camera": camera.to_dict() if camera else None,
+        "tracklets": tracklets_list,
+        "detections_summary": detections_summary,
+    }
+

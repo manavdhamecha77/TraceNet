@@ -6,6 +6,8 @@ import CameraDetail from './pages/CameraDetail'
 import Search from './pages/Search'
 import Landing from './pages/Landing'
 import Models from './pages/Models'
+import EmbeddingModels from './pages/EmbeddingModels'
+import VideoDetail from './pages/VideoDetail'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -39,6 +41,20 @@ interface Video {
   thumbnail_path?: string
 }
 
+const extractTrackerId = (val: any): string | null => {
+  if (val == null) return null
+  if (typeof val === 'number') return String(val)
+  const str = String(val).trim()
+  if (!str) return null
+  if (/^\d+$/.test(str)) return str
+  if (str.includes('_trk_')) {
+    const parts = str.split('_trk_')
+    const last = parts[parts.length - 1]
+    if (/^\d+$/.test(last)) return last
+  }
+  return str
+}
+
 function App() {
   const location = useLocation()
 
@@ -66,6 +82,7 @@ function App() {
   const [playerDetections, setPlayerDetections] = useState<any | null>(null)
   const [playerDetectionsLoading, setPlayerDetectionsLoading] = useState(false)
   const [playerClassFilter, setPlayerClassFilter] = useState<string>('all')
+  const [seekedTrackerId, setSeekedTrackerId] = useState<string | null>(null)
   const [exportState, setExportState] = useState<'idle' | 'rendering' | 'ready' | 'error'>('idle')
   const [exportUrl, setExportUrl] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -286,7 +303,7 @@ function App() {
     }
   }
 
-  const handlePlayVideoAtTime = (video: Video, timestamp: number) => {
+  const handlePlayVideoAtTime = (video: Video, timestamp: number, trackerId?: number | string) => {
     const cam = cameras.find((c) => c.camera_id === video.camera_id)
     if (cam) {
       setSelectedCamera(cam)
@@ -300,6 +317,11 @@ function App() {
     }
     setSelectedVideoToPlay(video)
     setPlayerView('annotated')
+    if (trackerId != null) {
+      setSeekedTrackerId(String(trackerId))
+    } else {
+      setSeekedTrackerId(null)
+    }
     setTimeout(() => {
       if (videoRef.current) {
         videoRef.current.currentTime = timestamp
@@ -325,12 +347,19 @@ function App() {
       if (paths[0] === 'cameras') {
         crumbs.push({ label: 'Cameras', link: '/cameras' })
         if (paths[1]) {
-          crumbs.push({ label: selectedCamera ? selectedCamera.name : paths[1], link: `/cameras/${paths[1]}` })
+          const camLabel = selectedCamera ? selectedCamera.name : paths[1]
+          crumbs.push({ label: camLabel, link: `/cameras/${paths[1]}` })
+          // /cameras/:id/videos/:vid_id
+          if (paths[2] === 'videos' && paths[3]) {
+            crumbs.push({ label: 'Video Investigation', link: `/cameras/${paths[1]}/videos/${paths[3]}` })
+          }
         }
       } else if (paths[0] === 'search') {
         crumbs.push({ label: 'Search', link: '/search' })
       } else if (paths[0] === 'dashboard') {
         crumbs.push({ label: 'Dashboard', link: '/dashboard' })
+      } else if (paths[0] === 'models') {
+        crumbs.push({ label: 'Model Registry', link: '/models' })
       }
     } else {
       crumbs.push({ label: 'Home', link: '/' })
@@ -402,7 +431,7 @@ function App() {
     setPlayerDetectionsLoading(false)
   }
 
-  // Canvas bounding box draw — called on every timeupdate
+  // Canvas bounding box draw — called on every timeupdate with precision aspect ratio scaling
   const drawBoundingBoxes = useCallback(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
@@ -413,39 +442,98 @@ function App() {
       (fd: any) => fd.frame_index === frameIndex
     )
 
-    canvas.width = video.videoWidth || video.clientWidth
-    canvas.height = video.videoHeight || video.clientHeight
+    const cWidth = video.clientWidth
+    const cHeight = video.clientHeight
+    if (canvas.width !== cWidth || canvas.height !== cHeight) {
+      canvas.width = cWidth
+      canvas.height = cHeight
+    }
+
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0, 0, cWidth, cHeight)
 
     if (!frameData) return
 
-    const scaleX = canvas.width / 1280  // source is always 720p (1280×720)
-    const scaleY = canvas.height / 720
+    const vWidth = video.videoWidth || 1280
+    const vHeight = video.videoHeight || 720
+    const videoAspect = vWidth / vHeight
+    const containerAspect = cWidth / cHeight
+
+    let renderW = 0
+    let renderH = 0
+    let offsetX = 0
+    let offsetY = 0
+
+    if (containerAspect > videoAspect) {
+      renderH = cHeight
+      renderW = renderH * videoAspect
+      offsetX = (cWidth - renderW) / 2
+      offsetY = 0
+    } else {
+      renderW = cWidth
+      renderH = renderW / videoAspect
+      offsetX = 0
+      offsetY = (cHeight - renderH) / 2
+    }
+
+    const scaleX = renderW / 1280
+    const scaleY = renderH / 720
+
+    const toCanvasX = (x: number) => offsetX + (x * scaleX)
+    const toCanvasY = (y: number) => offsetY + (y * scaleY)
+
+    const targetId = extractTrackerId(seekedTrackerId)
 
     for (const det of frameData.detections ?? []) {
       const cn = det.class_name ?? 'unknown'
       if (playerClassFilter !== 'all' && cn.toLowerCase() !== playerClassFilter) continue
-      const [x1, y1, x2, y2] = (det.bbox ?? []).map((v: number, i: number) => i % 2 === 0 ? v * scaleX : v * scaleY)
+
+      const detId = extractTrackerId(det.tracker_id)
+      const isSeeked = targetId !== null && detId !== null && targetId === detId
+
+      const [x1, y1, x2, y2] = det.bbox ?? [0, 0, 0, 0]
+      const cx1 = toCanvasX(x1)
+      const cy1 = toCanvasY(y1)
+      const cw = toCanvasX(x2) - cx1
+      const ch = toCanvasY(y2) - cy1
+
       const color = classColor(cn)
       const conf = ((det.confidence ?? 0) * 100).toFixed(0)
       const tid = det.tracker_id != null ? ` #${det.tracker_id}` : ''
       const label = `${cn}${tid} ${conf}%`
 
-      ctx.strokeStyle = color
-      ctx.lineWidth = 2
-      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1)
+      if (isSeeked) {
+        ctx.strokeStyle = '#00FF41'
+        ctx.lineWidth = 4.5
+        ctx.strokeRect(cx1, cy1, cw, ch)
 
-      // Label background
-      ctx.font = 'bold 11px monospace'
-      const tw = ctx.measureText(label).width
-      ctx.fillStyle = color
-      ctx.fillRect(x1, y1 - 17, tw + 8, 17)
-      ctx.fillStyle = '#000'
-      ctx.fillText(label, x1 + 4, y1 - 4)
+        ctx.save()
+        ctx.strokeStyle = 'rgba(0,255,65,0.45)'
+        ctx.lineWidth = 9
+        ctx.strokeRect(cx1 - 2, cy1 - 2, cw + 4, ch + 4)
+        ctx.restore()
+
+        ctx.font = 'bold 12px monospace'
+        const tw = ctx.measureText(label).width
+        ctx.fillStyle = '#00FF41'
+        ctx.fillRect(cx1, cy1 - 20, tw + 10, 20)
+        ctx.fillStyle = '#000'
+        ctx.fillText(label, cx1 + 5, cy1 - 5)
+      } else {
+        ctx.strokeStyle = color
+        ctx.lineWidth = 2
+        ctx.strokeRect(cx1, cy1, cw, ch)
+
+        ctx.font = 'bold 11px monospace'
+        const tw = ctx.measureText(label).width
+        ctx.fillStyle = color
+        ctx.fillRect(cx1, cy1 - 17, tw + 8, 17)
+        ctx.fillStyle = '#000'
+        ctx.fillText(label, cx1 + 4, cy1 - 4)
+      }
     }
-  }, [playerDetections, playerClassFilter])
+  }, [playerDetections, playerClassFilter, seekedTrackerId])
 
   // Sync canvas on timeupdate
   useEffect(() => {
@@ -581,6 +669,20 @@ function App() {
             </Link>
 
             <Link
+              to="/embedding-models"
+              className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
+                location.pathname.startsWith('/embedding-models')
+                  ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 font-bold border-l-2 border-teal-700 dark:border-teal-400'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-800 dark:hover:text-white'
+              }`}
+            >
+              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
+              </svg>
+              {!isSidebarCollapsed && <span>Embedding Models</span>}
+            </Link>
+
+            <Link
               to="/search"
               className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
                 location.pathname === '/search'
@@ -695,7 +797,9 @@ function App() {
               }
             />
             <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
+            <Route path="/embedding-models" element={<EmbeddingModels />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
 
         </div>
@@ -969,6 +1073,13 @@ function App() {
                 <span className="text-[10px] text-slate-400 block mt-0.5">Device: {selectedCamera.name} · {selectedCamera.camera_id}</span>
               </div>
               <div className="flex items-center gap-3 shrink-0 ml-4">
+                <Link
+                  to={`/cameras/${selectedCamera.camera_id}/videos/${selectedVideoToPlay.id}`}
+                  onClick={() => setSelectedVideoToPlay(null)}
+                  className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-bold flex items-center gap-1"
+                >
+                  Open Full Workspace ↗
+                </Link>
                 {/* View tab switcher */}
                 <div className="flex rounded-md bg-slate-200 dark:bg-slate-700 p-0.5 text-[10px] font-bold gap-0.5">
                   <button

@@ -180,6 +180,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 3.5 | Search audit logging (log every query + result count to `SearchLog`) | Backend/Audit | done | Every search query, filters, and match count logged to SQLite `search_logs` table. |
 | 3.6 | Search UI: search bar, camera/time filters, results grid with thumbnails + confidence scores | Frontend | done | Implemented search dashboard in `Search.tsx` with camera nodes checkboxes, timeframe selectors, category filters, and results grid. |
 | 3.7 | Clip playback modal/view | Frontend | done | Seek & Stream button opens player and seeks to the exact tracklet start timestamp in Annotated view. |
+| 3.8 | Single Video Dedicated Page (`/cameras/[camera_id]/videos/[video_id]`) | Fullstack | done | Implemented `VideoDetail.tsx` with video-scoped CLIP search, clean/annotated stream toggle, interactive timeline density heatmap, and seek & pause action. |
 
 ### Phase 4 — Differentiators (priority order if time-constrained)
 

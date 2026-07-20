@@ -1,4 +1,17 @@
 import React, { useState, useEffect } from 'react'
+import {
+  Search as SearchIcon,
+  Filter,
+  Download,
+  Clock,
+  Layers,
+  RefreshCw,
+  Play,
+  FileText,
+  ShieldCheck,
+  Cpu,
+  Sparkles,
+} from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -33,6 +46,7 @@ interface SearchResult {
   video_start_time: string
   video_standardized_filename: string
   video_thumbnail_path?: string | null
+  tracker_id?: number
 }
 
 interface SearchLog {
@@ -47,42 +61,41 @@ interface SearchLog {
 }
 
 interface SearchProps {
-  onPlayVideoAtTime: (video: any, timestamp: number) => void
+  onPlayVideoAtTime: (video: any, timestamp: number, trackerId?: number | string) => void  // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export default function Search({ onPlayVideoAtTime }: SearchProps) {
   // Filters & State
-  const [query, setQuery] = useState('')
+  const [query, setQuery]                     = useState('')
   const [selectedCameras, setSelectedCameras] = useState<string[]>([])
-  const [selectedModels, setSelectedModels] = useState<string[]>([]) // Empty list means ALL models
-  const [timeStart, setTimeStart] = useState('')
-  const [timeEnd, setTimeEnd] = useState('')
-  const [objectType, setObjectType] = useState<string>('all')
-  const [topK, setTopK] = useState(15)
+  const [selectedModels, setSelectedModels]   = useState<string[]>([])
+  const [timeStart, setTimeStart]             = useState('')
+  const [timeEnd, setTimeEnd]                 = useState('')
+  const [objectType, setObjectType]           = useState<string>('all')
+  const [topK, setTopK]                       = useState(15)
 
   // DB Metadata
-  const [cameras, setCameras] = useState<Camera[]>([])
-  const [models, setModels] = useState<MLModel[]>([])
-  const [searchLogs, setSearchLogs] = useState<SearchLog[]>([])
-  const [results, setResults] = useState<SearchResult[]>([])
-  const [modelInfo, setModelInfo] = useState<any>(null)
+  const [cameras, setCameras]                 = useState<Camera[]>([])
+  const [models, setModels]                   = useState<MLModel[]>([])
+  const [searchLogs, setSearchLogs]           = useState<SearchLog[]>([])
+  const [results, setResults]                 = useState<SearchResult[]>([])
+  const [modelInfo, setModelInfo]             = useState<any>(null)  // eslint-disable-line @typescript-eslint/no-explicit-any
   
   // UI Status
-  const [searching, setSearching] = useState(false)
+  const [searching, setSearching]             = useState(false)
   const [loadingMetadata, setLoadingMetadata] = useState(true)
-  const [searchError, setSearchError] = useState('')
-  const [exportHash, setExportHash] = useState<string | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
+  const [searchError, setSearchError]         = useState('')
+  const [exportHash, setExportHash]           = useState<string | null>(null)
+  const [isExporting, setIsExporting]         = useState(false)
 
-  // Roboflow-style diverse colors
   const NAMED_CLASS_COLORS: Record<string, string> = {
-    person:       '#FF3838', // red
-    car:          '#FF9D97', // salmon pink
-    truck:        '#FF701F', // deep orange
-    bus:          '#FFB21D', // amber gold
-    motorcycle:   '#CFD231', // acid lime
-    bicycle:      '#48F90A', // neon green
-    van:          '#92CC17', // olive green
+    person:      '#FF3838',
+    car:         '#FF9D97',
+    truck:       '#FF701F',
+    bus:         '#FFB21D',
+    motorcycle:  '#CFD231',
+    bicycle:     '#48F90A',
+    van:         '#92CC17',
   }
   const FALLBACK_PALETTE = [
     '#E6194B','#3CB44B','#4363D8','#F58231','#911EB4',
@@ -96,22 +109,17 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length]
   }
 
-  // Load cameras, models, logs, current active model info
   const loadMetadata = async () => {
     try {
-      // 1. Fetch Cameras
       const camRes = await fetch(`${API_BASE}/api/v1/cameras`)
       if (camRes.ok) setCameras(await camRes.json())
 
-      // 2. Fetch Models
       const modelsRes = await fetch(`${API_BASE}/api/v1/models`)
       if (modelsRes.ok) setModels(await modelsRes.json())
 
-      // 3. Fetch Search logs
       const logRes = await fetch(`${API_BASE}/api/v1/search/logs`)
       if (logRes.ok) setSearchLogs(await logRes.json())
 
-      // 4. Fetch loaded active model details
       const modelRes = await fetch(`${API_BASE}/api/v1/detection/model`)
       if (modelRes.ok) setModelInfo(await modelRes.json())
     } catch (err) {
@@ -125,14 +133,11 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     loadMetadata()
   }, [])
 
-  // Check if camera is disabled due to model filtering
   const isCameraDisabled = (cam: Camera): boolean => {
     if (selectedModels.length === 0) return false
-    // Disable if camera is not assigned to a selected model
     return !cam.model_id || !selectedModels.includes(cam.model_id)
   }
 
-  // Auto-deselect cameras that become disabled due to model selections
   useEffect(() => {
     setSelectedCameras(prev => prev.filter(camId => {
       const cam = cameras.find(c => c.camera_id === camId)
@@ -149,7 +154,6 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     setResults([])
     setExportHash(null)
 
-    // Collect enabled cameras
     const activeCameraIds = selectedCameras.length > 0 
       ? selectedCameras 
       : cameras.filter(c => !isCameraDisabled(c)).map(c => c.camera_id)
@@ -178,43 +182,42 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       const data = await res.json()
       setResults(data)
       
-      // Reload logs to show the new query
       const logRes = await fetch(`${API_BASE}/api/v1/search/logs`)
       if (logRes.ok) setSearchLogs(await logRes.json())
-    } catch (err: any) {
-      setSearchError(err.message || 'Vector search execution failure.')
+    } catch (err: unknown) {
+      setSearchError(err instanceof Error ? err.message : 'Vector search execution failure.')
     } finally {
       setSearching(false)
     }
   }
 
-  // Export search results with SHA-256 verification code (evidentiary integrity)
   const handleExportResults = async () => {
     if (results.length === 0) return
     setIsExporting(true)
     
-    // Create text report content
     const reportHeader = `TRACENET EVIDENCE RECORD - SEARCH LOG REPORT\n` +
       `Generated: ${new Date().toISOString()}\n` +
       `Query descriptor: "${query}"\n` +
       `Matched tracklet counts: ${results.length}\n` +
       `========================================================================\n\n`
       
-    const reportBody = results.map((r, i) => (
-      `Result #${i+1} [Similarity Score: ${(r.score * 100).toFixed(1)}%]\n` +
-      `- Tracklet ID: ${r.tracklet_id}\n` +
-      `- Camera node: ${r.camera_id} (${r.camera_name})\n` +
-      `- Classification: ${r.class_name} (${r.object_type})\n` +
-      `- Absolute timeline: ${new Date(r.video_start_time).toLocaleString()}\n` +
-      `- Timestamp start relative: ${r.timestamp_start_seconds.toFixed(2)}s\n` +
-      `- Frame start relative: ${r.frame_start}\n` +
-      `- Standardized file alignment: ${r.video_standardized_filename}\n` +
-      `------------------------------------------------------------------------\n`
-    )).join('\n')
+    const reportBody = results.map((r, i) => {
+      const dwell = Math.max(0.1, (r.timestamp_end_seconds || 0) - (r.timestamp_start_seconds || 0)).toFixed(1)
+      return (
+        `Result #${i+1} [Similarity Score: ${(r.score * 100).toFixed(1)}%]\n` +
+        `- Tracklet ID: ${r.tracklet_id}\n` +
+        `- Camera node: ${r.camera_id} (${r.camera_name})\n` +
+        `- Classification: ${r.class_name} (${r.object_type})\n` +
+        `- Absolute timeline: ${new Date(r.video_start_time).toLocaleString()}\n` +
+        `- Relative start: ${r.timestamp_start_seconds.toFixed(2)}s (Dwell: ${dwell}s)\n` +
+        `- Frame start relative: ${r.frame_start}\n` +
+        `- Standardized file alignment: ${r.video_standardized_filename}\n` +
+        `------------------------------------------------------------------------\n`
+      )
+    }).join('\n')
 
     const reportContent = reportHeader + reportBody
 
-    // Calculate SHA-256 hash using native Web Crypto API
     try {
       const msgBuffer = new TextEncoder().encode(reportContent)
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
@@ -223,7 +226,6 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       
       setExportHash(hashHex)
 
-      // Download as text file
       const blob = new Blob([reportContent + `\nVerification SHA-256 Hash: ${hashHex}\n`], { type: 'text/plain' })
       const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -252,7 +254,6 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     )
   }
 
-  // Filter search results dynamically by model selection
   const visibleResults = results.filter(r => {
     const cam = cameras.find(c => c.camera_id === r.camera_id)
     if (!cam) return true
@@ -265,21 +266,24 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       {/* HEADER ROW */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Forensic Search & Rank</h2>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Forensic Search &amp; Rank</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Submit natural language queries to search, rank, and explain CCTV tracklets using Qdrant persistent vector indices.
+            Submit natural language queries to search, rank, and explain CCTV tracklets using persistent Qdrant vector indices.
           </p>
         </div>
         
         {/* Model status badges */}
         <div className="flex flex-wrap gap-2.5">
-          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold">
-            INDEX: <strong className="text-slate-750 dark:text-slate-200 font-mono">Qdrant Local persistence</strong>
+          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold flex items-center gap-1">
+            <Cpu className="h-3 w-3 text-slate-400" />
+            INDEX: <strong className="text-slate-750 dark:text-slate-200 font-mono">Qdrant Local</strong>
           </span>
-          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold">
+          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold flex items-center gap-1">
+            <Layers className="h-3 w-3 text-slate-400" />
             DETECTOR: <strong className="text-teal-700 dark:text-teal-400 font-mono">{modelInfo ? modelInfo.model_path.split(/[/\\]/).pop() : 'Loading...'}</strong>
           </span>
-          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold">
+          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-slate-400" />
             ENCODER: <strong className="text-teal-700 dark:text-teal-400 font-mono">CLIP ViT-B-32</strong>
           </span>
           <button
@@ -298,12 +302,10 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                 alert('Network error during re-indexing.')
               }
             }}
-            className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded font-bold cursor-pointer transition-all flex items-center gap-1"
+            className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded font-bold cursor-pointer transition-all flex items-center gap-1.5"
           >
-            <svg className="h-3 w-3 animate-spin-hover" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.228 9H18.91" />
-            </svg>
-            ⚙️ RE-INDEX ALL FEEDS
+            <RefreshCw className="h-3 w-3" />
+            Re-index All Feeds
           </button>
         </div>
       </div>
@@ -317,28 +319,26 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Natural Language Query descriptor</label>
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Red SUV moving quickly, man in yellow raincoat, police patrol vehicle..."
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className="flex-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
-                />
+                <div className="relative flex-1">
+                  <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Red SUV moving quickly, man in yellow raincoat, police patrol vehicle..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={searching || loadingMetadata}
                   className="bg-teal-700 hover:bg-teal-800 dark:bg-teal-650 dark:hover:bg-teal-700 text-white px-5 rounded text-xs font-bold transition-all shrink-0 shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {searching ? (
-                    <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
+                    <RefreshCw className="animate-spin h-3.5 w-3.5" />
                   ) : (
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+                    <SearchIcon className="h-3.5 w-3.5" />
                   )}
                   Forensic Search
                 </button>
@@ -379,7 +379,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     onChange={(e) => setObjectType(e.target.value)}
                     className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-850 dark:text-slate-100 focus:outline-none focus:border-teal-700"
                   >
-                    <option value="all">All (People & Vehicles)</option>
+                    <option value="all">All (People &amp; Vehicles)</option>
                     <option value="person">People Only</option>
                     <option value="vehicle">Vehicles Only</option>
                   </select>
@@ -408,7 +408,9 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           {/* Model Registry Filter */}
           <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-4 shadow-sm flex flex-col justify-between max-h-[170px] overflow-hidden">
             <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Model Filter (drift guard)</label>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                <Filter className="h-3 w-3" /> Model Filter (drift guard)
+              </label>
               <p className="text-[9px] text-slate-400 shrink-0">Select model source. De-selecting a model hides its predictions and locks corresponding cameras.</p>
               <div className="overflow-y-auto mt-2 space-y-1.5 pr-2 flex-1 min-h-0">
                 {models.map((m) => (
@@ -487,7 +489,8 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
             
             <div className="flex items-center gap-3">
               {exportHash && (
-                <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
+                  <ShieldCheck className="h-3 w-3" />
                   Integrity code: {exportHash.substring(0, 16)}...
                 </span>
               )}
@@ -496,6 +499,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                 disabled={isExporting}
                 className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-250 dark:border-slate-650 text-slate-700 dark:text-slate-300 px-3.5 py-1.5 rounded text-[11px] font-bold transition-all inline-flex items-center gap-1.5 shadow-sm"
               >
+                <Download className="h-3.5 w-3.5" />
                 {isExporting ? 'Exporting...' : 'Export Results Set'}
               </button>
             </div>
@@ -514,12 +518,14 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                 ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
                 : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
 
+            const dwellSec = Math.max(0.1, (result.timestamp_end_seconds || 0) - (result.timestamp_start_seconds || 0)).toFixed(1)
+
             return (
               <div
                 key={result.tracklet_id}
                 className="group flex flex-col rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 hover:border-teal-400 dark:hover:border-teal-500 hover:-translate-y-0.5"
               >
-                {/* Crop display (object-contain with background fill to keep original aspect ratio) */}
+                {/* Crop display */}
                 <div className="relative w-full h-28 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
                   {cropUrl ? (
                     <img
@@ -528,7 +534,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                       className="w-full h-full object-contain bg-slate-200/50 dark:bg-slate-800/50 transition-transform duration-300 group-hover:scale-102"
                     />
                   ) : (
-                    <span className="text-[10px] text-slate-400">No Crop Saved</span>
+                    <FileText className="h-8 w-8 text-slate-400 opacity-40" />
                   )}
                   
                   {/* Score badge overlay */}
@@ -544,14 +550,14 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                       className="inline-flex rounded px-1.5 py-0.5 text-[9px] font-mono text-white text-shadow-sm capitalize font-bold"
                       style={{ backgroundColor: classColor(result.class_name) }}
                     >
-                      {result.class_name}
+                      {result.class_name} #{result.tracker_id || ''}
                     </span>
                   </div>
                 </div>
 
                 {/* Details */}
                 <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] font-mono bg-slate-50 dark:bg-slate-800 px-1 py-0.5 rounded text-teal-700 dark:text-teal-400 font-bold shrink-0">
                         {result.camera_id}
@@ -563,7 +569,12 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
                     <div className="text-[10px] text-slate-650 dark:text-slate-350 space-y-0.5 font-sans">
                       <div>Timeline: <strong className="text-slate-800 dark:text-slate-100">{new Date(result.video_start_time).toLocaleString()}</strong></div>
-                      <div>Relative Start: <strong className="text-slate-800 dark:text-slate-100">{result.timestamp_start_seconds.toFixed(2)}s</strong> (Frame {result.frame_start})</div>
+                      <div className="flex justify-between items-center">
+                        <span>Start: <strong className="text-slate-800 dark:text-slate-100">{result.timestamp_start_seconds.toFixed(2)}s</strong></span>
+                        <span className="font-bold text-teal-700 dark:text-teal-400 flex items-center gap-0.5">
+                          <Clock className="h-3 w-3" /> Dwell: {dwellSec}s
+                        </span>
+                      </div>
                       <div>Mean Conf: <strong className="text-slate-850 dark:text-slate-200">{(result.mean_confidence * 100).toFixed(0)}%</strong></div>
                     </div>
                   </div>
@@ -578,14 +589,12 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                         thumbnail_path: result.video_thumbnail_path || '',
                         processing_status: 'complete'
                       }
-                      onPlayVideoAtTime(mockVideoObj, result.timestamp_start_seconds)
+                      onPlayVideoAtTime(mockVideoObj, result.timestamp_start_seconds, result.tracker_id)
                     }}
-                    className="w-full flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-1.5 rounded text-[10px] font-bold transition-all mt-2 border border-slate-250 dark:border-slate-750"
+                    className="w-full flex items-center justify-center gap-1.5 bg-teal-50 dark:bg-teal-900/30 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 py-1.5 rounded text-[11px] font-bold transition-all border border-teal-200 dark:border-teal-800"
                   >
-                    <svg className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    </svg>
-                    Seek & Stream annotated
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    <span>Seek &amp; Highlight</span>
                   </button>
 
                 </div>
@@ -624,7 +633,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
               {searchLogs.slice(0, 10).map((log) => (
                 <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
                   <td className="py-2.5 whitespace-nowrap text-slate-400">{new Date(log.timestamp).toLocaleString()}</td>
-                  <td className="py-2.5 font-bold text-slate-750 dark:text-slate-250 italic">"{log.query_text}"</td>
+                  <td className="py-2.5 font-bold text-slate-750 dark:text-slate-250 italic">&ldquo;{log.query_text}&rdquo;</td>
                   <td className="py-2.5 font-mono text-[10px]">
                     {log.camera_filter && log.camera_filter.length > 0 ? log.camera_filter.join(', ') : 'Citywide'}
                   </td>

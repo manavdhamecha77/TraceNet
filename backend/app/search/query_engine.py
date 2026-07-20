@@ -30,17 +30,18 @@ class QueryEngine:
         time_start: Optional[datetime] = None,
         time_end: Optional[datetime] = None,
         object_type: Optional[str] = None,
+        video_id: Optional[str] = None,
         top_k: int = 15,
         user_id: str = "demo",
     ) -> list[dict]:
         """
         Hybrid semantic + metadata search:
         1. Encodes text query to vector using CLIP.
-        2. Queries local Qdrant collection with camera_id and object_type pre-filters.
+        2. Queries local Qdrant collection with camera_id, video_id, and object_type pre-filters.
         3. Enriches results with SQLite joins and filters by absolute timeline window.
         4. Logs search query, timestamp, and results count for the evidentiary audit trail.
         """
-        logger.info(f"QueryEngine: search query='{query_text}', camera_ids={camera_ids}, type={object_type}")
+        logger.info(f"QueryEngine: search query='{query_text}', camera_ids={camera_ids}, video_id={video_id}, type={object_type}")
 
         # 1. Embed query text
         query_vector = self.encoder.embed_text(query_text)
@@ -52,6 +53,13 @@ class QueryEngine:
                 models.FieldCondition(
                     key="camera_id",
                     match=models.MatchAny(any=list(camera_ids))
+                )
+            )
+        if video_id:
+            must_filters.append(
+                models.FieldCondition(
+                    key="video_id",
+                    match=models.MatchValue(value=video_id)
                 )
             )
         if object_type and object_type != "all":
@@ -146,6 +154,7 @@ class QueryEngine:
             filtered_results.append({
                 "score": score,
                 "tracklet_id": tracklet.id,
+                "tracker_id": tracklet.tracker_id,
                 "video_id": tracklet.video_id,
                 "camera_id": tracklet.camera_id,
                 "camera_name": video.camera.name if video.camera else tracklet.camera_id,
