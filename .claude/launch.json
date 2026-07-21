@@ -10,8 +10,8 @@
     },
     {
       "name": "frontend",
-      "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "vite"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 5173,
       "autoPort": true
     }
