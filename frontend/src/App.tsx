@@ -165,35 +165,27 @@ function App() {
     return () => clearInterval(timer)
   }, [location.pathname])
 
-  // Aggregate global metrics for dashboard
+  // Fetch aggregated dashboard metrics from backend
   useEffect(() => {
-    const fetchGlobalVideos = async () => {
-      if (cameras.length === 0) return
+    const fetchMetrics = async () => {
       try {
-        const cameraPromises = cameras.map((c) =>
-          fetch(`${API_BASE}/api/v1/cameras/${c.camera_id}/videos`).then((r) => r.json())
-        )
-        const results = await Promise.all(cameraPromises)
-        const allVideos: Video[] = results.flat()
-
-        const complete = allVideos.filter((v) => v.processing_status === 'complete').length
-        const pending = allVideos.filter((v) => v.processing_status === 'pending').length
-        const processing = allVideos.filter((v) => v.processing_status === 'processing').length
-        const failed = allVideos.filter((v) => v.processing_status === 'failed').length
-
-        setMetrics({
-          totalCameras: cameras.length,
-          totalVideos: allVideos.length,
-          processedVideos: complete,
-          pendingVideos: pending + processing,
-          failedVideos: failed,
-        })
+        const res = await fetch(`${API_BASE}/api/v1/metrics/dashboard`)
+        if (res.ok) {
+          const data = await res.json()
+          setMetrics({
+            totalCameras: data.total_cameras,
+            totalVideos: data.total_videos,
+            processedVideos: data.processed_videos,
+            pendingVideos: data.pending_videos + data.processing_videos,
+            failedVideos: data.failed_videos,
+          })
+        }
       } catch (err) {
-        console.error('Failed to aggregate dashboard metrics:', err)
+        console.error('Failed to fetch dashboard metrics:', err)
       }
     }
-    fetchGlobalVideos()
-  }, [cameras, location.pathname])
+    fetchMetrics()
+  }, [location.pathname])
 
   // Register camera submit
   const handleCreateCamera = async (e: React.FormEvent) => {
