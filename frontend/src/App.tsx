@@ -8,6 +8,7 @@ import Landing from './pages/Landing'
 import Models from './pages/Models'
 import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
+import Alerts from './pages/Alerts'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -355,6 +356,8 @@ function App() {
         }
       } else if (paths[0] === 'search') {
         crumbs.push({ label: 'Search', link: '/search' })
+      } else if (paths[0] === 'alerts') {
+        crumbs.push({ label: 'Alerts', link: '/alerts' })
       } else if (paths[0] === 'dashboard') {
         crumbs.push({ label: 'Dashboard', link: '/dashboard' })
       } else if (paths[0] === 'models') {
@@ -668,17 +671,29 @@ function App() {
             </Link>
 
             <Link
+<<<<<<< HEAD
               to="/embedding-models"
               className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
                 location.pathname.startsWith('/embedding-models')
+=======
+              to="/alerts"
+              className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
+                location.pathname === '/alerts'
+>>>>>>> c9c9126 (feat: implement Stage 7 alerts UI dashboard with acknowledge functionality)
                   ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 font-bold border-l-2 border-teal-700 dark:border-teal-400'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
               <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+<<<<<<< HEAD
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
               </svg>
               {!isSidebarCollapsed && <span>Embedding Models</span>}
+=======
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {!isSidebarCollapsed && <span>Alerts</span>}
+>>>>>>> c9c9126 (feat: implement Stage 7 alerts UI dashboard with acknowledge functionality)
             </Link>
 
             <Link
@@ -796,7 +811,11 @@ function App() {
               }
             />
             <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
+<<<<<<< HEAD
             <Route path="/embedding-models" element={<EmbeddingModels />} />
+=======
+            <Route path="/alerts" element={<Alerts cameras={cameras} />} />
+>>>>>>> c9c9126 (feat: implement Stage 7 alerts UI dashboard with acknowledge functionality)
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
