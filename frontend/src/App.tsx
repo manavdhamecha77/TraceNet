@@ -108,6 +108,7 @@ function App() {
   const [uploadStartTime, setUploadStartTime] = useState('')
   const [uploadProgress, setUploadProgress] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [uploadError, setUploadError] = useState('')
+  const [uploadDragActive, setUploadDragActive] = useState(false)
 
   // Dashboard metrics state
   const [metrics, setMetrics] = useState({
@@ -249,6 +250,12 @@ function App() {
 
     if (!uploadFile) {
       setUploadError('Please select a video file.')
+      return
+    }
+
+    const maxSize = 2 * 1024 * 1024 * 1024
+    if (uploadFile.size > maxSize) {
+      setUploadError(`File size exceeds 2GB limit. Current: ${(uploadFile.size / 1024 / 1024 / 1024).toFixed(2)}GB`)
       return
     }
 
@@ -987,17 +994,41 @@ function App() {
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Select Feed File *</label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      setUploadFile(e.target.files[0])
+                <div
+                  onDragEnter={(e) => { e.preventDefault(); setUploadDragActive(true) }}
+                  onDragLeave={(e) => { e.preventDefault(); setUploadDragActive(false) }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setUploadDragActive(false)
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      setUploadFile(e.dataTransfer.files[0])
                     }
                   }}
-                  className="w-full text-xs text-slate-500 file:mr-3 file:py-1 file:px-2.5 file:rounded file:border file:border-slate-200 dark:file:border-slate-700 file:text-[11px] file:font-semibold file:bg-slate-50 dark:file:bg-slate-900 file:text-slate-600 dark:file:text-slate-400 hover:file:bg-slate-100 dark:hover:file:bg-slate-750 hover:file:cursor-pointer"
-                />
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">Accepts standard forensic formats (.avi, .mov, .mp4, etc.)</span>
+                  className={`relative w-full rounded border-2 border-dashed px-4 py-6 text-center transition-colors ${
+                    uploadDragActive
+                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/20'
+                      : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900'
+                  }`}
+                >
+                  <svg className="mx-auto h-8 w-8 text-slate-400 dark:text-slate-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setUploadFile(e.target.files[0])
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {uploadFile ? uploadFile.name : 'Drag files here or click to select'}
+                  </p>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-1">Accepts standard forensic formats (.avi, .mov, .mp4, etc.)</span>
+                </div>
               </div>
 
               <div>
@@ -1011,13 +1042,18 @@ function App() {
               </div>
 
               {uploadProgress === 'uploading' && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex justify-between text-[11px] text-teal-700 dark:text-teal-400 font-semibold">
                     <span>Sending stream buffer...</span>
                     <span className="animate-pulse">Active</span>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-1 overflow-hidden">
-                    <div className="bg-teal-700 dark:bg-teal-500 h-full rounded-full animate-[shimmer_1.5s_infinite]" style={{ width: '85%' }}></div>
+                  <div className="space-y-1">
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                      <div className="bg-gradient-to-r from-teal-600 to-teal-400 h-full rounded-full animate-[shimmer_1.5s_infinite]" style={{ width: '85%' }}></div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      File: {uploadFile?.name} · Size: {uploadFile ? (uploadFile.size / 1024 / 1024).toFixed(1) : 0} MB
+                    </p>
                   </div>
                 </div>
               )}
