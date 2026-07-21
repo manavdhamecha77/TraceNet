@@ -624,6 +624,30 @@ export default function VideoDetail() {
     )
   }
 
+  if (data?.video?.is_bin) {
+    return (
+      <div className="p-8 max-w-lg mx-auto mt-12 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800 rounded-md text-center shadow-lg">
+        <div className="flex justify-center mb-4">
+          <div className="p-3 bg-rose-500/10 rounded-full animate-bounce">
+            <svg className="h-8 w-8 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </div>
+        </div>
+        <h3 className="text-base font-bold text-rose-800 dark:text-rose-400 mb-2">Access Restricted</h3>
+        <p className="text-xs text-rose-600 dark:text-rose-350 leading-relaxed mb-6">
+          This video segment has been moved to the Bin. Workspace investigation features, local search, and tracking analytics are disabled until this segment is restored from the camera control center.
+        </p>
+        <button
+          onClick={() => window.history.back()}
+          className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded text-xs font-bold transition-all shadow"
+        >
+          Go Back
+        </button>
+      </div>
+    )
+  }
+
   // ─── Derived values ─────────────────────────────────────────────────────────
 
   const video    = data.video    || {}

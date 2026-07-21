@@ -132,6 +132,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
   const [editStatus, setEditStatus] = useState('active')
   const [editAltitude, setEditAltitude] = useState('')
   const [editModelId, setEditModelId] = useState('')
+  const [syncDetections, setSyncDetections] = useState(false)
   const [editFormError, setEditFormError] = useState('')
   const editMapContainerRef = useRef<HTMLDivElement>(null)
   const editMapRef = useRef<any>(null)
@@ -297,6 +298,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
     setEditStatus(cam.status)
     setEditAltitude(cam.altitude?.toString() ?? '')
     setEditModelId(cam.model_id ?? '')
+    setSyncDetections(false)
     setEditFormError('')
     setActiveMenuId(null)
   }
@@ -319,7 +321,14 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
       const r = await fetch(`${API_BASE}/api/v1/cameras/${editCamera.camera_id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
-      if (r.ok) { setEditCamera(null); refreshCameras() }
+      if (r.ok) {
+        if (syncDetections) {
+          await fetch(`${API_BASE}/api/v1/cameras/${editCamera.camera_id}/sync-detection`, { method: 'POST' })
+        }
+        setEditCamera(null)
+        setSyncDetections(false)
+        refreshCameras()
+      }
       else { const d = await r.json(); setEditFormError(d.detail ?? 'Failed to save.') }
     } catch { setEditFormError('Network error.') }
   }
@@ -744,6 +753,20 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
                       ))}
                     </select>
                   </Field>
+
+                  {editCamera.model_id !== editModelId && (
+                    <label className="flex items-start gap-2 pt-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={syncDetections}
+                        onChange={e => setSyncDetections(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-350 text-teal-600 focus:ring-teal-500 dark:border-slate-750 dark:bg-slate-800"
+                      />
+                      <span className="text-[11px] text-teal-700 dark:text-teal-400 font-bold select-none leading-tight">
+                        Sync all current videos' detections (re-run detection &amp; replace previous model data in background)
+                      </span>
+                    </label>
+                  )}
                 </div>
 
                 {/* ── RIGHT: Live map + thumbnail preview ── */}

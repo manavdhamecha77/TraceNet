@@ -86,6 +86,8 @@ class VideoAsset(Base):
     processing_status = Column(String, default="pending")  # 'pending' | 'transcoding' | 'preprocessed' | 'indexing' | 'complete' | 'failed'
     progress_percentage = Column(Integer, default=0)
     
+    is_bin = Column(Boolean, default=False)
+    
     # Metadata and properties
     duration = Column(Float, nullable=True)  # In seconds
     start_time = Column(DateTime, nullable=True)
@@ -109,7 +111,8 @@ class VideoAsset(Base):
             "duration": self.duration,
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
-            "thumbnail_path": self.thumbnail_path
+            "thumbnail_path": self.thumbnail_path,
+            "is_bin": self.is_bin
         }
 
 

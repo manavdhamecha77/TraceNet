@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, MoreVertical, Trash2, RotateCcw, Download, Eye, Play } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -31,6 +31,7 @@ interface Video {
   start_time?: string
   end_time?: string
   thumbnail_path?: string
+  is_bin?: boolean
 }
 
 interface DetectionBox {
@@ -104,7 +105,7 @@ export default function CameraDetail({
   setSelectedCamera,
 }: CameraDetailProps) {
   const { camera_id } = useParams<{ camera_id: string }>()
-  const [activeTab, setActiveTab] = useState<'original' | 'system'>('system')
+  const [activeTab, setActiveTab] = useState<'original' | 'system' | 'bin'>('system')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [detectionLoadingId, setDetectionLoadingId] = useState<string | null>(null)
@@ -115,12 +116,28 @@ export default function CameraDetail({
     loading: boolean
   } | null>(null)
   
+  // Video dropdown and delete confirmation states
+  const [activeVideoMenuId, setActiveVideoMenuId] = useState<string | null>(null)
+  const [videoMenuPos, setVideoMenuPos] = useState<{ top: number; right: number } | null>(null)
+  const [deleteConfirmVideo, setDeleteConfirmVideo] = useState<Video | null>(null)
+  const [deleteAgreeCheckbox, setDeleteAgreeCheckbox] = useState(false)
+  const [deletingProgress, setDeletingProgress] = useState(false)
+
   // Tracklet Filters & Sorting
   const [detectionFilterType, setDetectionFilterType] = useState<string>('all')
   const [detectionFilterClass, setDetectionFilterClass] = useState<string>('all')
   const [detectionSortOrder, setDetectionSortOrder] = useState<'desc' | 'asc'>('desc')
   
   const pollTimerRef = useRef<any>(null)
+
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setActiveVideoMenuId(null)
+      setVideoMenuPos(null)
+    }
+    window.addEventListener('click', handleOutsideClick)
+    return () => window.removeEventListener('click', handleOutsideClick)
+  }, [])
 
   // Fetch Camera Details
   const fetchCameraDetails = async () => {
@@ -224,6 +241,83 @@ export default function CameraDetail({
       return `${API_BASE}${normalized.slice(dataIndex)}`
     }
     return ''
+  }
+
+  const handleMoveToBin = async (videoId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/videos/${videoId}/bin`, { method: 'PUT' })
+      if (res.ok) {
+        setCameraVideos(prev => prev.map(v => v.id === videoId ? { ...v, is_bin: true } : v))
+      } else {
+        alert('Failed to move video to bin.')
+      }
+    } catch (_) {
+      alert('Network error moving video to bin.')
+    }
+  }
+
+  const handleRestoreVideo = async (videoId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/videos/${videoId}/restore`, { method: 'PUT' })
+      if (res.ok) {
+        setCameraVideos(prev => prev.map(v => v.id === videoId ? { ...v, is_bin: false } : v))
+      } else {
+        alert('Failed to restore video.')
+      }
+    } catch (_) {
+      alert('Network error restoring video.')
+    }
+  }
+
+  const handleDeleteVideoPermanently = async (videoId: string) => {
+    setDeletingProgress(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/videos/${videoId}/delete`, { method: 'DELETE' })
+      if (res.ok) {
+        setCameraVideos(prev => prev.filter(v => v.id !== videoId))
+        setDeleteConfirmVideo(null)
+        setDeleteAgreeCheckbox(false)
+      } else {
+        const errData = await res.json().catch(() => ({}))
+        alert(`Deletion failed: ${errData.detail || 'Server error'}`)
+      }
+    } catch (_) {
+      alert('Network error deleting video segment.')
+    } finally {
+      setDeletingProgress(false)
+    }
+  }
+
+  const downloadSHAReport = async (video: Video) => {
+    const reportHeader = `========================================================================\n` +
+                         `               TRACENET EVIDENCE CUSTODY COMPLIANCE REPORT              \n` +
+                         `========================================================================\n` +
+                         `Report Generated At: ${new Date().toLocaleString()}\n` +
+                         `Video Asset UUID   : ${video.id}\n` +
+                         `Original Filename  : ${video.original_filename}\n` +
+                         `Standardized MP4   : ${video.standardized_filename}\n` +
+                         `Intake SHA-256 Hash: ${video.intake_sha256}\n` +
+                         `Processed SHA-256  : ${video.transcoded_sha256 || 'Not Transcoded'}\n` +
+                         `Current Status     : ${video.processing_status.toUpperCase()}\n` +
+                         `========================================================================\n`
+    try {
+      const msgBuffer = new TextEncoder().encode(reportHeader)
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+      
+      const blob = new Blob([reportHeader + `\nVerification SHA-256 compliance hash: ${hashHex}\n`], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `evidence_sha_report_${video.id}.txt`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (_) {
+      alert('Forensic hashing failed.')
+    }
   }
 
   const openDetections = async (video: Video) => {
@@ -341,9 +435,23 @@ export default function CameraDetail({
               Backup
             </span>
           </button>
+          {/* Bin tab third */}
+          <button
+            onClick={() => setActiveTab('bin')}
+            className={`py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 ${
+              activeTab === 'bin'
+                ? 'border-rose-700 dark:border-rose-400 text-rose-700 dark:text-rose-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+            }`}
+          >
+            Bin
+            <span className="text-[9px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+              Trash
+            </span>
+          </button>
         </div>
         <span className="text-[11px] text-slate-500 dark:text-slate-400">
-          Showing {cameraVideos.length} recorded segments
+          Showing {cameraVideos.filter(v => activeTab === 'bin' ? v.is_bin : !v.is_bin).length} segments
         </span>
       </div>
 
@@ -363,14 +471,14 @@ export default function CameraDetail({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              {cameraVideos.length === 0 ? (
+              {cameraVideos.filter(v => activeTab === 'bin' ? v.is_bin : !v.is_bin).length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500">
-                    No files uploaded. Feed ingestion sandbox is ready.
+                  <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium">
+                    {activeTab === 'bin' ? 'No video segments in Bin.' : 'No files uploaded. Feed ingestion sandbox is ready.'}
                   </td>
                 </tr>
               ) : (
-                cameraVideos.map((video) => {
+                cameraVideos.filter(v => activeTab === 'bin' ? v.is_bin : !v.is_bin).map((video) => {
                   const thumbUrl = getThumbnailUrl(video)
                   return (
                     <tr
@@ -465,25 +573,20 @@ export default function CameraDetail({
                       <td className="px-4 py-3 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            disabled={video.processing_status !== 'complete' || detectionLoadingId === video.id}
+                            disabled={video.processing_status !== 'complete' || detectionLoadingId === video.id || activeTab === 'bin'}
                             onClick={() => openDetections(video)}
                             className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-bold transition-all ${
-                              video.processing_status === 'complete'
+                              video.processing_status === 'complete' && activeTab !== 'bin'
                                 ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
                             }`}
                           >
                             {detectionLoadingId === video.id ? (
-                              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                              </svg>
+                              <span className="animate-spin h-3.5 w-3.5 border-2 border-teal-500 border-t-transparent rounded-full" />
                             ) : (
-                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.55-2.28A1 1 0 0121 8.62v6.76a1 1 0 01-1.45.89L15 14M4 7h8a2 2 0 012 2v6a2 2 0 01-2 2H4V7z" />
-                              </svg>
+                              <Eye className="h-3.5 w-3.5" />
                             )}
-                            Detections
+                            <span>Detections</span>
                           </button>
                           <button
                             disabled={!['preprocessed', 'indexing', 'complete'].includes(video.processing_status)}
@@ -494,11 +597,33 @@ export default function CameraDetail({
                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-200 dark:border-slate-700'
                             }`}
                           >
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                            </svg>
-                            View
+                            <Play className="h-3.5 w-3.5 fill-current" />
+                            <span>View</span>
                           </button>
+                          
+                          {/* 3-dot Options Menu */}
+                          <div className="relative">
+                            <button
+                              title="More options"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (activeVideoMenuId === video.id) {
+                                  setActiveVideoMenuId(null)
+                                  setVideoMenuPos(null)
+                                } else {
+                                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                                  setVideoMenuPos({
+                                    top: rect.bottom + window.scrollY + 6,
+                                    right: window.innerWidth - rect.right
+                                  })
+                                  setActiveVideoMenuId(video.id)
+                                }
+                              }}
+                              className="flex items-center justify-center w-7 h-7 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -773,6 +898,163 @@ export default function CameraDetail({
           </div>
         </div>
       )}
+
+      {/* VIDEO ROW DROPDOWN MENU */}
+      {activeVideoMenuId && videoMenuPos && (() => {
+        const video = cameraVideos.find(v => v.id === activeVideoMenuId)
+        if (!video) return null
+        
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              top: videoMenuPos.top,
+              right: videoMenuPos.right,
+              zIndex: 200
+            }}
+            className="w-48 rounded-md bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 shadow-xl py-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {activeTab !== 'bin' ? (
+              <>
+                <Link
+                  to={`/cameras/${camera_id}/videos/${video.id}`}
+                  onClick={() => { setActiveVideoMenuId(null); setVideoMenuPos(null) }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Open Full Workspace</span>
+                </Link>
+                <button
+                  onClick={() => { onPlayVideo(video); setActiveVideoMenuId(null); setVideoMenuPos(null) }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>View Details</span>
+                </button>
+                <a
+                  href={`${API_BASE}/data/cameras/${camera_id}_${sanitize_filename(selectedCamera?.name || '')}/original_assets/${video.standardized_filename}`}
+                  download
+                  onClick={() => { setActiveVideoMenuId(null); setVideoMenuPos(null) }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Download Video</span>
+                </a>
+                <button
+                  onClick={() => { downloadSHAReport(video); setActiveVideoMenuId(null); setVideoMenuPos(null) }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Download SHA Report</span>
+                </button>
+                <div className="border-t border-slate-100 dark:border-slate-850 my-1" />
+                <button
+                  onClick={() => { handleMoveToBin(video.id); setActiveVideoMenuId(null); setVideoMenuPos(null) }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 font-bold"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Move to Bin</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => { handleRestoreVideo(video.id); setActiveVideoMenuId(null); setVideoMenuPos(null) }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Restore</span>
+                </button>
+                <button
+                  onClick={() => { setDeleteConfirmVideo(video); setActiveVideoMenuId(null); setVideoMenuPos(null) }}
+                  className="w-full text-left px-3 py-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 font-bold"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Permanently Delete</span>
+                </button>
+              </>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* PERMANENTLY DELETE CONFIRM MODAL */}
+      {deleteConfirmVideo && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 p-4 backdrop-blur-[3px]">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 mb-4">
+              <Trash2 className="h-6 w-6 animate-pulse" />
+              <h3 className="text-base font-bold">Critical Forensic Warning</h3>
+            </div>
+            
+            <p className="text-xs text-slate-600 dark:text-slate-350 leading-relaxed mb-4">
+              You are about to permanently destroy <strong className="text-slate-800 dark:text-white font-bold">{deleteConfirmVideo.original_filename}</strong>. 
+              This action is <span className="underline decoration-rose-500 font-bold decoration-2">completely irreversible</span>.
+            </p>
+            
+            <div className="rounded border border-rose-500/20 bg-rose-500/5 p-3 text-[11px] text-rose-700 dark:text-rose-400 space-y-1 mb-5">
+              <span className="font-bold uppercase tracking-wider block text-[10px] mb-1">Impact Summary:</span>
+              <p>• The raw original video segment and transcoded H.264 formats will be wiped.</p>
+              <p>• All tracking frames and metadata indices will be deleted.</p>
+              <p>• All Qdrant vector embeddings will be pruned (rendering search matches impossible).</p>
+              <p>• Forensic audit trail files will be purged.</p>
+            </div>
+
+            <label className="flex items-start gap-2.5 mb-6 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={deleteAgreeCheckbox}
+                onChange={(e) => setDeleteAgreeCheckbox(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 dark:border-slate-700 dark:bg-slate-800"
+              />
+              <span className="text-[11px] text-slate-700 dark:text-slate-300 font-semibold select-none leading-tight">
+                I agree to permanently delete this video segment and all associated tracklets, embeddings, crops, and logs.
+              </span>
+            </label>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-850">
+              <button
+                type="button"
+                disabled={deletingProgress}
+                onClick={() => { setDeleteConfirmVideo(null); setDeleteAgreeCheckbox(false) }}
+                className="px-3.5 py-1.5 rounded border border-slate-200 dark:border-slate-750 bg-transparent text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!deleteAgreeCheckbox || deletingProgress}
+                onClick={() => handleDeleteVideoPermanently(deleteConfirmVideo.id)}
+                className={`px-4 py-1.5 rounded text-xs font-bold text-white transition-all shadow-sm flex items-center gap-1.5 ${
+                  deleteAgreeCheckbox && !deletingProgress
+                    ? 'bg-rose-700 hover:bg-rose-800'
+                    : 'bg-slate-300 dark:bg-slate-800 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {deletingProgress ? (
+                  <>
+                    <span className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>Acknowledge &amp; Destroy</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function sanitize_filename(filename: string): string {
+  const parts = filename.split('.')
+  if (parts.length > 1) {
+    parts.pop()
+  }
+  const name = parts.join('.')
+  const clean_name = name.replace(/[^a-zA-Z0-9_\-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
+  return clean_name || "video"
 }

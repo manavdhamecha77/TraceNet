@@ -1,6 +1,6 @@
 import json
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -56,10 +56,12 @@ class VideoResponse(BaseModel):
     transcoded_sha256: Optional[str]
     upload_timestamp: Optional[str]
     processing_status: str
+    progress_percentage: Optional[float] = 0.0
     duration: Optional[float]
     start_time: Optional[str]
     end_time: Optional[str]
     thumbnail_path: Optional[str]
+    is_bin: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -220,3 +222,159 @@ def delete_camera(camera_id: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to delete camera: {str(e)}"
         )
+
+
+def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
+    import os
+    import time
+    from loguru import logger
+    from datetime import timezone
+    from app.db.session import SessionLocal
+    from app.db.models import CameraProfile, VideoAsset, MLModel, ModelExecutionLog
+    from app.detection.detector import DetectionService
+    from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
+    from app.search.vector_index import VectorIndexService
+    from app.config import get_data_path
+    from app.preprocess.preprocessor import sanitize_filename
+
+    db = SessionLocal()
+    try:
+        camera = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+        if not camera:
+            logger.error(f"Sync: Camera {camera_id} not found.")
+            return
+
+        # Resolve camera-assigned model path if it exists
+        model_path = None
+        assigned_model_id = None
+        if camera.model_id:
+            model_record = db.query(MLModel).filter(MLModel.id == camera.model_id).first()
+            if model_record and os.path.exists(model_record.file_path):
+                model_path = model_record.file_path
+                assigned_model_id = model_record.id
+
+        logger.info(f"Sync: Starting detection re-run for {len(video_ids)} videos on camera {camera_id} using model {assigned_model_id}")
+
+        for video_id in video_ids:
+            video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+            if not video or video.is_bin:
+                continue
+
+            # 1. Update status to 'indexing' / progress to show syncing
+            video.processing_status = "indexing"
+            video.progress_percentage = 40
+            db.commit()
+
+            # 2. Delete old Qdrant/SQLite tracklets
+            try:
+                index_service = VectorIndexService()
+                index_service.delete_video_tracklets(video_id, db)
+            except Exception as e:
+                logger.warning(f"Sync: Failed to clear old Qdrant points for {video_id}: {e}")
+
+            # 3. Build paths
+            camera_dir_name = f"{camera_id}_{sanitize_filename(camera.name)}"
+            camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
+            standardized_video_path = os.path.join(camera_dir, "original_assets", video.standardized_filename)
+            detection_output_dir = get_data_path(os.path.join("processed/detections", video_id))
+
+            if not os.path.exists(standardized_video_path):
+                logger.warning(f"Sync: Standardized video not found at {standardized_video_path}, skipping.")
+                video.processing_status = "failed"
+                db.commit()
+                continue
+
+            # 4. Run detection
+            start_inference = time.time()
+            detection_service = DetectionService(model_path=model_path)
+            detection_result = detection_service.analyze_video(
+                video_path=standardized_video_path,
+                output_dir=detection_output_dir,
+                camera_id=camera_id,
+                video_id=video_id,
+            )
+
+            # 5. Update progress to embedding
+            video.progress_percentage = 75
+            db.commit()
+
+            # 6. Extract embeddings
+            embedding_service = TrackletEmbeddingService()
+            embedding_result = embedding_service.embed_detection_artifact(
+                os.path.join(detection_output_dir, "detections.json")
+            )
+
+            # 7. Run Vector indexing
+            video.progress_percentage = 90
+            db.commit()
+            index_result = index_service.index_video_tracklets(video_id, db)
+
+            inference_duration = time.time() - start_inference
+
+            # Log serving execution if custom model was used
+            if assigned_model_id:
+                try:
+                    total_dets = 0
+                    for f in detection_result.frame_detections:
+                        total_dets += len(f.detections)
+
+                    log_entry = ModelExecutionLog(
+                        model_id=assigned_model_id,
+                        video_id=video_id,
+                        camera_id=camera_id,
+                        frames_processed=detection_result.frame_count,
+                        inference_duration_seconds=inference_duration,
+                        objects_detected_count=total_dets
+                    )
+                    db.add(log_entry)
+
+                    # Update model last used timestamp
+                    model_rec = db.query(MLModel).filter(MLModel.id == assigned_model_id).first()
+                    if model_rec:
+                        model_rec.last_used_timestamp = datetime.now(timezone.utc)
+                    db.commit()
+                except Exception as log_err:
+                    logger.warning(f"Sync: Failed to log model execution stats: {str(log_err)}")
+
+            # Complete status
+            video.processing_status = "complete"
+            video.progress_percentage = 100
+            db.commit()
+            logger.info(f"Sync: Video {video_id} re-detection and index complete.")
+
+    except Exception as err:
+        logger.error(f"Sync: Detection sync background run failed: {err}")
+    finally:
+        db.close()
+
+
+@router.post("/cameras/{camera_id}/sync-detection")
+def sync_camera_videos_detection(
+    camera_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """
+    Triggers model execution sync for all videos associated with this camera.
+    Re-runs detections, tracklet extraction, and vector index update.
+    """
+    camera = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+    if not camera:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera profile with ID '{camera_id}' does not exist."
+        )
+    
+    # Get all non-binned videos for this camera
+    videos = db.query(VideoAsset).filter(VideoAsset.camera_id == camera_id).filter(VideoAsset.is_bin == False).all()
+    if not videos:
+        return {"status": "success", "message": "No active videos found for this camera to sync."}
+    
+    # Run the background sync task
+    background_tasks.add_task(
+        sync_camera_videos_background,
+        camera_id=camera_id,
+        video_ids=[v.id for v in videos]
+    )
+    
+    return {"status": "success", "message": f"Detections sync started in background for {len(videos)} videos."}

@@ -159,3 +159,21 @@ class VectorIndexService:
 
         logger.info(f"Indexed video {video_id}: Saved {indexed_count} tracklets to SQLite & Qdrant.")
         return {"indexed": indexed_count, "status": "success"}
+
+    def delete_video_tracklets(self, video_id: str, db: Session) -> None:
+        """Deletes tracklet vectors from Qdrant and tracklets from SQLite database."""
+        tracklets = db.query(Tracklet).filter(Tracklet.video_id == video_id).all()
+        point_ids = [t.qdrant_point_id for t in tracklets if t.qdrant_point_id]
+        if point_ids:
+            try:
+                from qdrant_client.models import PointIdsList
+                self.client.delete(
+                    collection_name=COLLECTION_NAME,
+                    points_selector=PointIdsList(points=point_ids)
+                )
+                logger.info(f"Deleted {len(point_ids)} points from Qdrant collection '{COLLECTION_NAME}' for video {video_id}")
+            except Exception as e:
+                logger.error(f"Failed to delete points from Qdrant: {e}")
+        
+        db.query(Tracklet).filter(Tracklet.video_id == video_id).delete()
+        db.commit()

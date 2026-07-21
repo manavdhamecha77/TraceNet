@@ -65,6 +65,11 @@ def run_startup_migrations():
                     cursor.execute("ALTER TABLE videos ADD COLUMN progress_percentage INTEGER DEFAULT 0")
                     conn.commit()
                     print("Schema Migration: Added 'progress_percentage' column to videos.")
+                
+                if "is_bin" not in columns:
+                    cursor.execute("ALTER TABLE videos ADD COLUMN is_bin BOOLEAN DEFAULT 0")
+                    conn.commit()
+                    print("Schema Migration: Added 'is_bin' column to videos.")
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:

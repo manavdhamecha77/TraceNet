@@ -329,3 +329,122 @@ def get_video_detail(video_id: str, db: Session = Depends(get_db)):
         "detections_summary": detections_summary,
     }
 
+
+@router.put("/videos/{video_id}/bin")
+def bin_video(video_id: str, db: Session = Depends(get_db)):
+    """Moves a video asset to the bin.
+
+    Status codes:
+    - 200 OK: Moved to bin successfully.
+    - 404 Not Found: Video not found.
+    """
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video asset with ID '{video_id}' not found."
+        )
+    video.is_bin = True
+    db.commit()
+    return {"status": "success", "message": "Video successfully moved to bin."}
+
+
+@router.put("/videos/{video_id}/restore")
+def restore_video(video_id: str, db: Session = Depends(get_db)):
+    """Restores a video asset from the bin.
+
+    Status codes:
+    - 200 OK: Restored successfully.
+    - 404 Not Found: Video not found.
+    """
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video asset with ID '{video_id}' not found."
+        )
+    video.is_bin = False
+    db.commit()
+    return {"status": "success", "message": "Video successfully restored."}
+
+
+@router.delete("/videos/{video_id}/delete")
+def delete_video_permanently(video_id: str, db: Session = Depends(get_db)):
+    """Permanently deletes a video asset, its tracklets, embeddings in Qdrant, and all associated files.
+
+    Status codes:
+    - 200 OK: Deleted successfully.
+    - 404 Not Found: Video not found.
+    """
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video asset with ID '{video_id}' not found."
+        )
+
+    # 1. Delete vector embeddings from Qdrant and tracklets from SQLite
+    from app.search.vector_index import VectorIndexService
+    try:
+        index_service = VectorIndexService()
+        index_service.delete_video_tracklets(video_id, db)
+    except Exception as qdrant_err:
+        logger.warning(f"Error removing points from Qdrant: {qdrant_err}")
+
+    # 2. Delete files from disk
+    # (a) Raw upload in minio_mock: data/minio_mock/{video_id}_{original_filename}
+    from app.preprocess.storage import MockStorageProvider
+    try:
+        storage = MockStorageProvider()
+        raw_name = f"{video.id}_{video.original_filename}"
+        if storage.exists(raw_name):
+            raw_path = storage.get_file_path(raw_name)
+            if os.path.exists(raw_path):
+                os.remove(raw_path)
+    except Exception as e:
+        logger.warning(f"Failed to delete raw video file: {e}")
+
+    # (b) Transcoded MP4: data/cameras/{camera_id}_{camera_name}/original_assets/{standardized_filename}
+    try:
+        camera = video.camera
+        if camera:
+            from app.preprocess.preprocessor import sanitize_filename
+            camera_dir_name = f"{camera.camera_id}_{sanitize_filename(camera.name)}"
+            camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
+            
+            # Standardized video file
+            standardized_video_path = os.path.join(camera_dir, "original_assets", video.standardized_filename)
+            if os.path.exists(standardized_video_path):
+                os.remove(standardized_video_path)
+                
+            # Inference directory: data/cameras/{camera_id}_{camera_name}/inference/{standardized_video_name_folder}
+            std_name, _ = os.path.splitext(video.standardized_filename)
+            inference_dir = os.path.join(camera_dir, "inference", std_name)
+            if os.path.exists(inference_dir):
+                import shutil
+                shutil.rmtree(inference_dir)
+    except Exception as e:
+        logger.warning(f"Failed to delete transcoded MP4 or inference directory: {e}")
+
+    # (c) Processed detections crops: data/processed/detections/{video_id}
+    try:
+        detections_dir = get_data_path(os.path.join("processed/detections", video_id))
+        if os.path.exists(detections_dir):
+            import shutil
+            shutil.rmtree(detections_dir)
+    except Exception as e:
+        logger.warning(f"Failed to delete detections folder: {e}")
+
+    # 3. SQLite DB Cascade deletes: VideoAsset deletion
+    try:
+        db.delete(video)
+        db.commit()
+    except Exception as db_err:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Database deletion failed: {str(db_err)}"
+        )
+
+    return {"status": "success", "message": "Video and all associated tracklets, embeddings, and files permanently deleted."}
+

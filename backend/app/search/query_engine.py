@@ -104,6 +104,7 @@ class QueryEngine:
             db.query(Tracklet)
             .join(VideoAsset)
             .filter(Tracklet.id.in_(tracklet_ids))
+            .filter(VideoAsset.is_bin == False)
             .all()
         )
 
