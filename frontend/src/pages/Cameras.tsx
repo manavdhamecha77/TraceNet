@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { RefreshCw } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -351,7 +352,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
 
   // ──────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-16">
 
       {/* ── PAGE HEADER ── */}
       <div className="flex items-center justify-between">
@@ -522,7 +523,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
         return (
           <div
             style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 200 }}
-            className="w-40 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl py-1"
+            className="w-56 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl py-1"
             onClick={e => e.stopPropagation()}
           >
             <button
@@ -543,6 +544,24 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
               Edit Camera
+            </button>
+            <button
+              onClick={async () => {
+                const assignedModelName = models.find(m => m.id === cam.model_id)?.name || 'Assigned Model'
+                if (window.confirm(`Sync all video detections for camera '${cam.name}' using latest model '${assignedModelName}'?`)) {
+                  try {
+                    await fetch(`${API_BASE}/api/v1/cameras/${cam.camera_id}/sync-detection`, { method: 'POST' })
+                    alert(`Sync process initiated for camera ${cam.name} with model '${assignedModelName}' in background.`)
+                  } catch {
+                    alert('Network error while triggering detection sync.')
+                  }
+                }
+                setActiveMenuId(null)
+              }}
+              className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors font-semibold"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+              <span className="truncate">Sync Detections ({models.find(m => m.id === cam.model_id)?.name || 'Model'})</span>
             </button>
             <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
             <button
@@ -755,7 +774,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
                   </Field>
 
                   {editCamera.model_id !== editModelId && (
-                    <label className="flex items-start gap-2 pt-1.5 cursor-pointer">
+                    <label className="flex items-start gap-2 pt-1.5 cursor-pointer rounded p-1.5 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/40">
                       <input
                         type="checkbox"
                         checked={syncDetections}
@@ -763,7 +782,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
                         className="mt-0.5 h-4 w-4 rounded border-slate-350 text-teal-600 focus:ring-teal-500 dark:border-slate-750 dark:bg-slate-800"
                       />
                       <span className="text-[11px] text-teal-700 dark:text-teal-400 font-bold select-none leading-tight">
-                        Sync all current videos' detections (re-run detection &amp; replace previous model data in background)
+                        Sync video detections using model <span className="underline font-mono">[{models.find(m => m.id === editModelId)?.name || 'Selected Model'}]</span> (re-run detection &amp; replace previous data)
                       </span>
                     </label>
                   )}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ExternalLink, MoreVertical, Trash2, RotateCcw, Download, Eye, Play } from 'lucide-react'
+import { ExternalLink, MoreVertical, Trash2, RotateCcw, Download, Eye, Play, RefreshCw } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -14,6 +14,7 @@ interface Camera {
   is_active: boolean
   status: string
   altitude?: number
+  model_id?: string | null
   video_count: number
 }
 
@@ -93,6 +94,7 @@ interface CameraDetailProps {
   setCameraVideos: React.Dispatch<React.SetStateAction<Video[]>>
   selectedCamera: Camera | null
   setSelectedCamera: (camera: Camera | null) => void
+  models?: any[]
 }
 
 export default function CameraDetail({
@@ -103,11 +105,14 @@ export default function CameraDetail({
   setCameraVideos,
   selectedCamera,
   setSelectedCamera,
+  models,
 }: CameraDetailProps) {
   const { camera_id } = useParams<{ camera_id: string }>()
   const [activeTab, setActiveTab] = useState<'original' | 'system' | 'bin'>('system')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [syncingModel, setSyncingModel] = useState(false)
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState('')
   const [detectionLoadingId, setDetectionLoadingId] = useState<string | null>(null)
   const [detectionModal, setDetectionModal] = useState<{
     video: Video
@@ -373,8 +378,33 @@ export default function CameraDetail({
     )
   }
 
+  const assignedModel = models?.find(m => m.id === selectedCamera?.model_id)
+  const assignedModelName = assignedModel ? assignedModel.name : (selectedCamera?.model_id || 'YOLOv8 Default')
+
+  const handleSyncModel = async () => {
+    if (!camera_id) return
+    if (!window.confirm(`Sync all video detections for camera '${selectedCamera?.name}' using model '${assignedModelName}'? This will re-run detection in the background.`)) {
+      return
+    }
+    setSyncingModel(true)
+    setSyncSuccessMsg('')
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/cameras/${camera_id}/sync-detection`, { method: 'POST' })
+      if (res.ok) {
+        setSyncSuccessMsg(`Detection sync initiated with model '${assignedModelName}'. Videos are re-indexing in background.`)
+        setTimeout(() => setSyncSuccessMsg(''), 6000)
+      } else {
+        alert("Failed to trigger detection sync.")
+      }
+    } catch {
+      alert("Network error while triggering detection sync.")
+    } finally {
+      setSyncingModel(false)
+    }
+  }
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-200">
       
       {/* CAMERA BANNER META */}
       {selectedCamera && (
@@ -391,9 +421,19 @@ export default function CameraDetail({
               <span>Longitude: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.longitude ?? 'N/A'}</strong></span>
               <span>Corridor: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.corridor_group ?? 'General'}</strong></span>
               <span>Topology Neighbors: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.adjacency.length > 0 ? selectedCamera.adjacency.join(', ') : 'None'}</strong></span>
+              <span>Model: <strong className="text-teal-700 dark:text-teal-400 font-semibold">{assignedModelName}</strong></span>
             </div>
           </div>
-          <div>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={syncingModel}
+              onClick={handleSyncModel}
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
+              title={`Sync video detections using ${assignedModelName}`}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 text-teal-600 dark:text-teal-400 ${syncingModel ? 'animate-spin' : ''}`} />
+              <span>{syncingModel ? 'Syncing...' : `Sync Detections (${assignedModelName})`}</span>
+            </button>
             <button
               onClick={onOpenUploadModal}
               className="flex items-center gap-2 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-750 text-white px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm"
@@ -404,6 +444,16 @@ export default function CameraDetail({
               Upload Video Feed
             </button>
           </div>
+        </div>
+      )}
+
+      {syncSuccessMsg && (
+        <div className="p-3 rounded-md bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 text-teal-600 dark:text-teal-400 animate-spin" />
+            <span>{syncSuccessMsg}</span>
+          </div>
+          <button onClick={() => setSyncSuccessMsg('')} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold">✕</button>
         </div>
       )}
 

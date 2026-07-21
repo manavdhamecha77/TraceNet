@@ -908,7 +908,7 @@ function App() {
         </header>
 
         {/* WORKSPACE CONTENT AREA */}
-        <div className="flex-grow p-6 overflow-y-auto bg-slate-50 dark:bg-slate-900 transition-colors duration-150">
+        <div className="flex-grow p-6 pb-24 overflow-y-auto bg-slate-50 dark:bg-slate-900 transition-colors duration-150">
           
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -935,6 +935,7 @@ function App() {
                   setCameraVideos={setCameraVideos}
                   selectedCamera={selectedCamera}
                   setSelectedCamera={setSelectedCamera}
+                  models={models}
                 />
               }
             />
