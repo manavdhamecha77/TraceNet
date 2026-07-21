@@ -61,7 +61,13 @@ interface SearchLog {
 }
 
 interface SearchProps {
-  onPlayVideoAtTime: (video: any, timestamp: number, trackerId?: number | string) => void  // eslint-disable-line @typescript-eslint/no-explicit-any
+  onPlayVideoAtTime: (
+    video: any,
+    timestamp: number,
+    trackerId?: number | string,
+    bestBbox?: number[],
+    className?: string
+  ) => void  // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export default function Search({ onPlayVideoAtTime }: SearchProps) {
@@ -589,7 +595,13 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                         thumbnail_path: result.video_thumbnail_path || '',
                         processing_status: 'complete'
                       }
-                      onPlayVideoAtTime(mockVideoObj, result.timestamp_start_seconds, result.tracker_id)
+                      onPlayVideoAtTime(
+                        mockVideoObj,
+                        result.timestamp_start_seconds,
+                        result.tracker_id || result.tracklet_id,
+                        result.best_bbox,
+                        result.class_name
+                      )
                     }}
                     className="w-full flex items-center justify-center gap-1.5 bg-teal-50 dark:bg-teal-900/30 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 py-1.5 rounded text-[11px] font-bold transition-all border border-teal-200 dark:border-teal-800"
                   >
