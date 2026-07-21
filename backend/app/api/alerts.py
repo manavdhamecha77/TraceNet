@@ -12,23 +12,17 @@ router = APIRouter(prefix="/api/v1", tags=["alerts"])
 
 class AlertCreate(BaseModel):
     alert_type: str
-    severity: str
     camera_id: str
-    tracklet_id: Optional[str] = None
-    description: str
-    metadata: Optional[dict] = None
+    tracklet_id: str
 
 
 class AlertResponse(BaseModel):
     id: int
     alert_type: str
-    severity: str
     camera_id: str
-    tracklet_id: Optional[str]
-    description: str
-    status: str
-    created_at: Optional[str]
-    resolved_at: Optional[str]
+    tracklet_id: str
+    timestamp: Optional[str]
+    acknowledged: bool
 
     class Config:
         from_attributes = True
@@ -38,7 +32,6 @@ class AlertResponse(BaseModel):
 def list_alerts(
     camera_id: Optional[str] = None,
     alert_type: Optional[str] = None,
-    status: Optional[str] = None,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
@@ -53,10 +46,8 @@ def list_alerts(
         query = query.filter(Alert.camera_id == camera_id)
     if alert_type:
         query = query.filter(Alert.alert_type == alert_type)
-    if status:
-        query = query.filter(Alert.status == status)
 
-    alerts = query.order_by(Alert.created_at.desc()).limit(limit).all()
+    alerts = query.order_by(Alert.timestamp.desc()).limit(limit).all()
     return [a.to_dict() for a in alerts]
 
 
@@ -71,12 +62,8 @@ def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
     try:
         alert = Alert(
             alert_type=payload.alert_type,
-            severity=payload.severity,
             camera_id=payload.camera_id,
             tracklet_id=payload.tracklet_id,
-            description=payload.description,
-            status="active",
-            metadata=payload.metadata,
         )
         db.add(alert)
         db.commit()
@@ -90,12 +77,12 @@ def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
         )
 
 
-@router.put("/alerts/{alert_id}", response_model=AlertResponse)
-def resolve_alert(alert_id: int, status_update: str, db: Session = Depends(get_db)):
-    """Resolves an alert by ID.
+@router.put("/alerts/{alert_id}/acknowledge", response_model=AlertResponse)
+def acknowledge_alert(alert_id: int, db: Session = Depends(get_db)):
+    """Acknowledges an alert by ID.
 
     Status codes:
-    - 200 OK: Alert resolved.
+    - 200 OK: Alert acknowledged.
     - 404 Not Found: Alert not found.
     """
     alert = db.query(Alert).filter(Alert.id == alert_id).first()
@@ -106,9 +93,7 @@ def resolve_alert(alert_id: int, status_update: str, db: Session = Depends(get_d
         )
 
     try:
-        alert.status = status_update
-        if status_update == "resolved":
-            alert.resolved_at = datetime.utcnow()
+        alert.acknowledged = True
         db.commit()
         db.refresh(alert)
         return alert.to_dict()
@@ -122,16 +107,13 @@ def resolve_alert(alert_id: int, status_update: str, db: Session = Depends(get_d
 
 @router.get("/alerts/summary", response_model=dict)
 def get_alerts_summary(db: Session = Depends(get_db)):
-    """Gets summary statistics of active alerts.
+    """Gets summary statistics of alerts.
 
     Status codes:
     - 200 OK: Success.
     """
     total_alerts = db.query(Alert).count()
-    active_alerts = db.query(Alert).filter(Alert.status == "active").count()
-    high_severity = db.query(Alert).filter(
-        Alert.severity == "high", Alert.status == "active"
-    ).count()
+    unacknowledged = db.query(Alert).filter(Alert.acknowledged == False).count()
 
     alert_types = {}
     for row in db.query(Alert.alert_type).distinct():
@@ -140,7 +122,6 @@ def get_alerts_summary(db: Session = Depends(get_db)):
 
     return {
         "total_alerts": total_alerts,
-        "active_alerts": active_alerts,
-        "high_severity_active": high_severity,
+        "unacknowledged_alerts": unacknowledged,
         "by_type": alert_types,
     }
