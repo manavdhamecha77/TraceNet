@@ -10,6 +10,7 @@ from app.api.upload import router as upload_router
 from app.api.models import router as models_router
 from app.api.embedding_models import router as embedding_models_router
 from app.api.search import router as search_router
+from app.api.metrics import router as metrics_router
 from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
@@ -106,6 +107,7 @@ app.include_router(upload_router, prefix=settings.api_prefix)
 app.include_router(models_router, prefix=settings.api_prefix)
 app.include_router(embedding_models_router, prefix=settings.api_prefix)
 app.include_router(search_router, prefix=settings.api_prefix)
+app.include_router(metrics_router, prefix=settings.api_prefix)
 
 
 @app.get("/", include_in_schema=False)

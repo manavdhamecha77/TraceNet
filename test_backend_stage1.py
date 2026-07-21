@@ -138,6 +138,23 @@ def test_search_query(query_text: str = "person walking"):
         print_result("Search Query", False, str(e))
         return False, []
 
+def test_dashboard_metrics():
+    """Test GET /metrics/dashboard"""
+    try:
+        response = CLIENT.get(f"{BASE_URL}/metrics/dashboard")
+        passed = response.status_code == 200
+        if passed:
+            data = response.json()
+            required_fields = ["total_cameras", "total_videos", "processed_videos", "pending_videos", "processing_videos", "failed_videos"]
+            passed = all(field in data for field in required_fields)
+            print_result("Dashboard Metrics", passed, f"{data['total_cameras']} cameras, {data['total_videos']} videos")
+        else:
+            print_result("Dashboard Metrics", False, f"Status: {response.status_code}")
+        return passed
+    except Exception as e:
+        print_result("Dashboard Metrics", False, str(e))
+        return False
+
 def main():
     print(f"\n{Colors.BOLD}{Colors.BLUE}=========================================================={Colors.RESET}")
     print(f"{Colors.BOLD}{Colors.BLUE}DRISHTI Backend - Stage 1 Validation Tests{Colors.RESET}")
@@ -199,6 +216,13 @@ def main():
 
     total_tests += 1
     if test_search_query()[0]:
+        passed_tests += 1
+    print()
+
+    # Test 9: Metrics
+    print(f"{Colors.BOLD}Dashboard Metrics:{Colors.RESET}")
+    total_tests += 1
+    if test_dashboard_metrics():
         passed_tests += 1
     print()
 
