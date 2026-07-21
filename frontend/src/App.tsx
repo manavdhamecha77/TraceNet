@@ -8,6 +8,7 @@ import Landing from './pages/Landing'
 import Models from './pages/Models'
 import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
+import Alerts from './pages/Alerts'
 import {
   ExternalLink,
   Download,
@@ -119,6 +120,7 @@ function App() {
   const [uploadStartTime, setUploadStartTime] = useState('')
   const [uploadProgress, setUploadProgress] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [uploadError, setUploadError] = useState('')
+  const [uploadDragActive, setUploadDragActive] = useState(false)
 
   // Dashboard metrics state
   const [metrics, setMetrics] = useState({
@@ -176,35 +178,27 @@ function App() {
     return () => clearInterval(timer)
   }, [location.pathname])
 
-  // Aggregate global metrics for dashboard
+  // Fetch aggregated dashboard metrics from backend
   useEffect(() => {
-    const fetchGlobalVideos = async () => {
-      if (cameras.length === 0) return
+    const fetchMetrics = async () => {
       try {
-        const cameraPromises = cameras.map((c) =>
-          fetch(`${API_BASE}/api/v1/cameras/${c.camera_id}/videos`).then((r) => r.json())
-        )
-        const results = await Promise.all(cameraPromises)
-        const allVideos: Video[] = results.flat()
-
-        const complete = allVideos.filter((v) => v.processing_status === 'complete').length
-        const pending = allVideos.filter((v) => v.processing_status === 'pending').length
-        const processing = allVideos.filter((v) => v.processing_status === 'processing').length
-        const failed = allVideos.filter((v) => v.processing_status === 'failed').length
-
-        setMetrics({
-          totalCameras: cameras.length,
-          totalVideos: allVideos.length,
-          processedVideos: complete,
-          pendingVideos: pending + processing,
-          failedVideos: failed,
-        })
+        const res = await fetch(`${API_BASE}/api/v1/metrics/dashboard`)
+        if (res.ok) {
+          const data = await res.json()
+          setMetrics({
+            totalCameras: data.total_cameras,
+            totalVideos: data.total_videos,
+            processedVideos: data.processed_videos,
+            pendingVideos: data.pending_videos + data.processing_videos,
+            failedVideos: data.failed_videos,
+          })
+        }
       } catch (err) {
-        console.error('Failed to aggregate dashboard metrics:', err)
+        console.error('Failed to fetch dashboard metrics:', err)
       }
     }
-    fetchGlobalVideos()
-  }, [cameras, location.pathname])
+    fetchMetrics()
+  }, [location.pathname])
 
   // Register camera submit
   const handleCreateCamera = async (e: React.FormEvent) => {
@@ -268,6 +262,12 @@ function App() {
 
     if (!uploadFile) {
       setUploadError('Please select a video file.')
+      return
+    }
+
+    const maxSize = 2 * 1024 * 1024 * 1024
+    if (uploadFile.size > maxSize) {
+      setUploadError(`File size exceeds 2GB limit. Current: ${(uploadFile.size / 1024 / 1024 / 1024).toFixed(2)}GB`)
       return
     }
 
@@ -390,6 +390,8 @@ function App() {
         }
       } else if (paths[0] === 'search') {
         crumbs.push({ label: 'Search', link: '/search' })
+      } else if (paths[0] === 'alerts') {
+        crumbs.push({ label: 'Alerts', link: '/alerts' })
       } else if (paths[0] === 'dashboard') {
         crumbs.push({ label: 'Dashboard', link: '/dashboard' })
       } else if (paths[0] === 'models') {
@@ -795,17 +797,29 @@ function App() {
             </Link>
 
             <Link
+<<<<<<< HEAD
               to="/embedding-models"
               className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
                 location.pathname.startsWith('/embedding-models')
+=======
+              to="/alerts"
+              className={`flex items-center gap-3 rounded px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
+                location.pathname === '/alerts'
+>>>>>>> c9c9126 (feat: implement Stage 7 alerts UI dashboard with acknowledge functionality)
                   ? 'bg-teal-500/10 text-teal-700 dark:text-teal-400 font-bold border-l-2 border-teal-700 dark:border-teal-400'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700/50 hover:text-slate-800 dark:hover:text-white'
               }`}
             >
               <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+<<<<<<< HEAD
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
               </svg>
               {!isSidebarCollapsed && <span>Embedding Models</span>}
+=======
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {!isSidebarCollapsed && <span>Alerts</span>}
+>>>>>>> c9c9126 (feat: implement Stage 7 alerts UI dashboard with acknowledge functionality)
             </Link>
 
             <Link
@@ -923,7 +937,11 @@ function App() {
               }
             />
             <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
+<<<<<<< HEAD
             <Route path="/embedding-models" element={<EmbeddingModels />} />
+=======
+            <Route path="/alerts" element={<Alerts cameras={cameras} />} />
+>>>>>>> c9c9126 (feat: implement Stage 7 alerts UI dashboard with acknowledge functionality)
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
@@ -1121,17 +1139,41 @@ function App() {
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Select Feed File *</label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      setUploadFile(e.target.files[0])
+                <div
+                  onDragEnter={(e) => { e.preventDefault(); setUploadDragActive(true) }}
+                  onDragLeave={(e) => { e.preventDefault(); setUploadDragActive(false) }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setUploadDragActive(false)
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      setUploadFile(e.dataTransfer.files[0])
                     }
                   }}
-                  className="w-full text-xs text-slate-500 file:mr-3 file:py-1 file:px-2.5 file:rounded file:border file:border-slate-200 dark:file:border-slate-700 file:text-[11px] file:font-semibold file:bg-slate-50 dark:file:bg-slate-900 file:text-slate-600 dark:file:text-slate-400 hover:file:bg-slate-100 dark:hover:file:bg-slate-750 hover:file:cursor-pointer"
-                />
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">Accepts standard forensic formats (.avi, .mov, .mp4, etc.)</span>
+                  className={`relative w-full rounded border-2 border-dashed px-4 py-6 text-center transition-colors ${
+                    uploadDragActive
+                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/20'
+                      : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900'
+                  }`}
+                >
+                  <svg className="mx-auto h-8 w-8 text-slate-400 dark:text-slate-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setUploadFile(e.target.files[0])
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    {uploadFile ? uploadFile.name : 'Drag files here or click to select'}
+                  </p>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-1">Accepts standard forensic formats (.avi, .mov, .mp4, etc.)</span>
+                </div>
               </div>
 
               <div>
@@ -1145,13 +1187,18 @@ function App() {
               </div>
 
               {uploadProgress === 'uploading' && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="flex justify-between text-[11px] text-teal-700 dark:text-teal-400 font-semibold">
                     <span>Sending stream buffer...</span>
                     <span className="animate-pulse">Active</span>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-1 overflow-hidden">
-                    <div className="bg-teal-700 dark:bg-teal-500 h-full rounded-full animate-[shimmer_1.5s_infinite]" style={{ width: '85%' }}></div>
+                  <div className="space-y-1">
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                      <div className="bg-gradient-to-r from-teal-600 to-teal-400 h-full rounded-full animate-[shimmer_1.5s_infinite]" style={{ width: '85%' }}></div>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      File: {uploadFile?.name} · Size: {uploadFile ? (uploadFile.size / 1024 / 1024).toFixed(1) : 0} MB
+                    </p>
                   </div>
                 </div>
               )}

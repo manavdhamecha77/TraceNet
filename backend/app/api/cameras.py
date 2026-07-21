@@ -109,12 +109,22 @@ def create_camera(payload: CameraCreate, db: Session = Depends(get_db)):
 @router.get("/cameras", response_model=List[CameraResponse])
 def list_cameras(db: Session = Depends(get_db)):
     """Retrieves all registered camera profiles.
-    
+
     Status codes:
     - 200 OK: Success.
     """
     cameras = db.query(CameraProfile).all()
     return [c.to_dict() for c in cameras]
+
+@router.get("/videos", response_model=List[VideoResponse])
+def list_all_videos(db: Session = Depends(get_db)):
+    """Retrieves all video assets across all cameras.
+
+    Status codes:
+    - 200 OK: Success.
+    """
+    videos = db.query(VideoAsset).order_by(VideoAsset.upload_timestamp.desc()).all()
+    return [v.to_dict() for v in videos]
 
 @router.get("/cameras/{camera_id}", response_model=CameraResponse)
 def get_camera(camera_id: str, db: Session = Depends(get_db)):
