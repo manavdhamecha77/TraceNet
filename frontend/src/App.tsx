@@ -8,6 +8,14 @@ import Landing from './pages/Landing'
 import Models from './pages/Models'
 import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
+import {
+  ExternalLink,
+  Download,
+  Crosshair,
+  X,
+  Eye,
+  RefreshCw,
+} from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -83,6 +91,9 @@ function App() {
   const [playerDetectionsLoading, setPlayerDetectionsLoading] = useState(false)
   const [playerClassFilter, setPlayerClassFilter] = useState<string>('all')
   const [seekedTrackerId, setSeekedTrackerId] = useState<string | null>(null)
+  const [seekedBbox, setSeekedBbox] = useState<number[] | null>(null)
+  const [seekedTrackletClass, setSeekedTrackletClass] = useState<string | null>(null)
+  const [showMotionPaths, setShowMotionPaths] = useState<boolean>(true)
   const [exportState, setExportState] = useState<'idle' | 'rendering' | 'ready' | 'error'>('idle')
   const [exportUrl, setExportUrl] = useState<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -303,7 +314,24 @@ function App() {
     }
   }
 
-  const handlePlayVideoAtTime = (video: Video, timestamp: number, trackerId?: number | string) => {
+  const handlePlayVideoAtTime = (
+    video: Video,
+    timestamp: number,
+    trackerId?: number | string,
+    bestBbox?: number[],
+    className?: string
+  ) => {
+    fetch(`${API_BASE}/api/v1/videos/${video.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && data.video) {
+          setSelectedVideoToPlay(data.video)
+        } else {
+          setSelectedVideoToPlay(video)
+        }
+      })
+      .catch(() => setSelectedVideoToPlay(video))
+
     const cam = cameras.find((c) => c.camera_id === video.camera_id)
     if (cam) {
       setSelectedCamera(cam)
@@ -315,19 +343,25 @@ function App() {
         is_active: true,
       } as any)
     }
-    setSelectedVideoToPlay(video)
     setPlayerView('annotated')
+
     if (trackerId != null) {
-      setSeekedTrackerId(String(trackerId))
+      const tid = extractTrackerId(trackerId)
+      setSeekedTrackerId(tid)
+      setSeekedBbox(bestBbox ?? null)
+      setSeekedTrackletClass(className ?? null)
     } else {
       setSeekedTrackerId(null)
+      setSeekedBbox(null)
+      setSeekedTrackletClass(null)
     }
+
     setTimeout(() => {
       if (videoRef.current) {
         videoRef.current.currentTime = timestamp
         videoRef.current.pause()
       }
-    }, 500)
+    }, 400)
   }
 
   // Helper formats
@@ -437,7 +471,8 @@ function App() {
     const canvas = canvasRef.current
     if (!video || !canvas || !playerDetections) return
 
-    const frameIndex = Math.round(video.currentTime * (playerDetections.fps || 10))
+    const fps = playerDetections.fps || 10
+    const frameIndex = Math.round(video.currentTime * fps)
     const frameData = (playerDetections.frame_detections ?? []).find(
       (fd: any) => fd.frame_index === frameIndex
     )
@@ -452,8 +487,6 @@ function App() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     ctx.clearRect(0, 0, cWidth, cHeight)
-
-    if (!frameData) return
 
     const vWidth = video.videoWidth || 1280
     const vHeight = video.videoHeight || 720
@@ -483,57 +516,150 @@ function App() {
     const toCanvasX = (x: number) => offsetX + (x * scaleX)
     const toCanvasY = (y: number) => offsetY + (y * scaleY)
 
-    const targetId = extractTrackerId(seekedTrackerId)
+    // 1. Draw Motion Trajectories
+    if (showMotionPaths && playerDetections.frame_detections) {
+      const trajectories: Record<number, Array<{ x: number; y: number; frame: number }>> = {}
 
-    for (const det of frameData.detections ?? []) {
-      const cn = det.class_name ?? 'unknown'
-      if (playerClassFilter !== 'all' && cn.toLowerCase() !== playerClassFilter) continue
+      for (const fd of playerDetections.frame_detections) {
+        if (fd.frame_index > frameIndex) break
+        for (const det of fd.detections) {
+          if (det.tracker_id == null) continue
+          const cn = det.class_name ?? 'unknown'
+          if (playerClassFilter !== 'all' && cn.toLowerCase() !== playerClassFilter) continue
 
-      const detId = extractTrackerId(det.tracker_id)
-      const isSeeked = targetId !== null && detId !== null && targetId === detId
+          const [x1, y1, x2, y2] = det.bbox
+          const cx = toCanvasX((x1 + x2) / 2)
+          const cy = toCanvasY((y1 + y2) / 2)
 
-      const [x1, y1, x2, y2] = det.bbox ?? [0, 0, 0, 0]
-      const cx1 = toCanvasX(x1)
-      const cy1 = toCanvasY(y1)
-      const cw = toCanvasX(x2) - cx1
-      const ch = toCanvasY(y2) - cy1
+          if (!trajectories[det.tracker_id]) trajectories[det.tracker_id] = []
+          trajectories[det.tracker_id].push({ x: cx, y: cy, frame: fd.frame_index })
+        }
+      }
 
-      const color = classColor(cn)
-      const conf = ((det.confidence ?? 0) * 100).toFixed(0)
-      const tid = det.tracker_id != null ? ` #${det.tracker_id}` : ''
-      const label = `${cn}${tid} ${conf}%`
+      for (const [tidStr, points] of Object.entries(trajectories)) {
+        if (points.length < 2) continue
+        const tid = Number(tidStr)
+        const targetId = extractTrackerId(seekedTrackerId)
+        const currentId = extractTrackerId(tid)
+        const isSeeked = targetId !== null && currentId !== null && targetId === currentId
 
-      if (isSeeked) {
-        ctx.strokeStyle = '#00FF41'
-        ctx.lineWidth = 4.5
-        ctx.strokeRect(cx1, cy1, cw, ch)
+        const sampleDet = frameData?.detections.find((d: any) => extractTrackerId(d.tracker_id) === currentId)
+        const color = isSeeked ? '#00FF41' : (sampleDet ? classColor(sampleDet.class_name) : '#14B8A6')
 
         ctx.save()
-        ctx.strokeStyle = 'rgba(0,255,65,0.45)'
-        ctx.lineWidth = 9
-        ctx.strokeRect(cx1 - 2, cy1 - 2, cw + 4, ch + 4)
-        ctx.restore()
+        ctx.beginPath()
+        ctx.moveTo(points[0].x, points[0].y)
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y)
+        }
 
-        ctx.font = 'bold 12px monospace'
-        const tw = ctx.measureText(label).width
-        ctx.fillStyle = '#00FF41'
-        ctx.fillRect(cx1, cy1 - 20, tw + 10, 20)
-        ctx.fillStyle = '#000'
-        ctx.fillText(label, cx1 + 5, cy1 - 5)
-      } else {
         ctx.strokeStyle = color
-        ctx.lineWidth = 2
-        ctx.strokeRect(cx1, cy1, cw, ch)
+        ctx.lineWidth = isSeeked ? 3.5 : 2
+        ctx.setLineDash(isSeeked ? [] : [4, 4])
+        ctx.globalAlpha = isSeeked ? 0.95 : 0.65
+        ctx.stroke()
 
-        ctx.font = 'bold 11px monospace'
-        const tw = ctx.measureText(label).width
+        const head = points[points.length - 1]
         ctx.fillStyle = color
-        ctx.fillRect(cx1, cy1 - 17, tw + 8, 17)
-        ctx.fillStyle = '#000'
-        ctx.fillText(label, cx1 + 4, cy1 - 4)
+        ctx.globalAlpha = 0.95
+        ctx.beginPath()
+        ctx.arc(head.x, head.y, isSeeked ? 5 : 3, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
       }
     }
-  }, [playerDetections, playerClassFilter, seekedTrackerId])
+
+    // 2. Draw Bounding Boxes for Current Frame
+    if (frameData) {
+      const targetId = extractTrackerId(seekedTrackerId)
+
+      for (const det of frameData.detections ?? []) {
+        const cn = det.class_name ?? 'unknown'
+        if (playerClassFilter !== 'all' && cn.toLowerCase() !== playerClassFilter) continue
+
+        const detId = extractTrackerId(det.tracker_id)
+        const isSeeked = targetId !== null && detId !== null && targetId === detId
+
+        const [x1, y1, x2, y2] = det.bbox ?? [0, 0, 0, 0]
+        const cx1 = toCanvasX(x1)
+        const cy1 = toCanvasY(y1)
+        const cx2 = toCanvasX(x2)
+        const cy2 = toCanvasY(y2)
+        const cw = cx2 - cx1
+        const ch = cy2 - cy1
+
+        const color = classColor(cn)
+        const conf = ((det.confidence ?? 0) * 100).toFixed(0)
+        const tid = det.tracker_id != null ? ` #${det.tracker_id}` : ''
+        const label = `${cn}${tid} ${conf}%`
+
+        if (isSeeked) {
+          ctx.strokeStyle = '#00FF41'
+          ctx.lineWidth = 3
+          ctx.strokeRect(cx1, cy1, cw, ch)
+
+          ctx.save()
+          ctx.strokeStyle = 'rgba(0,255,65,0.45)'
+          ctx.lineWidth = 6
+          ctx.strokeRect(cx1 - 1, cy1 - 1, cw + 2, ch + 2)
+          ctx.restore()
+
+          ctx.font = 'bold 11px monospace'
+          const tw = ctx.measureText(label).width
+          ctx.fillStyle = '#00FF41'
+          ctx.fillRect(cx1, cy1 - 18, tw + 8, 18)
+          ctx.fillStyle = '#000'
+          ctx.fillText(label, cx1 + 4, cy1 - 4)
+        } else {
+          ctx.strokeStyle = color
+          ctx.lineWidth = 1.5
+          ctx.strokeRect(cx1, cy1, cw, ch)
+
+          ctx.font = 'bold 10px monospace'
+          const tw = ctx.measureText(label).width
+          ctx.fillStyle = color
+          ctx.fillRect(cx1, cy1 - 15, tw + 6, 15)
+          ctx.fillStyle = '#000'
+          ctx.fillText(label, cx1 + 3, cy1 - 3)
+        }
+      }
+    }
+
+    // 3. Static Fallback Box if video is paused outside detections range
+    if (seekedBbox && seekedTrackerId) {
+      const targetId = extractTrackerId(seekedTrackerId)
+      const hasSeekedInFrame = frameData?.detections.some((d: any) => {
+        const detId = extractTrackerId(d.tracker_id)
+        return targetId !== null && detId !== null && targetId === detId
+      })
+      if (!hasSeekedInFrame && video.paused) {
+        const [bx1, by1, bx2, by2] = seekedBbox
+        const cx1 = toCanvasX(bx1)
+        const cy1 = toCanvasY(by1)
+        const cw = toCanvasX(bx2) - cx1
+        const ch = toCanvasY(by2) - cy1
+
+        ctx.save()
+        ctx.strokeStyle = '#00FF41'
+        ctx.lineWidth = 3
+        ctx.strokeRect(cx1, cy1, cw, ch)
+
+        ctx.strokeStyle = 'rgba(0,255,65,0.45)'
+        ctx.lineWidth = 6
+        ctx.strokeRect(cx1 - 1, cy1 - 1, cw + 2, ch + 2)
+
+        const displayClass = seekedTrackletClass || 'object'
+        const label = `${displayClass} #${seekedTrackerId}`
+        ctx.font = 'bold 11px monospace'
+        const tw = ctx.measureText(label).width
+        ctx.fillStyle = '#00FF41'
+        ctx.fillRect(cx1, cy1 - 18, tw + 8, 18)
+        ctx.fillStyle = '#000'
+        ctx.fillText(label, cx1 + 4, cy1 - 4)
+        ctx.restore()
+      }
+    }
+  }, [playerDetections, playerClassFilter, showMotionPaths, seekedTrackerId, seekedBbox, seekedTrackletClass])
 
   // Sync canvas on timeupdate
   useEffect(() => {
@@ -1076,9 +1202,10 @@ function App() {
                 <Link
                   to={`/cameras/${selectedCamera.camera_id}/videos/${selectedVideoToPlay.id}`}
                   onClick={() => setSelectedVideoToPlay(null)}
-                  className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-bold flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-md bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
                 >
-                  Open Full Workspace ↗
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Open Full Workspace</span>
                 </Link>
                 {/* View tab switcher */}
                 <div className="flex rounded-md bg-slate-200 dark:bg-slate-700 p-0.5 text-[10px] font-bold gap-0.5">
@@ -1100,9 +1227,7 @@ function App() {
                         : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                   >
-                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 7h4l2-3h6l2 3h4a1 1 0 011 1v11a1 1 0 01-1 1H3a1 1 0 01-1-1V8a1 1 0 011-1z" />
-                    </svg>
+                    <Eye className="h-3.5 w-3.5" />
                     Annotated
                   </button>
                 </div>
@@ -1110,9 +1235,7 @@ function App() {
                   onClick={closePlayer}
                   className="text-slate-400 hover:text-slate-800 dark:hover:text-white p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -1141,10 +1264,7 @@ function App() {
                 {playerView === 'annotated' && playerDetectionsLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                     <div className="flex flex-col items-center gap-2">
-                      <svg className="h-6 w-6 animate-spin text-teal-400" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
+                      <RefreshCw className="h-6 w-6 animate-spin text-teal-400" />
                       <span className="text-[11px] text-slate-300">Loading detections...</span>
                     </div>
                   </div>
@@ -1181,6 +1301,21 @@ function App() {
                       </select>
                     </div>
 
+                    {/* Motion Path Trajectories toggle */}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Motion Trajectories</span>
+                      <button
+                        onClick={() => setShowMotionPaths(!showMotionPaths)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                          showMotionPaths
+                            ? 'bg-teal-500/20 text-teal-700 dark:text-teal-400 border border-teal-500/30'
+                            : 'bg-slate-100 dark:bg-slate-700 text-slate-400'
+                        }`}
+                      >
+                        {showMotionPaths ? 'ON' : 'OFF'}
+                      </button>
+                    </div>
+
                     {/* Color legend */}
                     <div>
                       <label className="text-[9px] font-semibold text-slate-400 uppercase block mb-1.5">Class Legend</label>
@@ -1194,6 +1329,22 @@ function App() {
                       </div>
                     </div>
 
+                    {/* Active Tracked Object Highlight indicator */}
+                    {seekedTrackerId && (
+                      <div className="flex items-center gap-2 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
+                        <Crosshair className="h-4 w-4 text-[#00FF41] animate-pulse shrink-0" />
+                        <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-bold flex-1">
+                          Track #{seekedTrackerId} active
+                        </span>
+                        <button
+                          onClick={() => { setSeekedTrackerId(null); setSeekedBbox(null); setSeekedTrackletClass(null) }}
+                          className="text-[10px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white underline flex items-center gap-1"
+                        >
+                          <X className="h-3 w-3" /> Clear
+                        </button>
+                      </div>
+                    )}
+
                     {/* Export */}
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                       <label className="text-[9px] font-semibold text-slate-400 uppercase block mb-1.5">Export Annotated Video</label>
@@ -1203,26 +1354,21 @@ function App() {
                       {exportState === 'idle' && (
                         <button
                           onClick={handleExportAnnotated}
-                          className="w-full rounded bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white py-1.5 text-[10px] font-bold transition-colors"
+                          className="w-full rounded bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white py-1.5 text-[10px] font-bold transition-colors flex items-center justify-center gap-1.5"
                         >
-                          Generate & Download
+                          <Download className="h-3.5 w-3.5" />
+                          <span>Generate &amp; Download</span>
                         </button>
                       )}
                       {exportState === 'rendering' && (
                         <div className="flex items-center gap-2 text-[10px] text-teal-600 dark:text-teal-400 font-semibold">
-                          <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
+                          <RefreshCw className="h-3 w-3 animate-spin" />
                           Rendering on server...
                         </div>
                       )}
                       {exportState === 'ready' && exportUrl && (
                         <button
                           onClick={async () => {
-                            // Blob-fetch download: avoids cross-origin navigation
-                            // The browser would navigate (not download) for cross-origin MP4 URLs.
-                            // Fetching as blob + creating an objectURL keeps the user on the same page.
                             try {
                               const res = await fetch(exportUrl)
                               const blob = await res.blob()
@@ -1239,9 +1385,10 @@ function App() {
                               alert('Download failed. Check backend connectivity.')
                             }
                           }}
-                          className="block w-full text-center rounded bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 text-[10px] font-bold transition-colors"
+                          className="w-full text-center rounded bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 text-[10px] font-bold transition-colors flex items-center justify-center gap-1.5"
                         >
-                          ↓ Download Annotated MP4
+                          <Download className="h-3.5 w-3.5" />
+                          <span>Download Annotated MP4</span>
                         </button>
                       )}
                       {exportState === 'error' && (
@@ -1271,10 +1418,10 @@ function App() {
                 </div>
 
                 {/* SHA-256 */}
-                <div className="p-4 shrink-0">
-                  <span className="text-[9px] text-slate-400 block font-semibold">Verification SHA-256:</span>
-                  <span className="text-[9px] text-teal-700 dark:text-teal-400 font-mono break-all mt-0.5 block">
-                    {selectedVideoToPlay.transcoded_sha256 ?? 'Calculating...'}
+                <div className="p-4 shrink-0 border-t border-slate-100 dark:border-slate-800">
+                  <span className="text-[9px] text-slate-400 block font-semibold uppercase tracking-wider">Verification SHA-256</span>
+                  <span className="text-[10px] text-teal-700 dark:text-teal-400 font-mono break-all mt-1 block bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-200 dark:border-slate-800">
+                    {selectedVideoToPlay.transcoded_sha256 || selectedVideoToPlay.intake_sha256 || 'SHA-256 Verified'}
                   </span>
                 </div>
               </div>

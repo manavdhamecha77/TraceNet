@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { ExternalLink } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -749,7 +750,9 @@ export default function CameraDetail({
                               </div>
 
                               <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px] text-slate-400">
-                                <span className="text-teal-500 dark:text-teal-400 font-semibold">Click to inspect ↗</span>
+                                <span className="text-teal-500 dark:text-teal-400 font-semibold flex items-center gap-0.5">
+                                  Click to inspect <ExternalLink className="h-2.5 w-2.5 inline" />
+                                </span>
                                 <span className="font-mono text-slate-500 truncate max-w-[60px]" title={tracklet.tracklet_id}>
                                   {tracklet.tracklet_id.substring(0, 6)}
                                 </span>
