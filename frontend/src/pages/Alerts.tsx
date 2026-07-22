@@ -4,7 +4,8 @@ import {
   ChevronUp, Play, Clock, Users, Package, CheckCheck,
   RefreshCw, Settings2, Loader2, ToggleLeft, ToggleRight,
   Radio, SlidersHorizontal, UserCheck, UserX, Minus,
-  Database, Save, ExternalLink, Info, ShieldAlert
+  Database, Save, ExternalLink, Info, ShieldAlert,
+  Trash2, RotateCcw
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -71,8 +72,8 @@ const CONFIG_METADATA = [
   {
     key: 'abandon_time_sec',
     label: 'Abandon Time (sec)',
-    min: 5,
-    max: 120,
+    min: 1,
+    max: 300,
     step: 1,
     description: 'The consecutive duration an object must remain unattended before escalating to an Abandoned Object Alert.',
     strictness: 'Lower = Sensitive (fast alerts, higher false positives). Higher = Strict (requires long absence, fewer false positives).'
@@ -80,17 +81,17 @@ const CONFIG_METADATA = [
   {
     key: 'visitor_dist_px',
     label: 'Visitor Radius (px)',
-    min: 60,
-    max: 300,
-    step: 10,
+    min: 10,
+    max: 1000,
+    step: 5,
     description: 'Search radius around the unattended object to log other passing persons as Persons of Interest.',
     strictness: 'Higher = Sensitive (logs anyone passing in the general area). Lower = Strict (logs only direct interactions/close bypasses).'
   },
   {
     key: 'owner_bind_dist_px',
     label: 'Owner Bind Dist (px)',
-    min: 30,
-    max: 150,
+    min: 10,
+    max: 1000,
     step: 5,
     description: 'Maximum distance to search for a person to register as the owner when the object is initially placed.',
     strictness: 'Higher = Sensitive (binds owner easily even with box jitter). Lower = Strict (requires owner to stand extremely close, may fail to bind).'
@@ -98,17 +99,17 @@ const CONFIG_METADATA = [
   {
     key: 'abandon_dist_px',
     label: 'Abandon Dist (px)',
-    min: 80,
-    max: 400,
-    step: 10,
+    min: 10,
+    max: 1000,
+    step: 5,
     description: 'Separation distance threshold between the owner and the object to declare the object is unattended.',
     strictness: 'Lower = Sensitive (triggers alert on minor separation). Higher = Strict (permits owner to walk further away before triggering).'
   },
   {
     key: 'stationary_tolerance_px',
     label: 'Stationary Tolerance (px)',
-    min: 5,
-    max: 40,
+    min: 1,
+    max: 100,
     step: 1,
     description: 'Pixel movement window to consider the object static, filtering camera shake and bounding box jitter.',
     strictness: 'Higher = Sensitive (tolerates camera vibration and slight box drift). Lower = Strict (requires absolute static state).'
@@ -116,8 +117,8 @@ const CONFIG_METADATA = [
   {
     key: 'stationary_time_sec',
     label: 'Stationary Window (sec)',
-    min: 1,
-    max: 10,
+    min: 0.5,
+    max: 60,
     step: 0.5,
     description: 'Required time the object must remain still before ownership binding and alert tracking start.',
     strictness: 'Lower = Sensitive (starts evaluating instantly). Higher = Strict (ignores objects placed down momentarily).'
@@ -374,7 +375,7 @@ function AnalysisLogPanel({ entries }: { entries: AnalysisLogEntry[] }) {
                     ? 'text-amber-700 bg-amber-500/10 border-amber-500/20 dark:text-amber-300 dark:bg-amber-950/20'
                     : 'text-slate-550 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-800'
                 }`}>
-                  {entry.alerts_created > 0 ? `${entry.alerts_created} abandonment(s)` : 'No abandoned objects'}
+                  {entry.alerts_created > 0 ? `${entry.alerts_created} alert(s) detected` : 'No anomalies detected'}
                 </span>
               )}
 
@@ -616,6 +617,48 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
     }
   }
 
+  const resetDefaultSettings = async () => {
+    const defaults = {
+      abandon_time_sec: 15,
+      visitor_dist_px: 150,
+      owner_bind_dist_px: 80,
+      abandon_dist_px: 200,
+      stationary_tolerance_px: 15,
+      stationary_time_sec: 2,
+      occlusion_grace_frames: 30,
+    }
+    setConfig(defaults)
+    setSavingSettings(true)
+    try {
+      await fetch(`${API_BASE}/api/v1/alerts/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(defaults),
+      })
+      setFeedbackMsg('Settings reset to defaults.')
+      setTimeout(() => setFeedbackMsg(null), 3000)
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const clearLogsAndAlerts = async () => {
+    if (!window.confirm('Are you sure you want to clear all alerts and analysis logs?')) return
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/alerts/clear`, { method: 'DELETE' })
+      if (res.ok) {
+        setAlerts([])
+        setAnalysisLog([])
+        setAllObjects([])
+        setSummary({ total_alerts: 0, unacknowledged_alerts: 0, by_type: {} })
+        setFeedbackMsg('All alerts and logs cleared.')
+        setTimeout(() => setFeedbackMsg(null), 3000)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const handleAcknowledge = (alertId: number) => {
     setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, acknowledged: true } : a))
     setSummary(prev => prev ? { ...prev, unacknowledged_alerts: Math.max(0, prev.unacknowledged_alerts - 1) } : prev)
@@ -657,6 +700,16 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
             <SlidersHorizontal className="w-4 h-4" />
           </button>
 
+          {/* Clear Logs Button */}
+          <button
+            onClick={clearLogsAndAlerts}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors"
+            title="Clear All Logs & Alerts"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear Logs</span>
+          </button>
+
           {/* Run now */}
           <button
             onClick={runAnalysis}
@@ -687,18 +740,28 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
               <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-1">(saved configuration file)</span>
             </div>
             
-            {/* Feedback Message */}
+            {/* Feedback Message & Actions */}
             <div className="flex items-center gap-2">
               {feedbackMsg && (
                 <span className={`text-[11px] font-semibold px-2.5 py-1 rounded flex items-center gap-1 border ${
-                  feedbackMsg.includes('successfully')
+                  feedbackMsg.includes('successfully') || feedbackMsg.includes('defaults')
                     ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
-                    : 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400'
+                    : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400'
                 }`}>
                   <CheckCheck className="w-3 h-3" />
                   {feedbackMsg}
                 </span>
               )}
+              
+              <button
+                onClick={resetDefaultSettings}
+                className="inline-flex items-center gap-1 h-7 px-2.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[11px] font-medium transition-colors"
+                title="Reset to Default Settings"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset Defaults</span>
+              </button>
+
               <button
                 onClick={saveConfigSettings}
                 disabled={savingSettings}
@@ -710,29 +773,25 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {CONFIG_METADATA.map(({ key, label, min, max, step, description, strictness }) => (
-              <div key={key} className="space-y-1.5 border-b border-slate-100 dark:border-slate-700/40 pb-3 last:border-0">
-                <div className="flex justify-between text-[11px] font-bold text-slate-750 dark:text-slate-305">
+              <div key={key} className="space-y-1.5 border border-slate-200/80 dark:border-slate-700/60 p-3 rounded bg-slate-50/40 dark:bg-slate-900/20">
+                <div className="flex justify-between items-center text-[11px] font-bold text-slate-750 dark:text-slate-305">
                   <span>{label}</span>
-                  <span className="text-teal-700 dark:text-teal-400 font-mono">{config[key as keyof typeof config]}</span>
-                </div>
-                <input
-                  type="range"
-                  min={min}
-                  max={max}
-                  step={step}
-                  value={config[key as keyof typeof config]}
-                  onChange={e => setConfig(prev => ({ ...prev, [key]: Number(e.target.value) }))}
-                  className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded appearance-none cursor-pointer accent-teal-750 dark:accent-teal-500"
-                />
-                <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 font-mono">
-                  <span>{min}</span><span>{max}</span>
+                  <input
+                    type="number"
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={config[key as keyof typeof config]}
+                    onChange={e => setConfig(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                    className="h-7 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded px-2 text-xs font-mono font-bold text-teal-700 dark:text-teal-400 w-24 text-right outline-none focus:border-teal-600 shadow-inner"
+                  />
                 </div>
                 <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
                   {description}
                 </div>
-                <div className="text-[9px] text-slate-450 dark:text-slate-500 leading-normal italic bg-slate-50/50 dark:bg-slate-900/30 p-1.5 border border-slate-100 dark:border-slate-800 rounded">
+                <div className="text-[9px] text-slate-450 dark:text-slate-500 leading-normal italic bg-white dark:bg-slate-900/50 p-1.5 border border-slate-100 dark:border-slate-800 rounded">
                   <span className="font-semibold not-italic">Calibration:</span> {strictness}
                 </div>
               </div>

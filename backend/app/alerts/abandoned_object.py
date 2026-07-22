@@ -398,11 +398,12 @@ class AbandonedObjectAnalyzer:
                 logger.error(f"Failed to create unattended alert for obj {obj.tracklet_id}: {e}")
 
         db.commit()
-        log_entries.append(f"[DONE] {alerts_created} abandoned object alert(s) created for video {video_id}")
+        total_video_alerts = db.query(Alert).filter(Alert.video_id == video_id).count()
+        log_entries.append(f"[DONE] {total_video_alerts} alert(s) found for video {video_id}")
         return {
             "eligible": True,
             "skip_reason": None,
-            "alerts_created": alerts_created,
+            "alerts_created": total_video_alerts,
             "log_entries": log_entries,
             "evaluated_video_id": video_id,
         }

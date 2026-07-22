@@ -137,6 +137,20 @@ def get_alerts_summary(db: Session = Depends(get_db)):
     return {"total_alerts": total, "unacknowledged_alerts": unack, "by_type": alert_types}
 
 
+@router.delete("/alerts/clear")
+def clear_all_alerts(db: Session = Depends(get_db)):
+    """Clears all stored alerts from DB and resets in-memory analysis logs."""
+    global _analysis_run_log
+    _analysis_run_log = []
+    deleted_count = db.query(Alert).delete()
+    db.commit()
+    return {
+        "status": "success",
+        "deleted_count": deleted_count,
+        "message": f"Successfully cleared {deleted_count} alert(s) and reset analysis logs.",
+    }
+
+
 # -------------------------------------------------------
 # All Detected Objects (Missed detection backup review)
 # -------------------------------------------------------
