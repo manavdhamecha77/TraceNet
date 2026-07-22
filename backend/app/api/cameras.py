@@ -30,6 +30,7 @@ class CameraUpdate(BaseModel):
     status: str = Field("active", example="active")
     altitude: Optional[float] = Field(None, example=45.2)
     model_id: Optional[str] = Field(None, example="yolov8-person")
+    participate_in_alerts: Optional[bool] = None
 
 class CameraResponse(BaseModel):
     camera_id: str
@@ -42,6 +43,7 @@ class CameraResponse(BaseModel):
     status: str
     altitude: Optional[float]
     model_id: Optional[str]
+    participate_in_alerts: Optional[bool]
     video_count: int
 
     class Config:
@@ -186,6 +188,8 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
         camera.status = payload.status
         camera.altitude = payload.altitude
         camera.model_id = payload.model_id
+        if payload.participate_in_alerts is not None:
+            camera.participate_in_alerts = payload.participate_in_alerts
         
         db.commit()
         db.refresh(camera)

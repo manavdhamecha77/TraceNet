@@ -55,6 +55,11 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'model_id' column to cameras.")
 
+                if "participate_in_alerts" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN participate_in_alerts BOOLEAN DEFAULT 1")
+                    conn.commit()
+                    print("Schema Migration: Added 'participate_in_alerts' column to cameras.")
+
             # Check if videos table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
             if cursor.fetchone():
@@ -70,6 +75,47 @@ def run_startup_migrations():
                     cursor.execute("ALTER TABLE videos ADD COLUMN is_bin BOOLEAN DEFAULT 0")
                     conn.commit()
                     print("Schema Migration: Added 'is_bin' column to videos.")
+
+            # Check if alerts table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='alerts'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(alerts)")
+                columns = [c[1] for c in cursor.fetchall()]
+                
+                if "video_id" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN video_id VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'video_id' column to alerts.")
+                
+                if "object_tracklet_id" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN object_tracklet_id VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'object_tracklet_id' column to alerts.")
+
+                if "owner_tracklet_ids" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN owner_tracklet_ids TEXT DEFAULT '[]'")
+                    conn.commit()
+                    print("Schema Migration: Added 'owner_tracklet_ids' column to alerts.")
+
+                if "visitor_tracklet_ids" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN visitor_tracklet_ids TEXT DEFAULT '[]'")
+                    conn.commit()
+                    print("Schema Migration: Added 'visitor_tracklet_ids' column to alerts.")
+
+                if "reid_match_tracklet_id" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN reid_match_tracklet_id VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'reid_match_tracklet_id' column to alerts.")
+
+                if "abandon_duration_seconds" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN abandon_duration_seconds FLOAT")
+                    conn.commit()
+                    print("Schema Migration: Added 'abandon_duration_seconds' column to alerts.")
+
+                if "analysis_log" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN analysis_log TEXT")
+                    conn.commit()
+                    print("Schema Migration: Added 'analysis_log' column to alerts.")
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:

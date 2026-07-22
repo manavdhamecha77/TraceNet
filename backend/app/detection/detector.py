@@ -197,8 +197,7 @@ class DetectionService:
         class_ids: list[int] = []
         iterable = names.items() if isinstance(names, dict) else enumerate(names or [])
         for class_id, class_name in iterable:
-            if _normalize_object_type(str(class_name)) is not None:
-                class_ids.append(int(class_id))
+            class_ids.append(int(class_id))
         return class_ids
 
     def _predict_frame(self, frame: Any) -> sv.Detections:
@@ -266,8 +265,6 @@ class DetectionService:
                         )
                         class_name = _get_class_name(self.model.names, class_id)
                         object_type = _normalize_object_type(class_name)
-                        if object_type is None:
-                            continue
 
                         confidence = (
                             float(detections.confidence[det_index])

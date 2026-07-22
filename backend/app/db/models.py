@@ -48,6 +48,7 @@ class CameraProfile(Base):
     is_active = Column(Boolean, default=True)
     status = Column(String, default="active")  # 'active' | 'maintenance' | 'not-working'
     altitude = Column(Float, nullable=True)
+    participate_in_alerts = Column(Boolean, default=True)
     model_id = Column(String, ForeignKey("models.id"), nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
@@ -68,6 +69,7 @@ class CameraProfile(Base):
             "is_active": self.is_active,
             "status": self.status,
             "altitude": self.altitude,
+            "participate_in_alerts": self.participate_in_alerts,
             "model_id": self.model_id,
             "video_count": len(self.videos) if self.videos else 0
         }
@@ -240,17 +242,40 @@ class Alert(Base):
     alert_type = Column(String, nullable=False)  # 'loitering' | 'abandoned_object'
     tracklet_id = Column(String, ForeignKey("tracklets.id", ondelete="CASCADE"), nullable=False)
     camera_id = Column(String, nullable=False)
+    video_id = Column(String, nullable=True)                   # video where abandonment was detected
+    object_tracklet_id = Column(String, nullable=True)          # the abandoned object's tracklet_id
+    owner_tracklet_ids = Column(Text, default="[]")             # JSON list of owner tracklet IDs
+    visitor_tracklet_ids = Column(Text, default="[]")           # JSON list of visitor tracklet IDs
+    reid_match_tracklet_id = Column(String, nullable=True)      # tracklet_id if owner re-ID matched
+    abandon_duration_seconds = Column(Float, nullable=True)     # time abandoned before alert
+    analysis_log = Column(Text, nullable=True)                  # JSON string with analysis notes
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     acknowledged = Column(Boolean, default=False)
 
     tracklet = relationship("Tracklet")
 
     def to_dict(self):
+        try:
+            owners = json.loads(self.owner_tracklet_ids) if self.owner_tracklet_ids else []
+        except Exception:
+            owners = []
+        try:
+            visitors = json.loads(self.visitor_tracklet_ids) if self.visitor_tracklet_ids else []
+        except Exception:
+            visitors = []
+            
         return {
             "id": self.id,
             "alert_type": self.alert_type,
             "tracklet_id": self.tracklet_id,
             "camera_id": self.camera_id,
+            "video_id": self.video_id,
+            "object_tracklet_id": self.object_tracklet_id,
+            "owner_tracklet_ids": owners,
+            "visitor_tracklet_ids": visitors,
+            "reid_match_tracklet_id": self.reid_match_tracklet_id,
+            "abandon_duration_seconds": self.abandon_duration_seconds,
+            "analysis_log": self.analysis_log,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "acknowledged": self.acknowledged,
         }
