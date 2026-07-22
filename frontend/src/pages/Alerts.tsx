@@ -5,11 +5,21 @@ import {
   RefreshCw, Settings2, Loader2, ToggleLeft, ToggleRight,
   Radio, SlidersHorizontal, UserCheck, UserX, Minus,
   Database, Save, ExternalLink, Info, ShieldAlert,
-  Trash2, RotateCcw
+  Trash2, RotateCcw, Target
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const API_BASE = 'http://localhost:8000'
+
+const extractTrackerId = (val: any): string => {
+  if (val == null) return ''
+  const str = String(val).trim()
+  if (str.includes('_trk_')) {
+    const parts = str.split('_trk_')
+    return parts[parts.length - 1]
+  }
+  return str
+}
 
 interface AlertEntry {
   id: number
@@ -63,6 +73,15 @@ interface DetectedObject {
 
 interface AlertsPageProps {
   cameras?: Camera[]
+  onPlayVideoAtTime?: (
+    video: any,
+    timestamp: number,
+    trackerId?: number | string,
+    bestBbox?: number[],
+    className?: string,
+    tag?: string,
+    color?: string
+  ) => void
 }
 
 const TRACKLET_THUMB = (trackletId: string) =>
@@ -148,7 +167,15 @@ function TrackletThumb({ trackletId, label }: { trackletId: string; label: strin
   )
 }
 
-function AbandonedAlertCard({ alert, onAcknowledge }: { alert: AlertEntry; onAcknowledge: (id: number) => void }) {
+function AbandonedAlertCard({
+  alert,
+  onAcknowledge,
+  onTrackTracklet
+}: {
+  alert: AlertEntry;
+  onAcknowledge: (id: number) => void;
+  onTrackTracklet: (videoId: string, trackletIdStr: string, tag: 'OBJECT' | 'OWNER', color: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false)
   const [acking, setAcking] = useState(false)
 
@@ -180,8 +207,8 @@ function AbandonedAlertCard({ alert, onAcknowledge }: { alert: AlertEntry; onAck
     >
       {/* Card Header */}
       <div className="p-4 flex items-start gap-4">
-        {/* Object thumbnail */}
-        <div className="shrink-0 flex flex-col items-center">
+        {/* Object thumbnail + Track Object action */}
+        <div className="shrink-0 flex flex-col items-center gap-1.5">
           {alert.object_tracklet_id ? (
             <TrackletThumb trackletId={alert.object_tracklet_id} label="Object" />
           ) : (
@@ -189,7 +216,17 @@ function AbandonedAlertCard({ alert, onAcknowledge }: { alert: AlertEntry; onAck
               <Package className="w-5 h-5 text-slate-400 dark:text-slate-600" />
             </div>
           )}
-          <div className="text-[9px] font-medium text-slate-400 dark:text-slate-500 mt-1">Object</div>
+
+          {alert.video_id && alert.object_tracklet_id && (
+            <button
+              onClick={() => onTrackTracklet(alert.video_id!, alert.object_tracklet_id!, 'OBJECT', '#FF0033')}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors shadow-xs"
+              title="Track Object in model view (Bright Red)"
+            >
+              <Target className="w-3 h-3 text-rose-500" />
+              Track Object
+            </button>
+          )}
         </div>
 
         {/* Info */}
@@ -233,9 +270,21 @@ function AbandonedAlertCard({ alert, onAcknowledge }: { alert: AlertEntry; onAck
                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
                     <UserCheck className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" /> Owner(s)
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3 items-start">
                     {alert.owner_tracklet_ids.slice(0, 4).map(tid => (
-                      <TrackletThumb key={tid} trackletId={tid} label="Owner" />
+                      <div key={tid} className="flex flex-col items-center gap-1">
+                        <TrackletThumb trackletId={tid} label="Owner" />
+                        {alert.video_id && (
+                          <button
+                            onClick={() => onTrackTracklet(alert.video_id!, tid, 'OWNER', '#00E676')}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors shadow-xs"
+                            title="See and track owner in model view"
+                          >
+                            <UserCheck className="w-2.5 h-2.5 text-emerald-500" />
+                            Track Owner
+                          </button>
+                        )}
+                      </div>
                     ))}
                     {alert.owner_tracklet_ids.length > 4 && (
                       <div className="w-12 h-12 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-[10px] text-slate-500 dark:text-slate-400 font-bold">
@@ -336,7 +385,7 @@ function AnalysisLogPanel({ entries }: { entries: AnalysisLogEntry[] }) {
               style={{ width: `${overallPercentage}%` }}
             />
           </div>
-          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-450 shrink-0">
+          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-455 shrink-0">
             {completed}/{total} videos ({overallPercentage}%)
           </span>
         </div>
@@ -424,13 +473,19 @@ function AnalysisLogPanel({ entries }: { entries: AnalysisLogEntry[] }) {
   )
 }
 
-function DetectedObjectCard({ obj }: { obj: DetectedObject }) {
+function DetectedObjectCard({
+  obj,
+  onTrackTracklet
+}: {
+  obj: DetectedObject;
+  onTrackTracklet: (videoId: string, trackletIdStr: string, tag: 'OBJECT' | 'OWNER', color: string) => void;
+}) {
   const [err, setErr] = useState(false)
   const duration = (obj.timestamp_end_seconds - obj.timestamp_start_seconds).toFixed(1)
 
   return (
     <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 p-3.5 flex gap-3.5 items-start">
-      <div className="shrink-0">
+      <div className="shrink-0 flex flex-col items-center gap-1.5">
         {!err ? (
           <img
             src={`${API_BASE}${obj.best_crop_path}`}
@@ -443,6 +498,14 @@ function DetectedObjectCard({ obj }: { obj: DetectedObject }) {
             <Package className="w-6 h-6 text-slate-450 dark:text-slate-655" />
           </div>
         )}
+        <button
+          onClick={() => onTrackTracklet(obj.video_id, String(obj.tracker_id), 'OBJECT', '#FF0033')}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors"
+          title="Track Object in model view (Bright Red)"
+        >
+          <Target className="w-2.5 h-2.5 text-rose-500" />
+          Track
+        </button>
       </div>
 
       <div className="flex-1 min-w-0">
@@ -463,9 +526,9 @@ function DetectedObjectCard({ obj }: { obj: DetectedObject }) {
       </div>
 
       <Link
-        to={`/cameras/${obj.camera_id}/videos/${obj.video_id}`}
+        to={`/cameras/${obj.camera_id}/videos/${obj.video_id}?track_id=${obj.tracker_id}&tag=OBJECT&color=%23FF0033`}
         className="shrink-0 text-slate-400 hover:text-teal-700 dark:hover:text-teal-500 p-1 transition-colors"
-        title="View Video Detail"
+        title="View Video Detail with Object Tracking"
       >
         <ExternalLink className="w-4 h-4" />
       </Link>
@@ -473,7 +536,7 @@ function DetectedObjectCard({ obj }: { obj: DetectedObject }) {
   )
 }
 
-export default function Alerts({ cameras = [] }: AlertsPageProps) {
+export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPageProps) {
   const [alerts, setAlerts] = useState<AlertEntry[]>([])
   const [summary, setSummary] = useState<{ total_alerts: number; unacknowledged_alerts: number; by_type: Record<string, number> } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -656,6 +719,56 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
       }
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  const handleTrackTracklet = async (
+    videoId: string,
+    trackletIdStr: string,
+    tag: 'OBJECT' | 'OWNER',
+    color: string
+  ) => {
+    if (!onPlayVideoAtTime) return
+    try {
+      const [vRes, dRes] = await Promise.all([
+        fetch(`${API_BASE}/api/v1/videos/${videoId}`),
+        fetch(`${API_BASE}/api/v1/videos/${videoId}/detections`),
+      ])
+      if (!vRes.ok) return
+      const vData = await vRes.json()
+      const videoAsset = vData.video
+
+      let timestamp = 0
+      let bestBbox: number[] | undefined = undefined
+      let className = tag === 'OBJECT' ? 'object' : 'person'
+
+      const trkNum = extractTrackerId(trackletIdStr)
+
+      if (dRes.ok) {
+        const dData = await dRes.json()
+        const tracklets = dData.tracklets || []
+        const matched = tracklets.find((t: any) => String(t.tracker_id) === String(trkNum))
+        if (matched) {
+          timestamp = matched.timestamp_start_seconds ?? 0
+          bestBbox = matched.best_bbox
+          className = matched.class_name ?? className
+        } else {
+          // Fallback frame detections
+          for (const fd of dData.frame_detections || []) {
+            const found = (fd.detections || []).find((d: any) => String(d.tracker_id) === String(trkNum))
+            if (found) {
+              timestamp = fd.timestamp_seconds ?? 0
+              bestBbox = found.bbox
+              className = found.class_name ?? className
+              break
+            }
+          }
+        }
+      }
+
+      onPlayVideoAtTime(videoAsset, timestamp, trkNum, bestBbox, className, tag, color)
+    } catch (e) {
+      console.error('Failed to launch video tracking:', e)
     }
   }
 
@@ -936,7 +1049,12 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
           ) : (
             <div className="space-y-3">
               {alerts.map(alert => (
-                <AbandonedAlertCard key={alert.id} alert={alert} onAcknowledge={handleAcknowledge} />
+                <AbandonedAlertCard
+                  key={alert.id}
+                  alert={alert}
+                  onAcknowledge={handleAcknowledge}
+                  onTrackTracklet={handleTrackTracklet}
+                />
               ))}
             </div>
           )}
@@ -964,7 +1082,11 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {allObjects.map(obj => (
-                <DetectedObjectCard key={obj.id} obj={obj} />
+                <DetectedObjectCard
+                  key={obj.id}
+                  obj={obj}
+                  onTrackTracklet={handleTrackTracklet}
+                />
               ))}
             </div>
           )}

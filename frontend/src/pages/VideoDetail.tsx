@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import {
   Play,
@@ -126,7 +126,9 @@ export default function VideoDetail() {
   const [showMotionPaths, setShowMotionPaths]     = useState<boolean>(true)
   const [isFullscreen, setIsFullscreen]           = useState<boolean>(false)
 
-  // Seek highlight: track which tracklet is "focused" for dynamic green box & trajectory
+  const [searchParams] = useSearchParams()
+  const seekedTag = searchParams.get('tag')
+  const seekedColor = searchParams.get('color')
   const [seekedTrackletId, setSeekedTrackletId] = useState<string | null>(null)
   const [seekedBbox, setSeekedBbox]             = useState<number[] | null>(null)
   const [seekedTrackletClass, setSeekedTrackletClass] = useState<string | null>(null)
@@ -328,17 +330,19 @@ export default function VideoDetail() {
         const color = classColor(cn)
         const conf  = ((det.confidence ?? 0) * 100).toFixed(0)
         const tid   = det.tracker_id != null ? ` #${det.tracker_id}` : ''
-        const label = `${cn}${tid} ${conf}%`
+        const activeColor = seekedColor || '#00FF41'
+        const tagPrefix = seekedTag ? `[${seekedTag}] ` : ''
+        const label = `${tagPrefix}${cn}${tid} ${conf}%`
 
         if (isSeeked) {
-          // Thinner bright green highlight for seeked tracklet (DYNAMIC as video plays!)
-          ctx.strokeStyle = '#00FF41'
-          ctx.lineWidth   = 3
+          // Thinner bright highlight for seeked tracklet (DYNAMIC as video plays!)
+          ctx.strokeStyle = activeColor
+          ctx.lineWidth   = 3.5
           ctx.strokeRect(cx1, cy1, cw, ch)
 
           // Outer glowing aura
           ctx.save()
-          ctx.strokeStyle = 'rgba(0,255,65,0.45)'
+          ctx.strokeStyle = `${activeColor}77`
           ctx.lineWidth   = 6
           ctx.strokeRect(cx1 - 1, cy1 - 1, cw + 2, ch + 2)
           ctx.restore()
@@ -346,7 +350,7 @@ export default function VideoDetail() {
           // Label background
           ctx.font = 'bold 11px monospace'
           const tw = ctx.measureText(label).width
-          ctx.fillStyle = '#00FF41'
+          ctx.fillStyle = activeColor
           ctx.fillRect(cx1, cy1 - 18, tw + 8, 18)
           ctx.fillStyle = '#000'
           ctx.fillText(label, cx1 + 4, cy1 - 4)

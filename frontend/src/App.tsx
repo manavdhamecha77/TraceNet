@@ -94,6 +94,8 @@ function App() {
   const [seekedTrackerId, setSeekedTrackerId] = useState<string | null>(null)
   const [seekedBbox, setSeekedBbox] = useState<number[] | null>(null)
   const [seekedTrackletClass, setSeekedTrackletClass] = useState<string | null>(null)
+  const [seekedTag, setSeekedTag] = useState<string | null>(null)
+  const [seekedColor, setSeekedColor] = useState<string | null>(null)
   const [showMotionPaths, setShowMotionPaths] = useState<boolean>(true)
   const [exportState, setExportState] = useState<'idle' | 'rendering' | 'ready' | 'error'>('idle')
   const [exportUrl, setExportUrl] = useState<string | null>(null)
@@ -319,7 +321,9 @@ function App() {
     timestamp: number,
     trackerId?: number | string,
     bestBbox?: number[],
-    className?: string
+    className?: string,
+    tag?: string,
+    color?: string
   ) => {
     fetch(`${API_BASE}/api/v1/videos/${video.id}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -350,10 +354,14 @@ function App() {
       setSeekedTrackerId(tid)
       setSeekedBbox(bestBbox ?? null)
       setSeekedTrackletClass(className ?? null)
+      setSeekedTag(tag ?? null)
+      setSeekedColor(color ?? null)
     } else {
       setSeekedTrackerId(null)
       setSeekedBbox(null)
       setSeekedTrackletClass(null)
+      setSeekedTag(null)
+      setSeekedColor(null)
     }
 
     setTimeout(() => {
@@ -593,22 +601,24 @@ function App() {
         const color = classColor(cn)
         const conf = ((det.confidence ?? 0) * 100).toFixed(0)
         const tid = det.tracker_id != null ? ` #${det.tracker_id}` : ''
-        const label = `${cn}${tid} ${conf}%`
+        const activeColor = isSeeked ? (seekedColor || '#00FF41') : color
+        const tagPrefix = (isSeeked && seekedTag) ? `[${seekedTag}] ` : ''
+        const label = `${tagPrefix}${cn}${tid} ${conf}%`
 
         if (isSeeked) {
-          ctx.strokeStyle = '#00FF41'
-          ctx.lineWidth = 3
+          ctx.strokeStyle = activeColor
+          ctx.lineWidth = 3.5
           ctx.strokeRect(cx1, cy1, cw, ch)
 
           ctx.save()
-          ctx.strokeStyle = 'rgba(0,255,65,0.45)'
+          ctx.strokeStyle = `${activeColor}77`
           ctx.lineWidth = 6
           ctx.strokeRect(cx1 - 1, cy1 - 1, cw + 2, ch + 2)
           ctx.restore()
 
           ctx.font = 'bold 11px monospace'
           const tw = ctx.measureText(label).width
-          ctx.fillStyle = '#00FF41'
+          ctx.fillStyle = activeColor
           ctx.fillRect(cx1, cy1 - 18, tw + 8, 18)
           ctx.fillStyle = '#000'
           ctx.fillText(label, cx1 + 4, cy1 - 4)
@@ -641,27 +651,30 @@ function App() {
         const cw = toCanvasX(bx2) - cx1
         const ch = toCanvasY(by2) - cy1
 
+        const activeColor = seekedColor || '#00FF41'
+        const tagPrefix = seekedTag ? `[${seekedTag}] ` : ''
+
         ctx.save()
-        ctx.strokeStyle = '#00FF41'
-        ctx.lineWidth = 3
+        ctx.strokeStyle = activeColor
+        ctx.lineWidth = 3.5
         ctx.strokeRect(cx1, cy1, cw, ch)
 
-        ctx.strokeStyle = 'rgba(0,255,65,0.45)'
+        ctx.strokeStyle = `${activeColor}77`
         ctx.lineWidth = 6
         ctx.strokeRect(cx1 - 1, cy1 - 1, cw + 2, ch + 2)
 
         const displayClass = seekedTrackletClass || 'object'
-        const label = `${displayClass} #${seekedTrackerId}`
+        const label = `${tagPrefix}${displayClass} #${seekedTrackerId}`
         ctx.font = 'bold 11px monospace'
         const tw = ctx.measureText(label).width
-        ctx.fillStyle = '#00FF41'
+        ctx.fillStyle = activeColor
         ctx.fillRect(cx1, cy1 - 18, tw + 8, 18)
         ctx.fillStyle = '#000'
         ctx.fillText(label, cx1 + 4, cy1 - 4)
         ctx.restore()
       }
     }
-  }, [playerDetections, playerClassFilter, showMotionPaths, seekedTrackerId, seekedBbox, seekedTrackletClass])
+  }, [playerDetections, playerClassFilter, showMotionPaths, seekedTrackerId, seekedBbox, seekedTrackletClass, seekedTag, seekedColor])
 
   // Sync canvas on timeupdate
   useEffect(() => {
@@ -941,7 +954,7 @@ function App() {
             />
             <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
             <Route path="/embedding-models" element={<EmbeddingModels />} />
-            <Route path="/alerts" element={<Alerts cameras={cameras} />} />
+            <Route path="/alerts" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
