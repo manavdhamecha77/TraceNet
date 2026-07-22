@@ -320,7 +320,7 @@ def _run_analysis_background(video_ids: list, config_dict: dict):
                 )
 
                 # Patch camera_id on created alerts (analyzer can't know it)
-                if result["alerts_created"] > 0 and camera:
+                if camera:
                     db.query(Alert).filter(
                         Alert.video_id == video_id,
                         Alert.camera_id == ""

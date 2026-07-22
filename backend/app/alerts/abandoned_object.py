@@ -32,7 +32,17 @@ OBJECT_CLASS_NAMES = {
     "box",
 }
 
-PERSON_CLASS_NAMES = {"person", "pedestrian"}
+PERSON_CLASS_KEYWORDS = [
+    "person", "pedest", "human", "man", "woman", "peopl",
+    "walk", "rid", "passeng", "bystand", "child", "adult"
+]
+
+
+def _is_person_detection(det):
+    if det.get("object_type") == "person":
+        return True
+    cname = (det.get("class_name") or "").lower()
+    return any(k in cname for k in PERSON_CLASS_KEYWORDS)
 
 
 def _center(bbox):
@@ -142,12 +152,14 @@ class AbandonedObjectAnalyzer:
 
         stationary_window = max(1, int(self.stationary_time_sec * fps))
         abandon_frames = max(1, int(self.abandon_time_sec * fps))
+        effective_tolerance_px = max(self.stationary_tolerance_px, 20)
 
         log_entries.append(f"[INFO] Replaying {len(frame_detections)} frames at {fps:.1f} FPS")
         log_entries.append(f"[INFO] Stationary window={stationary_window}f, Abandon threshold={abandon_frames}f")
 
         object_registry: dict[int, ObjectState] = {}
         alerts_to_create = []
+        unattended_registry = {}  # tracker_id -> max_unattended_duration
 
         # 3. Frame-by-frame replay
         total_frames = len(frame_detections)
@@ -167,9 +179,9 @@ class AbandonedObjectAnalyzer:
                 cname = (det.get("class_name") or "").lower()
                 if trid is None:
                     continue
-                if cname in eligible_classes:
+                if cname in eligible_classes or det.get("object_type") == "object":
                     current_objects[trid] = det
-                elif cname in PERSON_CLASS_NAMES or det.get("object_type") == "person":
+                elif _is_person_detection(det):
                     current_persons[trid] = det
 
             # Update registry for seen objects
@@ -194,7 +206,11 @@ class AbandonedObjectAnalyzer:
                 if trid not in current_objects:
                     obj.frames_missing += 1
                     if obj.frames_missing > self.occlusion_grace_frames:
-                        # Object gone — clean up, but if ABANDONED keep the alert record
+                        # Object gone — clean up, but if UNATTENDED or ABANDONED, save final duration
+                        if obj.state == "UNATTENDED":
+                            unattended_frames = frame_idx - (obj.unattended_since_frame or frame_idx)
+                            unattended_duration = unattended_frames / fps
+                            unattended_registry[trid] = max(unattended_registry.get(trid, 0.0), unattended_duration)
                         del object_registry[trid]
                     continue
 
@@ -208,7 +224,7 @@ class AbandonedObjectAnalyzer:
                         max_drift = max(
                             max(abs(c[0] - recent[0][0]), abs(c[1] - recent[0][1])) for c in recent
                         )
-                        if max_drift < self.stationary_tolerance_px:
+                        if max_drift < effective_tolerance_px:
                             obj.state = "STATIONARY"
                             obj.stationary_since_frame = frame_idx
                             log_entries.append(
@@ -227,33 +243,54 @@ class AbandonedObjectAnalyzer:
                             f"[OWNER_BOUND] tracker_id={trid} → owners={bound} at frame {frame_idx}"
                         )
 
-                # C. Abandonment check
-                if obj.state == "STATIONARY" and obj.owner_tracker_ids:
-                    any_owner_near = any(
-                        pid in current_persons
-                        and _dist(center, _center(current_persons[pid].get("bbox", [0, 0, 1, 1]))) < self.abandon_dist_px
-                        for pid in obj.owner_tracker_ids
-                    )
-                    if not any_owner_near:
-                        obj.state = "UNATTENDED"
-                        obj.unattended_since_frame = frame_idx
-                        obj.abandon_start_frame = frame_idx
-                        log_entries.append(
-                            f"[UNATTENDED] tracker_id={trid} at frame {frame_idx} (ts={timestamp_sec:.1f}s)"
+                # C. Unattended check (Bound Owner OR Isolated Object)
+                if obj.state == "STATIONARY":
+                    if obj.owner_tracker_ids:
+                        any_owner_near = any(
+                            pid in current_persons
+                            and _dist(center, _center(current_persons[pid].get("bbox", [0, 0, 1, 1]))) < self.abandon_dist_px
+                            for pid in obj.owner_tracker_ids
                         )
+                        if not any_owner_near:
+                            obj.state = "UNATTENDED"
+                            obj.unattended_since_frame = frame_idx
+                            obj.abandon_start_frame = frame_idx
+                            log_entries.append(
+                                f"[UNATTENDED] tracker_id={trid} at frame {frame_idx} (ts={timestamp_sec:.1f}s)"
+                            )
+                    else:
+                        # Isolated / unbound object check: no person near at all
+                        any_person_near = any(
+                            _dist(center, _center(pdet.get("bbox", [0, 0, 1, 1]))) < self.abandon_dist_px
+                            for pdet in current_persons.values()
+                        )
+                        if not any_person_near:
+                            obj.state = "UNATTENDED"
+                            obj.unattended_since_frame = frame_idx
+                            obj.abandon_start_frame = frame_idx
+                            log_entries.append(
+                                f"[UNATTENDED] tracker_id={trid} (ISOLATED) at frame {frame_idx} (ts={timestamp_sec:.1f}s)"
+                            )
 
                 # D. Re-appearance / alarm trigger
                 if obj.state == "UNATTENDED":
-                    any_owner_near = any(
-                        pid in current_persons
-                        and _dist(center, _center(current_persons[pid].get("bbox", [0, 0, 1, 1]))) < self.owner_bind_dist_px
-                        for pid in obj.owner_tracker_ids
-                    )
-                    if any_owner_near:
+                    claiming_persons = [
+                        pid for pid, pdet in current_persons.items()
+                        if _dist(center, _center(pdet.get("bbox", [0, 0, 1, 1]))) < self.owner_bind_dist_px
+                    ]
+                    if claiming_persons:
+                        unattended_frames = frame_idx - (obj.unattended_since_frame or frame_idx)
+                        unattended_duration = unattended_frames / fps
+                        unattended_registry[trid] = max(unattended_registry.get(trid, 0.0), unattended_duration)
+
                         obj.state = "STATIONARY"
+                        if not obj.owner_tracker_ids:
+                            obj.owner_tracker_ids = claiming_persons
                         obj.unattended_since_frame = None
                         obj.abandon_start_frame = None
-                        log_entries.append(f"[OWNER_RETURNED] tracker_id={trid} at frame {frame_idx}")
+                        log_entries.append(
+                            f"[OWNER_RETURNED] tracker_id={trid} at frame {frame_idx} after {unattended_duration:.1f}s"
+                        )
                     else:
                         frames_unattended = frame_idx - (obj.unattended_since_frame or frame_idx)
                         if frames_unattended >= abandon_frames and not obj.alert_triggered:
@@ -265,6 +302,7 @@ class AbandonedObjectAnalyzer:
                                 f"after {obj.abandon_duration_seconds:.1f}s at frame {frame_idx}"
                             )
                             alerts_to_create.append(obj)
+                            unattended_registry[trid] = max(unattended_registry.get(trid, 0.0), obj.abandon_duration_seconds)
 
                         # Track visitors near the unattended/abandoned object
                         for pid in current_persons:
@@ -276,16 +314,28 @@ class AbandonedObjectAnalyzer:
                                         f"[VISITOR] tracker_id={pid} approached abandoned obj {trid} at frame {frame_idx}"
                                     )
 
+        # Record accumulated duration for objects still unattended at the end
+        if frame_detections:
+            last_frame_idx = frame_detections[-1]["frame_index"]
+            for trid, obj in object_registry.items():
+                if obj.state == "UNATTENDED":
+                    unattended_frames = last_frame_idx - (obj.unattended_since_frame or last_frame_idx)
+                    unattended_duration = unattended_frames / fps
+                    unattended_registry[trid] = max(unattended_registry.get(trid, 0.0), unattended_duration)
+                elif obj.state == "ABANDONED":
+                    unattended_registry[trid] = max(unattended_registry.get(trid, 0.0), obj.abandon_duration_seconds)
+
         # 4. Write alerts to DB
         from app.db.models import Alert
         alerts_created = 0
         for obj in alerts_to_create:
             try:
                 existing = db.query(Alert).filter(
+                    Alert.alert_type == "abandoned_object",
                     Alert.object_tracklet_id == obj.tracklet_id
                 ).first()
                 if existing:
-                    continue  # Deduplicate — don't double-create for same object
+                    continue  # Deduplicate
 
                 alert = Alert(
                     alert_type="abandoned_object",
@@ -300,13 +350,52 @@ class AbandonedObjectAnalyzer:
                         [f"{video_id}_trk_{tid}" for tid in obj.visitor_tracker_ids]
                     ),
                     abandon_duration_seconds=obj.abandon_duration_seconds,
-                    analysis_log=json.dumps(log_entries[-10:]),  # last 10 relevant entries
+                    analysis_log=json.dumps(log_entries[-10:]),
                 )
                 db.add(alert)
                 db.flush()
                 alerts_created += 1
             except Exception as e:
                 logger.error(f"Failed to create alert for obj {obj.tracklet_id}: {e}")
+
+        # Save unattended alerts to DB
+        for trid, duration in unattended_registry.items():
+            if duration <= 0.0:
+                continue
+            obj = object_registry.get(trid)
+            if not obj:
+                continue
+            try:
+                existing = db.query(Alert).filter(
+                    Alert.alert_type == "unattended_object",
+                    Alert.object_tracklet_id == obj.tracklet_id
+                ).first()
+                if existing:
+                    if duration > (existing.abandon_duration_seconds or 0.0):
+                        existing.abandon_duration_seconds = duration
+                    continue
+
+                unattended_alert = Alert(
+                    alert_type="unattended_object",
+                    tracklet_id=obj.tracklet_id,
+                    camera_id="",  # Will be set by the caller
+                    video_id=video_id,
+                    object_tracklet_id=obj.tracklet_id,
+                    owner_tracklet_ids=json.dumps(
+                        [f"{video_id}_trk_{tid}" for tid in obj.owner_tracker_ids]
+                    ),
+                    visitor_tracklet_ids=json.dumps(
+                        [f"{video_id}_trk_{tid}" for tid in obj.visitor_tracker_ids]
+                    ),
+                    abandon_duration_seconds=duration,
+                    analysis_log=json.dumps([
+                        f"Unattended segment tracked for {duration:.1f}s.",
+                        f"Initial owner(s): {obj.owner_tracker_ids}"
+                    ]),
+                )
+                db.add(unattended_alert)
+            except Exception as e:
+                logger.error(f"Failed to create unattended alert for obj {obj.tracklet_id}: {e}")
 
         db.commit()
         log_entries.append(f"[DONE] {alerts_created} abandoned object alert(s) created for video {video_id}")

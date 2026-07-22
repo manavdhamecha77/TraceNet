@@ -4,7 +4,7 @@ import {
   ChevronUp, Play, Clock, Users, Package, CheckCheck,
   RefreshCw, Settings2, Loader2, ToggleLeft, ToggleRight,
   Radio, SlidersHorizontal, UserCheck, UserX, Minus,
-  Database, Save, ExternalLink, Info
+  Database, Save, ExternalLink, Info, ShieldAlert
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -67,6 +67,63 @@ interface AlertsPageProps {
 const TRACKLET_THUMB = (trackletId: string) =>
   `${API_BASE}/data/processed/detections/${trackletId.split('_trk_')[0]}/crops/${trackletId}.jpg`
 
+const CONFIG_METADATA = [
+  {
+    key: 'abandon_time_sec',
+    label: 'Abandon Time (sec)',
+    min: 5,
+    max: 120,
+    step: 1,
+    description: 'The consecutive duration an object must remain unattended before escalating to an Abandoned Object Alert.',
+    strictness: 'Lower = Sensitive (fast alerts, higher false positives). Higher = Strict (requires long absence, fewer false positives).'
+  },
+  {
+    key: 'visitor_dist_px',
+    label: 'Visitor Radius (px)',
+    min: 60,
+    max: 300,
+    step: 10,
+    description: 'Search radius around the unattended object to log other passing persons as Persons of Interest.',
+    strictness: 'Higher = Sensitive (logs anyone passing in the general area). Lower = Strict (logs only direct interactions/close bypasses).'
+  },
+  {
+    key: 'owner_bind_dist_px',
+    label: 'Owner Bind Dist (px)',
+    min: 30,
+    max: 150,
+    step: 5,
+    description: 'Maximum distance to search for a person to register as the owner when the object is initially placed.',
+    strictness: 'Higher = Sensitive (binds owner easily even with box jitter). Lower = Strict (requires owner to stand extremely close, may fail to bind).'
+  },
+  {
+    key: 'abandon_dist_px',
+    label: 'Abandon Dist (px)',
+    min: 80,
+    max: 400,
+    step: 10,
+    description: 'Separation distance threshold between the owner and the object to declare the object is unattended.',
+    strictness: 'Lower = Sensitive (triggers alert on minor separation). Higher = Strict (permits owner to walk further away before triggering).'
+  },
+  {
+    key: 'stationary_tolerance_px',
+    label: 'Stationary Tolerance (px)',
+    min: 5,
+    max: 40,
+    step: 1,
+    description: 'Pixel movement window to consider the object static, filtering camera shake and bounding box jitter.',
+    strictness: 'Higher = Sensitive (tolerates camera vibration and slight box drift). Lower = Strict (requires absolute static state).'
+  },
+  {
+    key: 'stationary_time_sec',
+    label: 'Stationary Window (sec)',
+    min: 1,
+    max: 10,
+    step: 0.5,
+    description: 'Required time the object must remain still before ownership binding and alert tracking start.',
+    strictness: 'Lower = Sensitive (starts evaluating instantly). Higher = Strict (ignores objects placed down momentarily).'
+  }
+]
+
 function TrackletThumb({ trackletId, label }: { trackletId: string; label: string }) {
   const [err, setErr] = useState(false)
   return (
@@ -108,11 +165,15 @@ function AbandonedAlertCard({ alert, onAcknowledge }: { alert: AlertEntry; onAck
     ? `${alert.abandon_duration_seconds.toFixed(1)}s`
     : null
 
+  const isUnattended = alert.alert_type === 'unattended_object'
+
   return (
     <div
       className={`rounded border transition-all ${
         alert.acknowledged
           ? 'border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/30'
+          : isUnattended
+          ? 'border-teal-500/20 bg-teal-500/5 dark:border-teal-500/10 dark:bg-teal-950/5 shadow-sm'
           : 'border-amber-500/30 bg-amber-500/5 dark:border-amber-500/30 dark:bg-amber-500/5 shadow-sm'
       }`}
     >
@@ -136,10 +197,18 @@ function AbandonedAlertCard({ alert, onAcknowledge }: { alert: AlertEntry; onAck
             <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold border ${
               alert.acknowledged
                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-500/30 dark:text-emerald-400'
+                : isUnattended
+                ? 'bg-teal-500/10 border-teal-500/20 text-teal-700 dark:bg-teal-950/30 dark:border-teal-500/30 dark:text-teal-400'
                 : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:bg-amber-950/40 dark:border-amber-500/30 dark:text-amber-400'
             }`}>
-              {alert.acknowledged ? <CheckCheck className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-              {alert.acknowledged ? 'Acknowledged' : 'Abandoned Object'}
+              {alert.acknowledged ? (
+                <CheckCheck className="w-3 h-3" />
+              ) : isUnattended ? (
+                <ShieldAlert className="w-3 h-3" />
+              ) : (
+                <AlertTriangle className="w-3 h-3" />
+              )}
+              {alert.acknowledged ? 'Acknowledged' : isUnattended ? 'Unattended Luggage' : 'Abandoned Object'}
             </span>
             {durationStr && (
               <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
@@ -230,7 +299,7 @@ function AbandonedAlertCard({ alert, onAcknowledge }: { alert: AlertEntry; onAck
                   line.startsWith('[UNATTENDED]') ? 'text-amber-500' :
                   line.startsWith('[OWNER') ? 'text-teal-700 dark:text-teal-400' :
                   line.startsWith('[VISITOR]') ? 'text-purple-600 dark:text-purple-400' :
-                  'text-slate-500 dark:text-slate-500'
+                  'text-slate-500 dark:text-slate-505'
                 }`}>{line}</div>
               ))
             } catch {
@@ -247,7 +316,6 @@ function AnalysisLogPanel({ entries }: { entries: AnalysisLogEntry[] }) {
   const [expanded, setExpanded] = useState<string | null>(null)
   if (entries.length === 0) return null
 
-  // Calculate overall progress status
   const total = entries.length
   const completed = entries.filter(e => e.status !== 'pending' && e.status !== 'running').length
   const runningEntry = entries.find(e => e.status === 'running')
@@ -288,7 +356,6 @@ function AnalysisLogPanel({ entries }: { entries: AnalysisLogEntry[] }) {
                 <span className="text-[9px] text-slate-450 dark:text-slate-500 truncate leading-none mt-0.5">{entry.camera_name}</span>
               </div>
 
-              {/* Progress indicator for running video */}
               {entry.status === 'running' && (
                 <div className="flex items-center gap-2 flex-1 max-w-[200px] ml-4">
                   <div className="flex-1 h-1.5 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden">
@@ -301,7 +368,6 @@ function AnalysisLogPanel({ entries }: { entries: AnalysisLogEntry[] }) {
                 </div>
               )}
 
-              {/* Badges / skipped reason */}
               {entry.status === 'complete' && (
                 <span className={`ml-auto shrink-0 text-[10px] font-bold px-2 py-0.5 rounded border ${
                   entry.alerts_created > 0
@@ -329,22 +395,22 @@ function AnalysisLogPanel({ entries }: { entries: AnalysisLogEntry[] }) {
               {entry.log_entries.length > 0 && (
                 <button
                   onClick={() => setExpanded(expanded === entry.video_id ? null : entry.video_id)}
-                  className="shrink-0 text-[10px] text-slate-450 dark:text-slate-500 hover:text-slate-850 dark:hover:text-slate-200 ml-auto p-1"
+                  className="shrink-0 text-[10px] text-slate-455 dark:text-slate-500 hover:text-slate-855 dark:hover:text-slate-200 ml-auto p-1"
                 >
                   {expanded === entry.video_id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
               )}
             </div>
             {expanded === entry.video_id && (
-              <div className="mt-2.5 ml-5.5 font-mono text-[10px] text-slate-500 dark:text-slate-400 space-y-1 max-h-32 overflow-y-auto border-l-2 border-slate-200 dark:border-slate-700 pl-3 py-1">
+              <div className="mt-2.5 ml-5.5 font-mono text-[10px] text-slate-550 dark:text-slate-400 space-y-1 max-h-32 overflow-y-auto border-l-2 border-slate-200 dark:border-slate-700 pl-3 py-1">
                 {entry.log_entries.map((l, i) => (
                   <div key={i} className={`${
-                    l.startsWith('[ABANDONED]') ? 'text-amber-700 dark:text-amber-400 font-semibold' :
-                    l.startsWith('[UNATTENDED]') ? 'text-amber-500' :
+                    l.startsWith('[ABANDONED]') ? 'text-amber-705 dark:text-amber-500 font-semibold' :
+                    l.startsWith('[UNATTENDED]') ? 'text-amber-505' :
                     l.startsWith('[OWNER') ? 'text-teal-700 dark:text-teal-500' :
-                    l.startsWith('[VISITOR]') ? 'text-purple-650 dark:text-purple-400' :
+                    l.startsWith('[VISITOR]') ? 'text-purple-650 dark:text-purple-500' :
                     l.startsWith('[ERROR]') ? 'text-rose-600 dark:text-rose-500' :
-                    l.startsWith('[SKIP]') ? 'text-slate-400 dark:text-slate-600' :
+                    l.startsWith('[SKIP]') ? 'text-slate-500' :
                     'text-slate-500'
                   }`}>{l}</div>
                 ))}
@@ -373,7 +439,7 @@ function DetectedObjectCard({ obj }: { obj: DetectedObject }) {
           />
         ) : (
           <div className="w-14 h-14 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-            <Package className="w-6 h-6 text-slate-450 dark:text-slate-650" />
+            <Package className="w-6 h-6 text-slate-450 dark:text-slate-655" />
           </div>
         )}
       </div>
@@ -388,7 +454,7 @@ function DetectedObjectCard({ obj }: { obj: DetectedObject }) {
           </span>
         </div>
 
-        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 space-y-0.5">
+        <div className="text-[11px] text-slate-500 dark:text-slate-450 mt-1.5 space-y-0.5">
           <div>Camera: <span className="font-semibold text-slate-700 dark:text-slate-300">{obj.camera_id}</span></div>
           <div>Duration: <span className="font-medium text-slate-700 dark:text-slate-350">{duration}s</span> ({obj.frame_start} - {obj.frame_end})</div>
           <div>Conf: <span className="font-medium text-slate-700 dark:text-slate-350">{(obj.mean_confidence * 100).toFixed(0)}%</span></div>
@@ -416,7 +482,7 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [filterAcknowledged, setFilterAcknowledged] = useState<boolean | undefined>(undefined)
   const [filterCamera, setFilterCamera] = useState('')
-  const [activeTab, setActiveTab] = useState<'alerts' | 'all-objects'>('alerts')
+  const [activeTab, setActiveTab] = useState<'alerts' | 'unattended' | 'all-objects'>('alerts')
   const [allObjects, setAllObjects] = useState<DetectedObject[]>([])
   const [objectsLoading, setObjectsLoading] = useState(false)
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
@@ -453,7 +519,10 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
       const params = new URLSearchParams()
       if (filterCamera) params.append('camera_id', filterCamera)
       if (filterAcknowledged !== undefined) params.append('acknowledged', String(filterAcknowledged))
-      params.append('alert_type', 'abandoned_object')
+      
+      const typeParam = activeTab === 'unattended' ? 'unattended_object' : 'abandoned_object'
+      params.append('alert_type', typeParam)
+
       const [aRes, sRes] = await Promise.all([
         fetch(`${API_BASE}/api/v1/alerts?${params}`),
         fetch(`${API_BASE}/api/v1/alerts/summary`),
@@ -465,7 +534,7 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
     } finally {
       setLoading(false)
     }
-  }, [filterCamera, filterAcknowledged])
+  }, [filterCamera, filterAcknowledged, activeTab])
 
   const loadAllDetectedObjects = useCallback(async () => {
     setObjectsLoading(true)
@@ -555,11 +624,11 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
   const acked = alerts.filter(a => a.acknowledged).length
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="space-y-5 pb-24 text-slate-800 dark:text-slate-100">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700/60 pb-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-805 dark:text-slate-100">Abandoned Object Alerts</h2>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Abandoned Object Alerts</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Post-processing analysis of completed videos for unattended objects.
           </p>
@@ -641,19 +710,12 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
-            {[
-              { key: 'abandon_time_sec', label: 'Abandon Time (sec)', min: 5, max: 120, step: 1 },
-              { key: 'visitor_dist_px', label: 'Visitor Radius (px)', min: 60, max: 300, step: 10 },
-              { key: 'owner_bind_dist_px', label: 'Owner Bind Dist (px)', min: 30, max: 150, step: 5 },
-              { key: 'abandon_dist_px', label: 'Abandon Dist (px)', min: 80, max: 400, step: 10 },
-              { key: 'stationary_tolerance_px', label: 'Stationary Tolerance (px)', min: 5, max: 40, step: 1 },
-              { key: 'stationary_time_sec', label: 'Stationary Window (sec)', min: 1, max: 10, step: 0.5 },
-            ].map(({ key, label, min, max, step }) => (
-              <div key={key} className="space-y-1">
-                <div className="flex justify-between text-[11px] font-medium text-slate-650 dark:text-slate-400">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            {CONFIG_METADATA.map(({ key, label, min, max, step, description, strictness }) => (
+              <div key={key} className="space-y-1.5 border-b border-slate-100 dark:border-slate-700/40 pb-3 last:border-0">
+                <div className="flex justify-between text-[11px] font-bold text-slate-750 dark:text-slate-305">
                   <span>{label}</span>
-                  <span className="text-teal-700 dark:text-teal-400 font-mono font-bold">{config[key as keyof typeof config]}</span>
+                  <span className="text-teal-700 dark:text-teal-400 font-mono">{config[key as keyof typeof config]}</span>
                 </div>
                 <input
                   type="range"
@@ -664,8 +726,14 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
                   onChange={e => setConfig(prev => ({ ...prev, [key]: Number(e.target.value) }))}
                   className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded appearance-none cursor-pointer accent-teal-750 dark:accent-teal-500"
                 />
-                <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500">
+                <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 font-mono">
                   <span>{min}</span><span>{max}</span>
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal">
+                  {description}
+                </div>
+                <div className="text-[9px] text-slate-450 dark:text-slate-500 leading-normal italic bg-slate-50/50 dark:bg-slate-900/30 p-1.5 border border-slate-100 dark:border-slate-800 rounded">
+                  <span className="font-semibold not-italic">Calibration:</span> {strictness}
                 </div>
               </div>
             ))}
@@ -698,17 +766,17 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
             <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500" /> Unacknowledged
             </div>
-            <div className="text-2xl font-semibold text-amber-800 dark:text-amber-300 mt-1">{summary.unacknowledged_alerts}</div>
+            <div className="text-2xl font-semibold text-amber-800 dark:text-amber-305 mt-1">{summary.unacknowledged_alerts}</div>
           </div>
           <div className="rounded border border-emerald-500/20 bg-emerald-500/5 dark:border-emerald-500/30 dark:bg-emerald-500/10 p-4 text-emerald-700 dark:text-emerald-400">
             <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-500" /> Acknowledged
             </div>
-            <div className="text-2xl font-semibold text-emerald-800 dark:text-emerald-300 mt-1">{acked}</div>
+            <div className="text-2xl font-semibold text-emerald-800 dark:text-emerald-305 mt-1">{acked}</div>
           </div>
           <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-            <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <Users className="w-3.5 h-3.5 text-slate-550 dark:text-slate-400" /> Persons of Interest
+            <div className="text-[10px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-slate-550 dark:text-slate-405" /> Persons of Interest
             </div>
             <div className="text-2xl font-semibold text-slate-800 dark:text-slate-100 mt-1">
               {alerts.reduce((s, a) => s + (a.visitor_tracklet_ids?.length || 0), 0)}
@@ -721,7 +789,7 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
       <AnalysisLogPanel entries={analysisLog} />
 
       {/* Navigation Tabs Header */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700/60 gap-4 text-xs font-semibold">
+      <div className="flex border-b border-slate-200 dark:border-slate-700/60 gap-4 text-xs font-semibold overflow-x-auto whitespace-nowrap">
         <button
           onClick={() => setActiveTab('alerts')}
           className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${
@@ -731,7 +799,18 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
           }`}
         >
           <AlertTriangle className="w-4 h-4" />
-          Flagged Abandonments ({alerts.length})
+          Flagged Abandonments ({activeTab === 'alerts' ? alerts.length : '—'})
+        </button>
+        <button
+          onClick={() => setActiveTab('unattended')}
+          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeTab === 'unattended'
+              ? 'border-teal-700 dark:border-teal-500 text-teal-700 dark:text-teal-500'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4" />
+          Unattended Objects ({activeTab === 'unattended' ? alerts.length : '—'})
         </button>
         <button
           onClick={() => setActiveTab('all-objects')}
@@ -747,7 +826,7 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
       </div>
 
       {/* Tab Contents */}
-      {activeTab === 'alerts' ? (
+      {activeTab === 'alerts' || activeTab === 'unattended' ? (
         <div className="space-y-4">
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -788,7 +867,9 @@ export default function Alerts({ cameras = [] }: AlertsPageProps) {
           ) : alerts.length === 0 ? (
             <div className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 py-16 text-center">
               <Package className="w-8 h-8 text-slate-350 dark:text-slate-700 mx-auto mb-3" />
-              <div className="text-sm font-medium text-slate-500">No abandoned object alerts found</div>
+              <div className="text-sm font-medium text-slate-500">
+                {activeTab === 'unattended' ? 'No unattended object logs found' : 'No abandoned object alerts found'}
+              </div>
               <div className="text-xs text-slate-400 dark:text-slate-600 mt-1">
                 Run analysis on opt-in cameras. Complete videos will be evaluated using the settings above.
               </div>
