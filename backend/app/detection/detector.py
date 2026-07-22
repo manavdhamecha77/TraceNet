@@ -96,9 +96,9 @@ def _get_class_name(names: Any, class_id: int | None) -> str:
     return f"class_{class_id}"
 
 
-def _normalize_object_type(class_name: str) -> Optional[str]:
-    name = class_name.lower()
-    if "person" in name or "pedestrian" in name:
+def _normalize_object_type(class_name: str) -> str:
+    name = class_name.lower().strip()
+    if name in ("person", "pedestrian"):
         return "person"
     vehicle_terms = (
         "car",
@@ -112,9 +112,9 @@ def _normalize_object_type(class_name: str) -> Optional[str]:
         "suv",
         "vehicle",
     )
-    if any(term in name for term in vehicle_terms):
+    if name in vehicle_terms:
         return "vehicle"
-    return None
+    return class_name
 
 
 def _clip_bbox(bbox: list[float], width: int, height: int) -> tuple[int, int, int, int]:
