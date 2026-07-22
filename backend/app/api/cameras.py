@@ -22,14 +22,15 @@ class CameraCreate(BaseModel):
     model_id: Optional[str] = Field(None, example="yolov8-person")
 
 class CameraUpdate(BaseModel):
-    name: str = Field(..., example="Intersection East", min_length=2)
+    name: Optional[str] = Field(None, example="Intersection East", min_length=2)
     latitude: Optional[float] = Field(None, example=23.0225)
     longitude: Optional[float] = Field(None, example=72.5714)
     corridor_group: Optional[str] = Field(None, example="Zone-A")
-    adjacency: List[str] = Field(default_factory=list, example=["CAM_041", "CAM_043"])
-    status: str = Field("active", example="active")
+    adjacency: Optional[List[str]] = Field(None, example=["CAM_041", "CAM_043"])
+    status: Optional[str] = Field(None, example="active")
     altitude: Optional[float] = Field(None, example=45.2)
     model_id: Optional[str] = Field(None, example="yolov8-person")
+    participate_in_alerts: Optional[bool] = None
 
 class CameraResponse(BaseModel):
     camera_id: str
@@ -42,6 +43,7 @@ class CameraResponse(BaseModel):
     status: str
     altitude: Optional[float]
     model_id: Optional[str]
+    participate_in_alerts: Optional[bool]
     video_count: int
 
     class Config:
@@ -178,14 +180,24 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
         )
         
     try:
-        camera.name = payload.name
-        camera.latitude = payload.latitude
-        camera.longitude = payload.longitude
-        camera.corridor_group = payload.corridor_group
-        camera.adjacency = json.dumps(payload.adjacency)
-        camera.status = payload.status
-        camera.altitude = payload.altitude
-        camera.model_id = payload.model_id
+        if payload.name is not None:
+            camera.name = payload.name
+        if payload.latitude is not None:
+            camera.latitude = payload.latitude
+        if payload.longitude is not None:
+            camera.longitude = payload.longitude
+        if payload.corridor_group is not None:
+            camera.corridor_group = payload.corridor_group
+        if payload.adjacency is not None:
+            camera.adjacency = json.dumps(payload.adjacency)
+        if payload.status is not None:
+            camera.status = payload.status
+        if payload.altitude is not None:
+            camera.altitude = payload.altitude
+        if payload.model_id is not None:
+            camera.model_id = payload.model_id
+        if payload.participate_in_alerts is not None:
+            camera.participate_in_alerts = payload.participate_in_alerts
         
         db.commit()
         db.refresh(camera)

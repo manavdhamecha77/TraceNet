@@ -96,9 +96,9 @@ def _get_class_name(names: Any, class_id: int | None) -> str:
     return f"class_{class_id}"
 
 
-def _normalize_object_type(class_name: str) -> Optional[str]:
-    name = class_name.lower()
-    if "person" in name or "pedestrian" in name:
+def _normalize_object_type(class_name: str) -> str:
+    name = class_name.lower().strip()
+    if name in ("person", "pedestrian"):
         return "person"
     vehicle_terms = (
         "car",
@@ -112,9 +112,9 @@ def _normalize_object_type(class_name: str) -> Optional[str]:
         "suv",
         "vehicle",
     )
-    if any(term in name for term in vehicle_terms):
+    if name in vehicle_terms:
         return "vehicle"
-    return None
+    return class_name
 
 
 def _clip_bbox(bbox: list[float], width: int, height: int) -> tuple[int, int, int, int]:
@@ -197,8 +197,7 @@ class DetectionService:
         class_ids: list[int] = []
         iterable = names.items() if isinstance(names, dict) else enumerate(names or [])
         for class_id, class_name in iterable:
-            if _normalize_object_type(str(class_name)) is not None:
-                class_ids.append(int(class_id))
+            class_ids.append(int(class_id))
         return class_ids
 
     def _predict_frame(self, frame: Any) -> sv.Detections:
@@ -266,8 +265,6 @@ class DetectionService:
                         )
                         class_name = _get_class_name(self.model.names, class_id)
                         object_type = _normalize_object_type(class_name)
-                        if object_type is None:
-                            continue
 
                         confidence = (
                             float(detections.confidence[det_index])
