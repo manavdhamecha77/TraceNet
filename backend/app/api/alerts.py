@@ -1,13 +1,15 @@
+import os
+import json
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
-import json
+from loguru import logger
 
 from app.db.session import get_db, SessionLocal
 from app.db.models import Alert, VideoAsset, CameraProfile, MLModel
 from app.alerts.abandoned_object import AbandonedObjectAnalyzer
-from loguru import logger
+from app.config import get_data_path
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
 
@@ -59,11 +61,37 @@ class AnalysisLogEntry(BaseModel):
     skip_reason: Optional[str] = None
     alerts_created: int
     log_entries: List[str]
-    status: str  # 'running' | 'complete' | 'skipped' | 'error'
+    status: str  # 'pending' | 'running' | 'complete' | 'skipped' | 'error'
+    progress_percentage: int = 0
 
 
 # In-memory log store for current run (reset on each trigger-all call)
 _analysis_run_log: List[dict] = []
+
+
+# -------------------------------------------------------
+# Configuration Persistence
+# -------------------------------------------------------
+
+CONFIG_FILE = get_data_path("alert_config.json")
+
+
+def load_persistent_config() -> dict:
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to read alert config file: {e}")
+    return AbandonedAnalysisConfig().dict()
+
+
+def save_persistent_config(config_data: dict):
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save alert config file: {e}")
 
 
 # -------------------------------------------------------
@@ -110,8 +138,43 @@ def get_alerts_summary(db: Session = Depends(get_db)):
 
 
 # -------------------------------------------------------
+# All Detected Objects (Missed detection backup review)
+# -------------------------------------------------------
+
+@router.get("/alerts/all-objects", response_model=List[dict])
+def get_all_detected_objects(db: Session = Depends(get_db)):
+    """Retrieves all detected tracklets of type 'object' or matching general luggage classes."""
+    from app.alerts.abandoned_object import OBJECT_CLASS_NAMES
+    from app.db.models import Tracklet, VideoAsset
+
+    # Fetch tracklets for non-bin videos
+    query = db.query(Tracklet).join(VideoAsset).filter(VideoAsset.is_bin == False)
+    
+    matching_tracklets = []
+    for t in query.all():
+        if t.class_name.lower() in OBJECT_CLASS_NAMES:
+            matching_tracklets.append(t.to_dict())
+            
+    return matching_tracklets
+
+
+# -------------------------------------------------------
 # Analysis run endpoints
 # -------------------------------------------------------
+
+@router.get("/alerts/config", response_model=dict)
+def get_alert_config():
+    """Gets the persistent analysis configuration."""
+    return load_persistent_config()
+
+
+@router.put("/alerts/config", response_model=dict)
+def update_alert_config(payload: AbandonedAnalysisConfig):
+    """Updates and persists the analysis configuration."""
+    config_dict = payload.dict()
+    save_persistent_config(config_dict)
+    return config_dict
+
 
 @router.post("/alerts/trigger-all")
 def trigger_abandoned_analysis_all(
@@ -122,7 +185,9 @@ def trigger_abandoned_analysis_all(
     """Triggers abandoned object analysis on all eligible complete videos
     whose cameras have participate_in_alerts=True."""
     if config is None:
-        config = AbandonedAnalysisConfig()
+        # Load from disk config or use defaults
+        config_dict = load_persistent_config()
+        config = AbandonedAnalysisConfig(**config_dict)
 
     # Collect eligible video IDs
     cameras = db.query(CameraProfile).filter(
@@ -142,6 +207,23 @@ def trigger_abandoned_analysis_all(
     global _analysis_run_log
     _analysis_run_log = []
 
+    # Pre-populate logs with 'pending' status
+    for vid_id in video_ids:
+        video = db.query(VideoAsset).filter(VideoAsset.id == vid_id).first()
+        if video:
+            camera = db.query(CameraProfile).filter(CameraProfile.camera_id == video.camera_id).first()
+            _analysis_run_log.append({
+                "video_id": vid_id,
+                "video_name": video.original_filename,
+                "camera_name": camera.name if camera else video.camera_id,
+                "status": "pending",
+                "eligible": False,
+                "skip_reason": None,
+                "alerts_created": 0,
+                "log_entries": [],
+                "progress_percentage": 0,
+            })
+
     background_tasks.add_task(_run_analysis_background, video_ids, config.dict())
 
     return {
@@ -160,7 +242,8 @@ def trigger_abandoned_analysis_single(
 ):
     """Triggers abandoned object analysis on a single video."""
     if config is None:
-        config = AbandonedAnalysisConfig()
+        config_dict = load_persistent_config()
+        config = AbandonedAnalysisConfig(**config_dict)
 
     video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
     if not video:
@@ -173,6 +256,19 @@ def trigger_abandoned_analysis_single(
     global _analysis_run_log
     _analysis_run_log = []
 
+    camera = db.query(CameraProfile).filter(CameraProfile.camera_id == video.camera_id).first()
+    _analysis_run_log.append({
+        "video_id": video_id,
+        "video_name": video.original_filename,
+        "camera_name": camera.name if camera else video.camera_id,
+        "status": "pending",
+        "eligible": False,
+        "skip_reason": None,
+        "alerts_created": 0,
+        "log_entries": [],
+        "progress_percentage": 0,
+    })
+
     background_tasks.add_task(_run_analysis_background, [video_id], config.dict())
     return {"status": "started", "video_id": video_id, "message": "Analysis started."}
 
@@ -184,11 +280,15 @@ def get_analysis_log():
 
 
 def _run_analysis_background(video_ids: list, config_dict: dict):
-    global _analysis_run_log
     db = SessionLocal()
     try:
         analyzer = AbandonedObjectAnalyzer(**config_dict)
         for video_id in video_ids:
+            # Set status to running
+            for log_entry in _analysis_run_log:
+                if log_entry["video_id"] == video_id:
+                    log_entry["status"] = "running"
+
             try:
                 video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
                 if not video:
@@ -205,22 +305,18 @@ def _run_analysis_background(video_ids: list, config_dict: dict):
                         except Exception:
                             model_classes = []
 
-                log_entry = {
-                    "video_id": video_id,
-                    "video_name": video.original_filename,
-                    "camera_name": camera.name if camera else video.camera_id,
-                    "status": "running",
-                    "eligible": False,
-                    "skip_reason": None,
-                    "alerts_created": 0,
-                    "log_entries": [],
-                }
-                _analysis_run_log.append(log_entry)
+                # Define progress callback
+                def progress_cb(frame_idx, total_frames):
+                    percent = int((frame_idx / total_frames) * 100) if total_frames > 0 else 0
+                    for entry in _analysis_run_log:
+                        if entry["video_id"] == video_id:
+                            entry["progress_percentage"] = percent
 
                 result = analyzer.analyze_video(
                     video_id=video_id,
                     model_classes=model_classes,
                     db=db,
+                    progress_callback=progress_cb,
                 )
 
                 # Patch camera_id on created alerts (analyzer can't know it)
@@ -231,13 +327,17 @@ def _run_analysis_background(video_ids: list, config_dict: dict):
                     ).update({"camera_id": camera.camera_id})
                     db.commit()
 
-                log_entry.update({
-                    "status": "skipped" if not result["eligible"] else "complete",
-                    "eligible": result["eligible"],
-                    "skip_reason": result["skip_reason"],
-                    "alerts_created": result["alerts_created"],
-                    "log_entries": result["log_entries"],
-                })
+                # Update entry on completion
+                for entry in _analysis_run_log:
+                    if entry["video_id"] == video_id:
+                        entry.update({
+                            "status": "skipped" if not result["eligible"] else "complete",
+                            "eligible": result["eligible"],
+                            "skip_reason": result["skip_reason"],
+                            "alerts_created": result["alerts_created"],
+                            "log_entries": result["log_entries"],
+                            "progress_percentage": 100 if result["eligible"] else 0,
+                        })
 
             except Exception as e:
                 logger.error(f"Analysis failed for video {video_id}: {e}")

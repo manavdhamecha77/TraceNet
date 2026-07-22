@@ -87,6 +87,7 @@ class AbandonedObjectAnalyzer:
         video_id: str,
         model_classes: list,
         db,
+        progress_callback = None,
     ) -> dict:
         """
         Returns a dict with keys:
@@ -149,7 +150,10 @@ class AbandonedObjectAnalyzer:
         alerts_to_create = []
 
         # 3. Frame-by-frame replay
-        for frame_data in frame_detections:
+        total_frames = len(frame_detections)
+        for frame_idx_i, frame_data in enumerate(frame_detections):
+            if progress_callback:
+                progress_callback(frame_idx_i + 1, total_frames)
             frame_idx = frame_data["frame_index"]
             timestamp_sec = frame_data["timestamp_seconds"]
             detections = frame_data.get("detections", [])
