@@ -415,7 +415,7 @@ export default function AICopilotOverlay({
 
                   <button
                     onClick={(e) => handleDeleteSession(e, sess.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-slate-500 transition-opacity rounded hover:bg-slate-750"
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-slate-500 transition-opacity rounded hover:bg-slate-800"
                     title="Delete Conversation"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -463,7 +463,7 @@ export default function AICopilotOverlay({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-750 bg-slate-800 hover:bg-slate-750 text-slate-200 transition-colors shadow-xs"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors shadow-xs"
             >
               <Sliders className="h-3.5 w-3.5 text-teal-400" />
               <span className="hidden sm:inline">Provider Settings</span>
@@ -508,7 +508,7 @@ export default function AICopilotOverlay({
                     <button
                       key={idx}
                       onClick={() => setInputPrompt(prompt)}
-                      className="p-3.5 rounded-2xl border border-slate-800 bg-slate-900/70 hover:bg-slate-850 hover:border-teal-500/40 text-xs text-slate-300 hover:text-white transition-all text-left flex items-start justify-between group shadow-sm"
+                      className="p-3.5 rounded-2xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 hover:border-teal-500/40 text-xs text-slate-300 hover:text-white transition-all text-left flex items-start justify-between group shadow-sm"
                     >
                       <span className="leading-snug">{prompt}</span>
                       <ChevronRight className="h-4 w-4 text-slate-500 group-hover:text-teal-400 shrink-0 mt-0.5 ml-2 transition-transform group-hover:translate-x-0.5" />
@@ -546,7 +546,7 @@ export default function AICopilotOverlay({
                         {msg.executed_tools.map((t, tidx) => (
                           <span
                             key={tidx}
-                            className="inline-flex items-center gap-1.5 text-[10px] font-mono bg-slate-900 border border-slate-750 text-teal-300 px-2.5 py-1 rounded-lg shadow-2xs"
+                            className="inline-flex items-center gap-1.5 text-[10px] font-mono bg-slate-900 border border-slate-700 text-teal-300 px-2.5 py-1 rounded-lg shadow-2xs"
                           >
                             <SearchIcon className="h-3 w-3 text-teal-400" />
                             <span>Tool: {t.name}</span>
@@ -597,7 +597,7 @@ export default function AICopilotOverlay({
                                     <img
                                       src={cropUrl}
                                       alt="Tracklet crop"
-                                      className="h-14 w-14 object-cover rounded-xl border border-slate-750 shrink-0 bg-slate-950"
+                                      className="h-14 w-14 object-cover rounded-xl border border-slate-700 shrink-0 bg-slate-950"
                                     />
                                   ) : (
                                     <div className="h-14 w-14 bg-slate-950 rounded-xl flex items-center justify-center text-slate-500 text-[10px] shrink-0 border border-slate-800">
@@ -728,7 +728,7 @@ export default function AICopilotOverlay({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3.5 rounded-xl border border-slate-750 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-teal-300 flex items-center justify-center transition-colors shadow-xs"
+                className="px-3.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-teal-300 flex items-center justify-center transition-colors shadow-xs"
                 title="Attach target photo for visual search"
               >
                 <Upload className="h-4 w-4" />
@@ -739,7 +739,7 @@ export default function AICopilotOverlay({
                 value={inputPrompt}
                 onChange={(e) => setInputPrompt(e.target.value)}
                 placeholder="Ask Copilot anything... (e.g. 'man in red jacket near CAM_001')"
-                className="flex-1 bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none transition-colors shadow-inner"
+                className="flex-1 bg-slate-950 border border-slate-700 focus:border-teal-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none transition-colors shadow-inner"
               />
 
               <button
@@ -783,7 +783,7 @@ export default function AICopilotOverlay({
                     className={`p-3.5 rounded-xl border text-left transition-all ${
                       config.provider === 'ollama'
                         ? 'border-teal-500 bg-teal-500/10 text-teal-300 font-bold shadow-xs'
-                        : 'border-slate-800 bg-slate-850 text-slate-400 hover:text-slate-200'
+                        : 'border-slate-800 bg-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -799,7 +799,7 @@ export default function AICopilotOverlay({
                     className={`p-3.5 rounded-xl border text-left transition-all ${
                       config.provider === 'cloud'
                         ? 'border-teal-500 bg-teal-500/10 text-teal-300 font-bold shadow-xs'
-                        : 'border-slate-800 bg-slate-850 text-slate-400 hover:text-slate-200'
+                        : 'border-slate-800 bg-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -913,7 +913,7 @@ export default function AICopilotOverlay({
                       value={config.cloud_base_url}
                       onChange={(e) => setConfig((prev) => ({ ...prev, cloud_base_url: e.target.value }))}
                       placeholder="https://api.openai.com/v1"
-                      className="w-full bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono"
                     />
                   </div>
 
@@ -924,7 +924,7 @@ export default function AICopilotOverlay({
                       value={config.cloud_api_key}
                       onChange={(e) => setConfig((prev) => ({ ...prev, cloud_api_key: e.target.value }))}
                       placeholder="sk-..."
-                      className="w-full bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono"
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono"
                     />
                   </div>
 

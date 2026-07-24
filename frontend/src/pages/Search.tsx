@@ -380,7 +380,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       <div className="grid lg:grid-cols-[1.8fr_1.2fr] gap-6">
         
         {/* Search query box */}
-        <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-5 shadow-sm space-y-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
           
           {/* Mode Toggle */}
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded p-1 w-fit border border-slate-200 dark:border-slate-700">
@@ -613,22 +613,22 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
         <div className="space-y-4 flex flex-col">
           
           {/* Model Registry Filter */}
-          <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-4 shadow-sm flex flex-col justify-between max-h-[170px] overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between max-h-[170px] overflow-hidden">
             <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
                 <Filter className="h-3 w-3" /> Model Filter (drift guard)
               </label>
-              <p className="text-[9px] text-slate-400 shrink-0">Select model source. De-selecting a model hides its predictions and locks corresponding cameras.</p>
+              <p className="text-[9px] text-slate-500 dark:text-slate-400 shrink-0">Select model source. De-selecting a model hides its predictions and locks corresponding cameras.</p>
               <div className="overflow-y-auto mt-2 space-y-1.5 pr-2 flex-1 min-h-0">
                 {models.map((m) => (
-                  <label key={m.id} className="flex items-center gap-2 cursor-pointer text-xs text-slate-650 dark:text-slate-300">
+                  <label key={m.id} className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100">
                     <input
                       type="checkbox"
                       checked={selectedModels.includes(m.id)}
                       onChange={() => handleModelToggle(m.id)}
                       className="rounded text-amber-600 border-slate-300 dark:border-slate-700 focus:ring-amber-500"
                     />
-                    <span className="font-mono bg-amber-500/10 px-1 py-0.5 rounded text-[10px] text-amber-700 dark:text-amber-400 font-bold shrink-0">{m.model_type}</span>
+                    <span className="font-mono bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] text-amber-700 dark:text-amber-400 font-bold shrink-0">{m.model_type}</span>
                     <span className="truncate">{m.name}</span>
                   </label>
                 ))}
@@ -640,10 +640,10 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           </div>
 
           {/* Camera node scopes */}
-          <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-4 shadow-sm flex flex-col justify-between max-h-[220px] overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between max-h-[220px] overflow-hidden">
             <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Scope Camera nodes</label>
-              <p className="text-[9px] text-slate-400 shrink-0">Filter targets. Cameras connected to deselected models are disabled.</p>
+              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">Scope Camera nodes</label>
+              <p className="text-[9px] text-slate-500 dark:text-slate-400 shrink-0">Filter targets. Cameras connected to deselected models are disabled.</p>
               <div className="overflow-y-auto mt-2 space-y-1.5 pr-2 flex-1 min-h-0">
                 {cameras.map((c) => {
                   const disabled = isCameraDisabled(c)
@@ -651,7 +651,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     <label 
                       key={c.camera_id} 
                       className={`flex items-center gap-2 text-xs transition-opacity ${
-                        disabled ? 'opacity-35 cursor-not-allowed text-slate-400' : 'cursor-pointer text-slate-650 dark:text-slate-300'
+                        disabled ? 'opacity-35 cursor-not-allowed text-slate-400' : 'cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
                       }`}
                     >
                       <input
@@ -659,9 +659,9 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                         disabled={disabled}
                         checked={selectedCameras.includes(c.camera_id)}
                         onChange={() => handleCameraToggle(c.camera_id)}
-                        className="rounded text-teal-700 border-slate-350 dark:border-slate-700 focus:ring-teal-500 disabled:bg-slate-200"
+                        className="rounded text-teal-700 border-slate-300 dark:border-slate-700 focus:ring-teal-500 disabled:bg-slate-200"
                       />
-                      <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-[10px] text-teal-650 dark:text-teal-400 font-bold shrink-0">{c.camera_id}</span>
+                      <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px] text-teal-700 dark:text-teal-400 font-bold shrink-0">{c.camera_id}</span>
                       <span className="truncate">{c.name}</span>
                     </label>
                   )
@@ -832,33 +832,33 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       </div>
 
       {/* AUDIT LOG TRAIL SECTION */}
-      <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md p-5 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
         <div>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Evidentiary Search Audit Logs</h3>
-          <p className="text-[10px] text-slate-400 mt-0.5">Logs of recent transactions for Smart City surveillance compliance audits.</p>
+          <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Evidentiary Search Audit Logs</h3>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Logs of recent transactions for Smart City surveillance compliance audits.</p>
         </div>
         
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-[11px] text-slate-500">
+          <table className="min-w-full text-left text-[11px] text-slate-600 dark:text-slate-300">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700 pb-2 text-[10px] text-slate-400 font-bold uppercase">
-                <th className="py-2">Timestamp</th>
-                <th className="py-2">Query string</th>
-                <th className="py-2">Camera filters</th>
-                <th className="py-2">Result count</th>
-                <th className="py-2">User ID</th>
+              <tr className="border-b border-slate-200 dark:border-slate-800 pb-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">
+                <th className="py-2.5">Timestamp</th>
+                <th className="py-2.5">Query string</th>
+                <th className="py-2.5">Camera filters</th>
+                <th className="py-2.5">Result count</th>
+                <th className="py-2.5">User ID</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {searchLogs.slice(0, 10).map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
-                  <td className="py-2.5 whitespace-nowrap text-slate-400">{new Date(log.timestamp).toLocaleString()}</td>
-                  <td className="py-2.5 font-bold text-slate-750 dark:text-slate-250 italic">&ldquo;{log.query_text}&rdquo;</td>
+                <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                  <td className="py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">{new Date(log.timestamp).toLocaleString()}</td>
+                  <td className="py-2.5 font-bold text-slate-800 dark:text-slate-100 italic">&ldquo;{log.query_text}&rdquo;</td>
                   <td className="py-2.5 font-mono text-[10px]">
                     {log.camera_filter && log.camera_filter.length > 0 ? log.camera_filter.join(', ') : 'Citywide'}
                   </td>
-                  <td className="py-2.5 font-bold text-teal-600 dark:text-teal-400">{log.results_count ?? 0} matches</td>
-                  <td className="py-2.5 font-mono text-slate-400">{log.user_id}</td>
+                  <td className="py-2.5 font-bold text-teal-700 dark:text-teal-400">{log.results_count ?? 0} matches</td>
+                  <td className="py-2.5 font-mono text-slate-500 dark:text-slate-400">{log.user_id}</td>
                 </tr>
               ))}
               {searchLogs.length === 0 && (
