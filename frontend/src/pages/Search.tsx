@@ -50,6 +50,8 @@ interface SearchResult {
   video_standardized_filename: string
   video_thumbnail_path?: string | null
   tracker_id?: number
+  caption?: string
+  attributes?: Record<string, any>
 }
 
 interface SearchLog {
@@ -791,6 +793,12 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                       </div>
                       <div>Mean Conf: <strong className="text-slate-850 dark:text-slate-200">{(result.mean_confidence * 100).toFixed(0)}%</strong></div>
                     </div>
+
+                    {result.caption && (
+                      <div className="text-[9.5px] italic text-teal-700 dark:text-teal-300 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded leading-tight line-clamp-2" title={`BLIP Auto-Caption: ${result.caption}`}>
+                        "{result.caption}"
+                      </div>
+                    )}
                   </div>
 
                   {/* Dynamic player action trigger */}

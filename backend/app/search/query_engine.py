@@ -149,6 +149,13 @@ class QueryEngine:
             if data_index != -1:
                 crop_url = normalized[data_index:]
 
+            attr_dict = {}
+            try:
+                if tracklet.attributes:
+                    attr_dict = json.loads(tracklet.attributes)
+            except Exception:
+                pass
+
             filtered_results.append({
                 "score": score,
                 "tracklet_id": tracklet.id,
@@ -165,6 +172,8 @@ class QueryEngine:
                 "best_crop_path": crop_url,
                 "mean_confidence": tracklet.mean_confidence,
                 "best_bbox": best_bbox,
+                "caption": attr_dict.get("caption", ""),
+                "attributes": attr_dict,
                 "video_original_filename": video.original_filename,
                 "video_start_time": video_ref_time.isoformat(),
                 "video_standardized_filename": video.standardized_filename,

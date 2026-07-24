@@ -102,6 +102,8 @@ class VectorIndexService:
             # Delete old tracklet record to overwrite cleanly (if exists)
             db.query(Tracklet).filter(Tracklet.id == tracklet_id).delete()
 
+            attr_payload = item.get("attributes") or {"caption": item.get("caption", ""), "class_name": det_info.get("class_name", "unknown")}
+
             db_tracklet = Tracklet(
                 id=tracklet_id,
                 video_id=video_id,
@@ -117,6 +119,7 @@ class VectorIndexService:
                 mean_confidence=mean_confidence,
                 best_bbox=json.dumps(best_bbox),
                 best_crop_path=item.get("best_crop_path"),
+                attributes=json.dumps(attr_payload),
                 qdrant_point_id=point_uuid,
                 embedding_dim=len(embedding),
                 indexed_at=datetime.now(timezone.utc),
@@ -141,6 +144,7 @@ class VectorIndexService:
                         "timestamp_start_seconds": timestamp_start,
                         "timestamp_end_seconds": timestamp_end,
                         "best_crop_path": item.get("best_crop_path"),
+                        "caption": item.get("caption") or attr_payload.get("caption", ""),
                         "indexed_at": datetime.now(timezone.utc).isoformat()
                     }
                 )

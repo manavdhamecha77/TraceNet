@@ -163,6 +163,7 @@ class Tracklet(Base):
     mean_confidence = Column(Float, nullable=False)
     best_bbox = Column(Text, nullable=False)  # JSON string of best bounding box coordinates "[xmin, ymin, xmax, ymax]"
     best_crop_path = Column(String, nullable=True)
+    attributes = Column(Text, nullable=True)  # JSON string of BLIP attributes, e.g. {"caption": "..."}
     qdrant_point_id = Column(String, nullable=True)  # UUID string stored in Qdrant
     embedding_dim = Column(Integer, default=512)
     indexed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -174,6 +175,12 @@ class Tracklet(Base):
             bbox = json.loads(self.best_bbox) if self.best_bbox else []
         except Exception:
             bbox = []
+
+        try:
+            attr_dict = json.loads(self.attributes) if self.attributes else {}
+        except Exception:
+            attr_dict = {}
+
         crop_path = self.best_crop_path or ""
         normalized = crop_path.replace("\\", "/")
         crop_url = ""
@@ -198,6 +205,8 @@ class Tracklet(Base):
             "mean_confidence": self.mean_confidence,
             "best_bbox": bbox,
             "best_crop_path": crop_url,
+            "attributes": attr_dict,
+            "caption": attr_dict.get("caption", ""),
             "qdrant_point_id": self.qdrant_point_id,
             "embedding_dim": self.embedding_dim,
             "indexed_at": self.indexed_at.isoformat() if self.indexed_at else None,

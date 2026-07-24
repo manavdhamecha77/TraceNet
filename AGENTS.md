@@ -165,7 +165,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 2.3 | Integrate ByteTrack via `supervision` for consistent track IDs | Backend/Detection | done | Added `ByteTrackWrapper` using the installed `supervision` version (`lost_track_buffer`/`update_with_detections`) and verified it in a synthetic ingest smoke test. |
 | 2.4 | Build tracklet objects: track_id, object_type, camera_id, frame_range, timestamps, bbox, best_crop | Backend/Detection | done | `DetectionService` now emits tracklet summaries with frame ranges, timestamps, best bbox, and crop paths; verified by direct service run and API smoke test. |
 | 2.5 | CLIP embedding extraction per tracklet (best crop or averaged) | Backend/Embeddings | done | Verified `POST /api/v1/videos/{video_id}/embeddings` generates `embeddings.json` and a 512-dim CLIP vector from a saved tracklet crop. |
-| 2.6 | (Optional) BLIP auto-caption per tracklet for extra text attributes | Backend/Embeddings | not started | Stretch — only if time allows |
+| 2.6 | BLIP auto-caption per tracklet for extra text attributes | Backend/Embeddings | done | Implemented `BLIPCaptioner` (`Salesforce/blip-image-captioning-base`), integrated auto-captioning into `TrackletEmbeddingService`, updated SQLite `tracklets` table schema + startup migration, Qdrant payload, and UI candidate card badges. |
 | 2.7 | Save thumbnails per tracklet to `/data/processed` | Backend | done | Tracklet crops are written under `data/processed/detections/<video_id>/crops`; confirmed in the smoke test output. |
 | 2.8 | Frontend detections drawer on camera detail page | Frontend | done | Added a `Detections` action beside video playback and an inline tracklet summary drawer on `/cameras/[id]`; verified with `npm.cmd run build`. |
 
@@ -192,7 +192,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 4.4 | Loitering / dwell-time detection (track_id stays in defined zone beyond threshold) | Backend/Alerts | not started | Needs zone definition — simple polygon config per camera |
 | 4.5 | Explainability display: show per-attribute match breakdown, not just overall confidence % | Frontend + Backend | not started | Strengthens human-in-the-loop principle — worth doing over more alert types |
 | 4.6 | Dynamic ML Model Registry (/models) and camera assignment | Backend + Frontend | done | Implemented model upload, dynamic file-system weights resolution, auto YOLO class parsing, and serving execution logs in UI. |
-| 4.7 | Global Conversational AI Search Assistant & Full-Screen Copilot Overlay | Fullstack | done | Implemented `app/assistant/` engine (Ollama Qwen2.5-VL + Cloud LLM), MCP-style tool calling, multimodal text+photo input, `GlobalSearchBar` (Ctrl+K), and `AICopilotOverlay`. Verified via `compileall`, `npm run build`, and `git push`. |
+| 4.7 | Global Conversational AI Search Assistant & Full-Screen Copilot Overlay | Fullstack | done | Implemented `app/assistant/` engine (Ollama + Universal Cloud LLMs), MCP tool calling, session management, domain-locked refusal boundary, 429 rate limit backoff, `GlobalSearchBar` (Ctrl+K), and `AICopilotOverlay`. Verified via `compileall`, `npm run build`, and `git push`. |
 
 ### Phase 5 — Polish & Demo Prep
 
