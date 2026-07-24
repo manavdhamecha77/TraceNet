@@ -22,10 +22,11 @@ class QueryEngine:
         self.client = QdrantClient(path=db_dir)
         self.encoder = get_clip_encoder()
 
-    def search_tracklets(
+    def search_by_vector(
         self,
         db: Session,
-        query_text: str,
+        query_vector: list[float],
+        query_label: str,
         camera_ids: Optional[Sequence[str]] = None,
         time_start: Optional[datetime] = None,
         time_end: Optional[datetime] = None,
@@ -35,18 +36,14 @@ class QueryEngine:
         user_id: str = "demo",
     ) -> list[dict]:
         """
-        Hybrid semantic + metadata search:
-        1. Encodes text query to vector using CLIP.
-        2. Queries local Qdrant collection with camera_id, video_id, and object_type pre-filters.
-        3. Enriches results with SQLite joins and filters by absolute timeline window.
-        4. Logs search query, timestamp, and results count for the evidentiary audit trail.
+        Hybrid vector + metadata search:
+        1. Queries local Qdrant collection with pre-vector and payload filters.
+        2. Enriches results with SQLite joins and filters by absolute timeline window.
+        3. Logs search query label, timestamp, and results count for the evidentiary audit trail.
         """
-        logger.info(f"QueryEngine: search query='{query_text}', camera_ids={camera_ids}, video_id={video_id}, type={object_type}")
+        logger.info(f"QueryEngine: search query_label='{query_label}', camera_ids={camera_ids}, video_id={video_id}, type={object_type}")
 
-        # 1. Embed query text
-        query_vector = self.encoder.embed_text(query_text)
-
-        # 2. Build Qdrant payload filters
+        # 1. Build Qdrant payload filters
         must_filters = []
         if camera_ids:
             must_filters.append(
@@ -89,7 +86,7 @@ class QueryEngine:
             qdrant_results = []
 
         if not qdrant_results:
-            self._log_search(db, query_text, user_id, 0, camera_ids, time_start, time_end)
+            self._log_search(db, query_label, user_id, 0, camera_ids, time_start, time_end)
             return []
 
         # Map tracklet IDs to scores
@@ -98,7 +95,7 @@ class QueryEngine:
             for res in qdrant_results if res.payload
         }
 
-        # 3. Enrich with SQLite
+        # 2. Enrich with SQLite
         tracklet_ids = list(scores_by_tracklet.keys())
         tracklets = (
             db.query(Tracklet)
@@ -178,10 +175,10 @@ class QueryEngine:
         filtered_results.sort(key=lambda x: x["score"], reverse=True)
         final_results = filtered_results[:top_k]
 
-        # 4. Log search audit trail
+        # 3. Log search audit trail
         self._log_search(
             db=db,
-            query=query_text,
+            query=query_label,
             user=user_id,
             count=len(final_results),
             camera_ids=camera_ids,
@@ -190,6 +187,37 @@ class QueryEngine:
         )
 
         return final_results
+
+    def search_tracklets(
+        self,
+        db: Session,
+        query_text: str,
+        camera_ids: Optional[Sequence[str]] = None,
+        time_start: Optional[datetime] = None,
+        time_end: Optional[datetime] = None,
+        object_type: Optional[str] = None,
+        video_id: Optional[str] = None,
+        top_k: int = 15,
+        user_id: str = "demo",
+    ) -> list[dict]:
+        """
+        Text search wrapper:
+        Encodes query text to vector using CLIP, then delegates to search_by_vector().
+        """
+        logger.info(f"QueryEngine: text search query='{query_text}'")
+        query_vector = self.encoder.embed_text(query_text)
+        return self.search_by_vector(
+            db=db,
+            query_vector=query_vector,
+            query_label=query_text,
+            camera_ids=camera_ids,
+            time_start=time_start,
+            time_end=time_end,
+            object_type=object_type,
+            video_id=video_id,
+            top_k=top_k,
+            user_id=user_id,
+        )
 
     def _log_search(
         self,
