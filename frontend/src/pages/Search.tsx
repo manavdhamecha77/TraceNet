@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   Search as SearchIcon,
   Filter,
@@ -13,6 +13,7 @@ import {
   Sparkles,
   Image as ImageIcon,
   Type,
+  Upload,
 } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
@@ -160,6 +161,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
   const [referencePreview, setReferencePreview] = useState<string | null>(null)
   const [isDragging, setIsDragging]             = useState(false)
   const [lastSearchWasImage, setLastSearchWasImage] = useState(false)
+  const fileInputRef                             = useRef<HTMLInputElement>(null)
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -440,7 +442,24 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  <input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept="image/jpeg,image/png,image/webp,image/bmp" 
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) {
+                        setReferenceFile(f)
+                        setReferencePreview(URL.createObjectURL(f))
+                      }
+                    }} 
+                  />
+
                   <div
+                    onClick={() => {
+                      if (!referencePreview) fileInputRef.current?.click()
+                    }}
                     onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
                     onDragLeave={() => setIsDragging(false)}
                     onDrop={(e) => {
@@ -451,56 +470,65 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                         setReferencePreview(URL.createObjectURL(f))
                       }
                     }}
-                    className={`border-2 border-dashed rounded-lg p-5 text-center transition-colors ${
-                      isDragging 
-                        ? 'border-teal-500 bg-teal-50/20 dark:bg-teal-950/20' 
-                        : 'border-slate-250 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50'
-                    }`}
+                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
+                      referencePreview 
+                        ? 'border-teal-600 bg-teal-50/10 dark:bg-teal-950/10' 
+                        : 'cursor-pointer border-slate-300 hover:border-teal-600 dark:border-slate-700 dark:hover:border-teal-500 bg-slate-50/50 hover:bg-teal-50/30 dark:bg-slate-900/50'
+                    } ${isDragging ? 'border-teal-500 bg-teal-50/30 dark:bg-teal-950/30 ring-2 ring-teal-400' : ''}`}
                   >
                     {referencePreview ? (
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                           <img 
                             src={referencePreview} 
                             alt="Reference target" 
-                            className="h-16 w-16 object-cover rounded border border-slate-300 dark:border-slate-700 shadow-sm"
+                            className="h-16 w-16 object-cover rounded border border-slate-300 dark:border-slate-700 shadow-sm shrink-0"
                           />
                           <div className="text-left">
-                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{referenceFile?.name}</p>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[220px]">{referenceFile?.name}</p>
                             <p className="text-[10px] text-slate-400 mt-0.5">{((referenceFile?.size || 0) / 1024).toFixed(1)} KB</p>
                           </div>
                         </div>
-                        <button 
-                          type="button"
-                          onClick={() => { setReferenceFile(null); setReferencePreview(null) }}
-                          className="text-[11px] font-bold text-red-600 hover:text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded border border-red-200 dark:border-red-900/40"
-                        >
-                          Clear Photo
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
+                            className="text-[11px] font-bold text-teal-700 hover:text-teal-800 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/40 px-3 py-1.5 rounded border border-teal-200 dark:border-teal-900/40 flex items-center gap-1"
+                          >
+                            <Upload className="h-3 w-3" /> Change Photo
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setReferenceFile(null); setReferencePreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                            className="text-[11px] font-bold text-red-600 hover:text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-3 py-1.5 rounded border border-red-200 dark:border-red-900/40"
+                          >
+                            Clear
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="py-2 space-y-2">
-                        <ImageIcon className="h-8 w-8 mx-auto text-teal-650 dark:text-teal-400 opacity-80" />
+                      <div className="py-2 space-y-3">
+                        <div className="h-12 w-12 rounded-full bg-teal-100 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 flex items-center justify-center mx-auto shadow-sm">
+                          <Upload className="h-6 w-6" />
+                        </div>
                         <div>
-                          <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                            Drag &amp; drop reference target photo, or{' '}
-                            <label className="text-teal-700 dark:text-teal-400 font-bold cursor-pointer hover:underline">
-                              browse files
-                              <input 
-                                type="file" 
-                                accept="image/jpeg,image/png,image/webp,image/bmp" 
-                                className="hidden"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0]
-                                  if (f) {
-                                    setReferenceFile(f)
-                                    setReferencePreview(URL.createObjectURL(f))
-                                  }
-                                }} 
-                              />
-                            </label>
+                          <p className="text-xs text-slate-700 dark:text-slate-200 font-bold mb-1">
+                            Click here to upload a reference target photo
                           </p>
-                          <p className="text-[10px] text-slate-400 mt-1">Supports JPEG, PNG, WebP, BMP — max 10 MB</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            or drag and drop an image file directly into this box
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-2">Supports JPEG, PNG, WebP, BMP (Max 10 MB)</p>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
+                            className="bg-teal-700 hover:bg-teal-800 dark:bg-teal-650 dark:hover:bg-teal-700 text-white px-4 py-1.5 rounded text-xs font-bold transition-all shadow-sm inline-flex items-center gap-1.5"
+                          >
+                            <Upload className="h-3.5 w-3.5" />
+                            Browse Computer Files
+                          </button>
                         </div>
                       </div>
                     )}
