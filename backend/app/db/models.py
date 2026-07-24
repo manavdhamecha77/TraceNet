@@ -280,3 +280,28 @@ class Alert(Base):
             "acknowledged": self.acknowledged,
         }
 
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(String, primary_key=True, index=True)  # UUID string
+    title = Column(String, nullable=False, default="New Conversation")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    messages = Column(Text, default="[]")  # JSON array string
+
+    def to_dict(self):
+        try:
+            msgs = json.loads(self.messages) if self.messages else []
+        except Exception:
+            msgs = []
+        return {
+            "id": self.id,
+            "title": self.title,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "message_count": len(msgs),
+            "messages": msgs
+        }
+
+

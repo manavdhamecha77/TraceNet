@@ -9,6 +9,8 @@ import Models from './pages/Models'
 import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
 import Alerts from './pages/Alerts'
+import GlobalSearchBar from './components/GlobalSearchBar'
+import AICopilotOverlay from './components/AICopilotOverlay'
 import {
   ExternalLink,
   Download,
@@ -84,6 +86,7 @@ function App() {
   // Global modals state
   const [isCameraModalOpen, setIsCameraModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false)
   const [selectedVideoToPlay, setSelectedVideoToPlay] = useState<Video | null>(null)
 
   // Annotated player state
@@ -901,6 +904,9 @@ function App() {
             ))}
           </nav>
 
+          {/* Global AI Copilot Search Bar Trigger */}
+          <GlobalSearchBar onOpenCopilot={() => setIsCopilotOpen(true)} />
+
           {/* System status & action */}
           <div className="flex items-center gap-4">
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 px-2 py-0.5 rounded flex items-center gap-1.5">
@@ -1610,6 +1616,13 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Global Full-Screen AI Copilot Assistant Overlay */}
+      <AICopilotOverlay
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+        onPlayVideoAtTime={handlePlayVideoAtTime}
+      />
     </div>
   )
 }
