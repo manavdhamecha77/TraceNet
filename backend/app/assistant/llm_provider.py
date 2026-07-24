@@ -58,6 +58,20 @@ class OllamaProvider(BaseLLMProvider):
 
         try:
             resp = requests.post(url, json=payload, timeout=90)
+
+            # If 400 error occurs due to passing images to a text-only Ollama model, strip raw images and retry
+            if resp.status_code == 400:
+                has_images = any("images" in m for m in formatted_messages)
+                if has_images:
+                    logger.info(f"Ollama model '{self.model}' rejected raw image array. Retrying with text prompt + backend vector search...")
+                    clean_messages = []
+                    for m in formatted_messages:
+                        c = dict(m)
+                        c.pop("images", None)
+                        clean_messages.append(c)
+                    payload["messages"] = clean_messages
+                    resp = requests.post(url, json=payload, timeout=90)
+
             if resp.status_code == 404:
                 try:
                     err_data = resp.json()
