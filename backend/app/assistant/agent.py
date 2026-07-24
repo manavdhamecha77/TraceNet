@@ -55,8 +55,32 @@ class AssistantAgent:
                     "attachments": structured_attachments
                 }
 
-            # Handle tool calls
-            for tc in tool_calls:
+            # 1. Format assistant message with list of requested tool_calls
+            assistant_tool_calls = []
+            for i, tc in enumerate(tool_calls):
+                call_id = tc.get("id") or f"call_{loop_idx}_{i}"
+                fn_name = tc["function"]["name"]
+                fn_args = tc["function"]["arguments"]
+                args_str = json.dumps(fn_args) if isinstance(fn_args, dict) else str(fn_args)
+
+                assistant_tool_calls.append({
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": fn_name,
+                        "arguments": args_str
+                    }
+                })
+
+            history.append({
+                "role": "assistant",
+                "content": content or None,
+                "tool_calls": assistant_tool_calls
+            })
+
+            # 2. Execute each tool and append tool result message with matching tool_call_id
+            for i, tc in enumerate(tool_calls):
+                call_id = assistant_tool_calls[i]["id"]
                 fn_name = tc["function"]["name"]
                 fn_args = tc["function"]["arguments"]
 
@@ -68,18 +92,13 @@ class AssistantAgent:
                     "result_count": tool_result.get("count", 0)
                 })
 
-                # Collect tracklets or cameras for rich UI rendering
                 if fn_name == "search_tracklets" and "results" in tool_result:
                     structured_attachments.extend(tool_result["results"])
 
-                # Append assistant tool call and tool result to conversation history
-                history.append({
-                    "role": "assistant",
-                    "content": content or "",
-                    "tool_calls": [{"function": {"name": fn_name, "arguments": fn_args}}]
-                })
                 history.append({
                     "role": "tool",
+                    "tool_call_id": call_id,
+                    "name": fn_name,
                     "content": json.dumps(tool_result)
                 })
 

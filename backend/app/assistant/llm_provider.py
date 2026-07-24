@@ -158,14 +158,25 @@ class CloudOpenAIProvider(BaseLLMProvider):
             formatted_messages.append({"role": "system", "content": system_prompt})
         
         for msg in messages:
-            item: Dict[str, Any] = {"role": msg["role"]}
-            if "image_b64" in msg and msg["image_b64"]:
-                item["content"] = [
-                    {"type": "text", "text": msg["content"]},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{msg['image_b64']}"}}
-                ]
+            role = msg.get("role", "user")
+            item: Dict[str, Any] = {"role": role}
+
+            if role == "tool":
+                item["tool_call_id"] = msg.get("tool_call_id", "call_0")
+                item["content"] = str(msg.get("content", ""))
+                if "name" in msg:
+                    item["name"] = msg["name"]
+            elif role == "assistant" and "tool_calls" in msg:
+                item["content"] = msg.get("content") or None
+                item["tool_calls"] = msg["tool_calls"]
             else:
-                item["content"] = msg["content"]
+                if "image_b64" in msg and msg["image_b64"]:
+                    item["content"] = [
+                        {"type": "text", "text": msg.get("content", "")},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{msg['image_b64']}"}}
+                    ]
+                else:
+                    item["content"] = msg.get("content", "")
             formatted_messages.append(item)
 
         payload: Dict[str, Any] = {
@@ -177,7 +188,50 @@ class CloudOpenAIProvider(BaseLLMProvider):
 
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=90)
-            resp.raise_for_status()
+            
+            # Handle 400 Client Error fallback retries (e.g. text-only models on Groq or tool mismatch)
+            if resp.status_code == 400:
+                err_text = ""
+                try:
+                    err_json = resp.json()
+                    err_text = err_json.get("error", {}).get("message", "") or str(err_json)
+                except Exception:
+                    err_text = resp.text
+
+                logger.warning(f"Provider {url} (model={self.model}) returned 400 Bad Request: {err_text}")
+
+                # Retry 1: If 400 is caused by image input on a text-only model (e.g. Groq llama-3.3-70b-versatile)
+                has_image = any("image_url" in str(m.get("content")) for m in formatted_messages)
+                if has_image:
+                    logger.info("Model rejected image input. Retrying request with text content only...")
+                    clean_messages = []
+                    for m in formatted_messages:
+                        c = dict(m)
+                        if isinstance(c.get("content"), list):
+                            text_items = [
+                                item["text"] for item in c["content"]
+                                if isinstance(item, dict) and item.get("type") == "text"
+                            ]
+                            c["content"] = " ".join(text_items) if text_items else ""
+                        clean_messages.append(c)
+                    payload["messages"] = clean_messages
+                    resp = requests.post(url, headers=headers, json=payload, timeout=90)
+
+                # Retry 2: If still 400 and payload has tools (e.g. endpoint doesn't support tools parameter)
+                if resp.status_code == 400 and "tools" in payload:
+                    logger.info("Model/Endpoint rejected tools schema. Retrying request without tools parameter...")
+                    payload.pop("tools", None)
+                    resp = requests.post(url, headers=headers, json=payload, timeout=90)
+
+            # Detailed exception extraction if still HTTP error
+            if resp.status_code >= 400:
+                try:
+                    err_json = resp.json()
+                    err_detail = err_json.get("error", {}).get("message", "") or str(err_json)
+                except Exception:
+                    err_detail = resp.text
+                raise RuntimeError(f"API Provider HTTP {resp.status_code}: {err_detail}")
+
             data = resp.json()
             choice = data["choices"][0]["message"]
             
@@ -195,6 +249,8 @@ class CloudOpenAIProvider(BaseLLMProvider):
                         args = args_raw
 
                     tool_calls.append({
+                        "id": tc.get("id", f"call_{len(tool_calls)}"),
+                        "type": "function",
                         "function": {
                             "name": func.get("name"),
                             "arguments": args
@@ -205,6 +261,9 @@ class CloudOpenAIProvider(BaseLLMProvider):
                 "content": choice.get("content") or "",
                 "tool_calls": tool_calls
             }
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error(f"Universal API provider error on {url}: {e}")
             raise RuntimeError(f"API Provider execution error ({self.base_url}, model={self.model}): {e}") from e
+
