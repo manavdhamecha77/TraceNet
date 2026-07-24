@@ -128,10 +128,10 @@ class OllamaProvider(BaseLLMProvider):
 
 
 class CloudOpenAIProvider(BaseLLMProvider):
-    """Cloud OpenAI / OpenAI-compatible API provider (e.g. GPT-4o, GPT-4o-mini)."""
+    """Universal OpenAI-compatible API provider (e.g. Groq, OpenRouter, DeepSeek, Ollama v1, LMStudio, OpenAI)."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini", base_url: str = "https://api.openai.com/v1"):
-        self.api_key = api_key
+    def __init__(self, api_key: str = "", model: str = "gpt-4o-mini", base_url: str = "https://api.openai.com/v1"):
+        self.api_key = api_key or ""
         self.model = model
         self.base_url = base_url.rstrip("/")
 
@@ -141,11 +141,18 @@ class CloudOpenAIProvider(BaseLLMProvider):
         tools: Optional[List[Dict[str, Any]]] = None,
         system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
-        url = f"{self.base_url}/chat/completions"
+        # Handle trailing /chat/completions if user accidentally included it in base_url
+        if self.base_url.endswith("/chat/completions"):
+            url = self.base_url
+        else:
+            url = f"{self.base_url}/chat/completions"
+
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        if self.api_key.strip():
+            headers["Authorization"] = f"Bearer {self.api_key.strip()}"
+
         formatted_messages = []
         if system_prompt:
             formatted_messages.append({"role": "system", "content": system_prompt})
@@ -169,7 +176,7 @@ class CloudOpenAIProvider(BaseLLMProvider):
             payload["tools"] = tools
 
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=60)
+            resp = requests.post(url, headers=headers, json=payload, timeout=90)
             resp.raise_for_status()
             data = resp.json()
             choice = data["choices"][0]["message"]
@@ -199,5 +206,5 @@ class CloudOpenAIProvider(BaseLLMProvider):
                 "tool_calls": tool_calls
             }
         except Exception as e:
-            logger.error(f"Cloud OpenAI API error: {e}")
-            raise RuntimeError(f"Cloud API execution error (model={self.model}): {e}") from e
+            logger.error(f"Universal API provider error on {url}: {e}")
+            raise RuntimeError(f"API Provider execution error ({self.base_url}, model={self.model}): {e}") from e
