@@ -4,29 +4,29 @@
 
 @layer base {
   :root {
-    /* Brand palette — navy forensic dark theme */
-    --brand-bg: #080E1C;
-    --brand-surface: #0D1529;
-    --brand-surface-2: #111F3A;
-    --brand-border: #1E2D4A;
-    --brand-border-2: #253454;
+    /* Cool slate Light theme defaults */
+    --brand-bg: #F1F5F9;
+    --brand-surface: #FFFFFF;
+    --brand-surface-2: #F8FAFC;
+    --brand-border: #E2E8F0;
+    --brand-border-2: #CBD5E1;
     
-    /* Cyan primary — surveillance system blue-green */
-    --brand-primary: #00C9B8;
-    --brand-primary-dim: rgba(0, 201, 184, 0.12);
-    --brand-primary-glow: rgba(0, 201, 184, 0.25);
+    /* Cool Teal / Cyan primary */
+    --brand-primary: #0D9488;
+    --brand-primary-dim: rgba(13, 148, 136, 0.12);
+    --brand-primary-glow: rgba(13, 148, 136, 0.25);
     
-    /* Semantic status colors */
-    --status-online: #22C55E;
-    --status-warning: #F59E0B;
-    --status-error: #EF4444;
-    --status-processing: #A78BFA;
+    /* Status colors */
+    --status-online: #16A34A;
+    --status-warning: #D97706;
+    --status-error: #DC2626;
+    --status-processing: #7C3AED;
     
     /* Text ramp */
-    --text-primary: #E2E8F0;
-    --text-secondary: #94A3B8;
-    --text-muted: #475569;
-    --text-faint: #2D3C55;
+    --text-primary: #1E293B;
+    --text-secondary: #475569;
+    --text-muted: #64748B;
+    --text-faint: #94A3B8;
     
     /* Z-index scale */
     --z-dropdown: 40;
@@ -37,12 +37,37 @@
     --z-copilot: 160;
   }
 
+  html.dark {
+    /* Cool Deep Navy Forensic Dark theme */
+    --brand-bg: #0B1324;
+    --brand-surface: #111F38;
+    --brand-surface-2: #162646;
+    --brand-border: #1E2E4A;
+    --brand-border-2: #283A5C;
+    
+    /* Cyan primary */
+    --brand-primary: #00C9B8;
+    --brand-primary-dim: rgba(0, 201, 184, 0.12);
+    --brand-primary-glow: rgba(0, 201, 184, 0.25);
+    
+    /* Status colors */
+    --status-online: #22C55E;
+    --status-warning: #F59E0B;
+    --status-error: #EF4444;
+    --status-processing: #A78BFA;
+    
+    /* Text ramp */
+    --text-primary: #E2E8F0;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+    --text-faint: #334155;
+  }
+
   * {
     box-sizing: border-box;
   }
 
   html {
-    color-scheme: dark;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
   
@@ -51,11 +76,11 @@
     min-height: 100vh;
     transition-property: color, background-color, border-color;
     transition-duration: 150ms;
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-slate-100 text-slate-800;
   }
   
   html.dark body {
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-[#0B1324] text-slate-100;
   }
 
   a {

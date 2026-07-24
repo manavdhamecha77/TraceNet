@@ -218,8 +218,8 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
       </div>
 
       {/* ── MODELS LIST TABLE ── */}
-      <section className="border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800">
-        <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+      <section className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
           Registered Models Directory — {models.length} Model{models.length !== 1 ? 's' : ''} Loaded
         </div>
 

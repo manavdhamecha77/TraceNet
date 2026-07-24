@@ -1,4 +1,3 @@
-
 interface DashboardProps {
   metrics: {
     totalCameras: number
@@ -62,8 +61,8 @@ export default function Dashboard({ metrics }: DashboardProps) {
     {
       label: 'Camera Nodes',
       value: metrics.totalCameras,
-      valueColor: 'text-cyan-300',
-      iconBg: 'bg-cyan-500/10 text-cyan-400',
+      valueColor: 'text-teal-700 dark:text-cyan-400',
+      iconBg: 'bg-teal-500/10 text-teal-700 dark:text-cyan-400',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -74,8 +73,8 @@ export default function Dashboard({ metrics }: DashboardProps) {
     {
       label: 'Video Feeds',
       value: metrics.totalVideos,
-      valueColor: 'text-slate-100',
-      iconBg: 'bg-slate-700/50 text-slate-400',
+      valueColor: 'text-slate-800 dark:text-slate-100',
+      iconBg: 'bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
@@ -86,8 +85,8 @@ export default function Dashboard({ metrics }: DashboardProps) {
     {
       label: 'Standardized',
       value: metrics.processedVideos,
-      valueColor: 'text-emerald-400',
-      iconBg: 'bg-emerald-500/10 text-emerald-400',
+      valueColor: 'text-emerald-600 dark:text-emerald-400',
+      iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -98,8 +97,8 @@ export default function Dashboard({ metrics }: DashboardProps) {
     {
       label: 'Queue / Processing',
       value: metrics.pendingVideos,
-      valueColor: metrics.pendingVideos > 0 ? 'text-amber-400' : 'text-slate-500',
-      iconBg: metrics.pendingVideos > 0 ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-800 text-slate-600',
+      valueColor: metrics.pendingVideos > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500',
+      iconBg: metrics.pendingVideos > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-500',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" />
@@ -113,8 +112,8 @@ export default function Dashboard({ metrics }: DashboardProps) {
     <div className="space-y-8 animate-fade-in">
       {/* Page header */}
       <div className="space-y-1">
-        <h2 className="text-title text-slate-100">System Dashboard</h2>
-        <p className="text-sm text-slate-500 max-w-xl leading-relaxed">
+        <h2 className="text-title text-slate-800 dark:text-slate-100">System Dashboard</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-xl leading-relaxed">
           Overview of registered forensic devices, ingestion queue status, and pipeline execution logs.
         </p>
       </div>
@@ -124,10 +123,10 @@ export default function Dashboard({ metrics }: DashboardProps) {
         {metricCards.map((card) => (
           <div
             key={card.label}
-            className={`surface animate-fade-up ${card.delay} p-5 flex items-center justify-between group hover:border-slate-700 transition-colors duration-200`}
+            className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl animate-fade-up ${card.delay} p-5 flex items-center justify-between group hover:border-slate-300 dark:hover:border-slate-700 transition-colors duration-200 shadow-xs`}
           >
             <div className="space-y-1">
-              <span className="text-label">{card.label}</span>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{card.label}</span>
               <p className={`text-3xl font-bold font-mono tracking-tight ${card.valueColor}`}>
                 {card.value}
               </p>
@@ -140,25 +139,25 @@ export default function Dashboard({ metrics }: DashboardProps) {
       </section>
 
       {/* PIPELINE STATUS */}
-      <section className="surface p-6 space-y-1">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="text-sm font-bold text-slate-100">Forensic Preprocessing Pipeline</h3>
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-6 space-y-4 shadow-xs">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Forensic Preprocessing Pipeline</h3>
           <span className="pill-online">All Systems Operational</span>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {pipelineStages.map((stage, i) => (
             <div
               key={stage.name}
-              className={`surface-2 p-4 flex items-center justify-between gap-4 animate-fade-up animate-stagger-${i + 1} group hover:border-slate-600 transition-colors duration-200`}
+              className={`bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-lg p-4 flex items-center justify-between gap-4 animate-fade-up animate-stagger-${i + 1} group hover:border-slate-300 dark:hover:border-slate-700 transition-colors duration-200`}
             >
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 p-2 rounded-lg bg-slate-800 text-slate-400 shrink-0 group-hover:text-cyan-400 transition-colors">
+                <span className="mt-0.5 p-2 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0 group-hover:text-teal-600 dark:group-hover:text-cyan-400 transition-colors">
                   {stage.icon}
                 </span>
                 <div className="space-y-0.5">
-                  <h4 className="text-xs font-bold text-slate-200">{stage.name}</h4>
-                  <p className="text-caption max-w-md">{stage.desc}</p>
+                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{stage.name}</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">{stage.desc}</p>
                 </div>
               </div>
               <span className={`${stage.statusClass} shrink-0`}>{stage.status}</span>
@@ -168,12 +167,12 @@ export default function Dashboard({ metrics }: DashboardProps) {
       </section>
 
       {/* FORENSIC AUDIT FOOTER */}
-      <section className="surface-2 p-4 flex items-center gap-3">
+      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex items-center gap-3 shadow-xs">
         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-        <p className="font-mono text-[11px] text-slate-500">
-          <span className="text-slate-400 font-semibold">[Audit Engine Active]</span>{' '}
+        <p className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
+          <span className="text-slate-700 dark:text-slate-300 font-semibold">[Audit Engine Active]</span>{' '}
           Verifiable SQLite engine running. Target database:{' '}
-          <span className="text-cyan-400 font-bold">drishti.db</span>
+          <span className="text-teal-600 dark:text-cyan-400 font-bold">drishti.db</span>
         </p>
       </section>
     </div>
