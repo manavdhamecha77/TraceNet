@@ -58,6 +58,30 @@ class OllamaProvider(BaseLLMProvider):
 
         try:
             resp = requests.post(url, json=payload, timeout=90)
+            if resp.status_code == 404:
+                try:
+                    err_data = resp.json()
+                    err_detail = err_data.get("error", "")
+                except Exception:
+                    err_detail = ""
+
+                if "not found" in err_detail.lower():
+                    raise RuntimeError(
+                        f"Ollama model '{self.model}' is not installed locally. "
+                        f"Run 'ollama pull {self.model}' in your terminal, or switch to Cloud OpenAI API in Copilot Settings."
+                    )
+                else:
+                    # Fallback try Ollama OpenAI-compatible v1 endpoint
+                    v1_url = f"{self.host}/v1/chat/completions"
+                    v1_resp = requests.post(v1_url, json=payload, timeout=90)
+                    if v1_resp.status_code == 200:
+                        v1_data = v1_resp.json()
+                        v1_choice = v1_data["choices"][0]["message"]
+                        return {
+                            "content": v1_choice.get("content") or "",
+                            "tool_calls": v1_choice.get("tool_calls", [])
+                        }
+
             resp.raise_for_status()
             data = resp.json()
             msg = data.get("message", {})
@@ -77,6 +101,13 @@ class OllamaProvider(BaseLLMProvider):
                 "content": msg.get("content", ""),
                 "tool_calls": tool_calls
             }
+        except RuntimeError:
+            raise
+        except requests.exceptions.ConnectionError:
+            raise RuntimeError(
+                f"Could not connect to Ollama server at '{self.host}'. "
+                f"Ensure Ollama application is running on your machine, or switch to Cloud OpenAI API in Copilot Settings."
+            ) from None
         except Exception as e:
             logger.error(f"Ollama provider connection error on {self.host}: {e}")
             raise RuntimeError(f"Ollama local LLM connection error ({self.host}, model={self.model}): {e}") from e
