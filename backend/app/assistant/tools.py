@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.search.query_engine import QueryEngine
 from app.search.image_search import ImageSearchService
-from app.db.models import CameraProfile, Alert, SearchLog, VideoAsset
+from app.db.models import CameraProfile, Alert, SearchLog, VideoAsset, MLModel, Tracklet
 
 
 TOOL_SCHEMAS = [
@@ -105,6 +105,66 @@ TOOL_SCHEMAS = [
                         "default": 10
                     }
                 }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_dashboard_metrics",
+            "description": "Retrieve high-level Smart City system overview metrics (total cameras, active nodes, video assets, tracklets, alerts).",
+            "parameters": {
+                "type": "object",
+                "properties": {}
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_models",
+            "description": "Retrieve registered ML object detection models, YOLO weights, class definitions, and camera assignments.",
+            "parameters": {
+                "type": "object",
+                "properties": {}
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "assign_camera_model",
+            "description": "Assign or update the ML object detection model for a target camera node.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "camera_id": {
+                        "type": "string",
+                        "description": "Target camera node ID, e.g. 'CAM_001'"
+                    },
+                    "model_id": {
+                        "type": "string",
+                        "description": "Registered model ID to assign, e.g. 'yolov8n-custom-uuid'"
+                    }
+                },
+                "required": ["camera_id", "model_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trigger_video_reindex",
+            "description": "Trigger re-indexing of tracklet embeddings into Qdrant vector database for a target video asset ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "Video asset ID to re-index"
+                    }
+                },
+                "required": ["video_id"]
             }
         }
     }
@@ -225,13 +285,60 @@ class ToolExecutor:
                 log_summaries = [
                     {
                         "id": l.id,
-                        "query": l.query,
+                        "query": l.query_text if hasattr(l, 'query_text') else getattr(l, 'query', ''),
                         "results_count": l.results_count,
                         "timestamp": l.timestamp.isoformat() if l.timestamp else None
                     }
                     for l in logs
                 ]
                 return {"status": "success", "count": len(logs), "logs": log_summaries}
+
+            elif name == "get_dashboard_metrics":
+                total_cams = self.db.query(CameraProfile).count()
+                active_cams = self.db.query(CameraProfile).filter(CameraProfile.status == 'active').count()
+                total_videos = self.db.query(VideoAsset).filter(VideoAsset.is_bin == False).count()
+                total_tracklets = self.db.query(Tracklet).count()
+                total_alerts = self.db.query(Alert).count()
+                return {
+                    "status": "success",
+                    "metrics": {
+                        "total_cameras": total_cams,
+                        "active_cameras": active_cams,
+                        "total_videos": total_videos,
+                        "total_tracklets": total_tracklets,
+                        "total_alerts": total_alerts
+                    }
+                }
+
+            elif name == "list_models":
+                models = self.db.query(MLModel).all()
+                model_summaries = [m.to_dict() for m in models]
+                return {"status": "success", "count": len(models), "models": model_summaries}
+
+            elif name == "assign_camera_model":
+                camera_id = args.get("camera_id", "").strip()
+                model_id = args.get("model_id", "").strip()
+                camera = self.db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+                if not camera:
+                    return {"status": "error", "message": f"Camera '{camera_id}' not found."}
+
+                model_rec = self.db.query(MLModel).filter(MLModel.id == model_id).first()
+                if not model_rec:
+                    return {"status": "error", "message": f"ML Model '{model_id}' not found in registry."}
+
+                camera.model_id = model_id
+                self.db.commit()
+                return {
+                    "status": "success",
+                    "message": f"Successfully assigned model '{model_rec.name}' ({model_id}) to camera '{camera_id}'."
+                }
+
+            elif name == "trigger_video_reindex":
+                video_id = args.get("video_id", "").strip()
+                from app.search.vector_index import VectorIndexService
+                indexer = VectorIndexService()
+                res = indexer.index_video_tracklets(video_id, self.db)
+                return {"status": "success", "video_id": video_id, "indexing_result": res}
 
             else:
                 return {"status": "error", "message": f"Unknown tool name '{name}'."}

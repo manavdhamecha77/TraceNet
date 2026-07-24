@@ -597,6 +597,9 @@ export default function VideoDetail() {
 
   const getVideoPlayerUrl = (videoObj: any, cameraObj: any): string => {  // eslint-disable-line @typescript-eslint/no-explicit-any
     if (!videoObj) return ''
+    if (videoObj.id) {
+      return `${API_BASE}/api/v1/videos/${videoObj.id}/stream`
+    }
     if (videoObj.thumbnail_path && videoObj.standardized_filename) {
       const parts = videoObj.thumbnail_path.split(/[/\\]/)
       const ci    = parts.indexOf('cameras')

@@ -413,6 +413,10 @@ function App() {
   }
 
   const getVideoPlayerUrl = (video: Video) => {
+    if (!video) return ''
+    if (video.id) {
+      return `${API_BASE}/api/v1/videos/${video.id}/stream`
+    }
     if (video.thumbnail_path && video.standardized_filename) {
       const pathParts = video.thumbnail_path.split(/[\/\\]/)
       const camerasIndex = pathParts.indexOf('cameras')
