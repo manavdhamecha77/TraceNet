@@ -288,11 +288,151 @@ export default function AICopilotOverlay({
     reader.readAsDataURL(file)
   }
 
+const HELP_MESSAGE_CONTENT = `### 🛰️ TraceNet AI Copilot — System Guide & Command Reference (Project DRISHTI)
+
+Welcome to **TraceNet Copilot**! I am your domain-adapted AI Assistant for Smart City CCTV Surveillance, Digital Forensics, and Video Analytics.
+
+---
+
+### ⚡ Interactive Slash Commands
+- **/help** or **/commands** — Open this capability & sitemap reference guide.
+- **/cameras** — List all registered GIS camera nodes, coordinates, and status.
+- **/alerts** — Retrieve real-time loitering and abandoned baggage security alerts.
+- **/models** — Inspect registered ML object detection models & class lists.
+- **/metrics** — View high-level Smart City command-center overview metrics.
+- **/logs** — Inspect search history audit logs for court chain-of-custody compliance.
+- **/search <description>** — Search CCTV video tracklets by visual description.
+- **/clear** — Clear current conversation and start a new session.
+
+---
+
+### 🛠️ Automated MCP System Tools (9 Active Tools)
+1. **\`search_tracklets\`** — Semantic vector search over CCTV footage for target people or vehicles.
+2. **\`list_cameras\`** — Query smart city camera profiles, GIS map locations, and corridor groups.
+3. **\`get_camera_details\`** — View camera metadata, active model, and video feed segments.
+4. **\`get_system_alerts\`** — Query loitering and abandoned baggage security events.
+5. **\`get_search_logs\`** — Audit evidentiary search query history with SHA-256 validation.
+6. **\`get_dashboard_metrics\`** — Command-center stats (cameras, videos, tracklets, alerts).
+7. **\`list_models\`** — View loaded YOLO detection models, weights, and class lists.
+8. **\`assign_camera_model\`** — Assign an ML object detector model to a camera node.
+9. **\`trigger_video_reindex\`** — Re-index tracklet embeddings into Qdrant vector database.
+
+---
+
+### 💡 Example Prompts to Try
+- \`"Find a person in a red jacket near CAM_001"\`
+- \`"List all active camera nodes in Corridor A"\`
+- \`"Are there any active loitering or abandoned baggage security alerts?"\`
+- \`"Assign model yolo-traffic to CAM_002"\`
+- \`"Give me an overview of system health and total processed videos"\``
+
+const SLASH_COMMANDS = [
+  { cmd: '/help', desc: 'Display platform capabilities & commands reference guide' },
+  { cmd: '/cameras', desc: 'List all registered GIS camera nodes & status' },
+  { cmd: '/alerts', desc: 'Retrieve recent loitering & security alerts' },
+  { cmd: '/models', desc: 'Inspect registered ML detector models & YOLO weights' },
+  { cmd: '/metrics', desc: 'View high-level Smart City command-center metrics' },
+  { cmd: '/logs', desc: 'View evidentiary search audit history' },
+  { cmd: '/clear', desc: 'Clear current conversation and start new session' },
+]
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inputPrompt.trim() && !referenceB64) return
+    const rawInput = inputPrompt.trim()
+    if (!rawInput && !referenceB64) return
 
-    const userContent = inputPrompt.trim() || 'Attached target photo for visual search.'
+    // ── Intercept Slash Commands ──────────────────────────────────────────────
+    if (rawInput.startsWith('/')) {
+      const parts = rawInput.split(' ')
+      const cmd = parts[0].toLowerCase()
+
+      if (cmd === '/help' || cmd === '/commands') {
+        const userMsg: ChatMessage = { role: 'user', content: rawInput }
+        const helpMsg: ChatMessage = { role: 'assistant', content: HELP_MESSAGE_CONTENT }
+        setMessages((prev) => [...prev, userMsg, helpMsg])
+        setInputPrompt('')
+        return
+      }
+
+      if (cmd === '/clear') {
+        setInputPrompt('')
+        handleStartNewSession()
+        return
+      }
+
+      let transformedPrompt = rawInput
+      if (cmd === '/cameras') transformedPrompt = 'List all registered smart city camera nodes and their online status.'
+      else if (cmd === '/alerts') transformedPrompt = 'Retrieve recent loitering and abandoned baggage security alerts.'
+      else if (cmd === '/models') transformedPrompt = 'List all registered ML object detection models and YOLO weights.'
+      else if (cmd === '/metrics') transformedPrompt = 'Retrieve high-level Smart City command-center overview metrics.'
+      else if (cmd === '/logs') transformedPrompt = 'Retrieve search audit log history.'
+      else if (cmd === '/search' && parts.length > 1) transformedPrompt = `Search tracklets for: ${parts.slice(1).join(' ')}`
+
+      // Continue sending transformed command prompt to assistant LLM
+      const userMsg: ChatMessage = {
+        role: 'user',
+        content: rawInput,
+        image_b64: referenceB64 || undefined,
+      }
+
+      const updatedMessages = [...messages, userMsg]
+      setMessages(updatedMessages)
+      setInputPrompt('')
+      setReferenceFile(null)
+      setReferencePreview(null)
+      setReferenceB64(null)
+      setLoading(true)
+      setErrorMsg('')
+
+      try {
+        const apiMessages = updatedMessages.slice(0, -1).map((m) => ({
+          role: m.role,
+          content: m.content,
+          image_b64: m.image_b64 || null,
+        }))
+        apiMessages.push({
+          role: 'user',
+          content: transformedPrompt,
+          image_b64: referenceB64 || null,
+        })
+
+        const res = await fetch(`${API_BASE}/api/v1/assistant/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: activeSessionId, messages: apiMessages }),
+        })
+
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.detail || 'Assistant execution failed')
+        }
+
+        const responseData = await res.json()
+        if (responseData.session_id) {
+          setActiveSessionId(responseData.session_id)
+          if (responseData.session_title) setActiveSessionTitle(responseData.session_title)
+          loadSessions()
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: responseData.content || 'Analysis complete.',
+            executed_tools: responseData.executed_tools || [],
+            attachments: responseData.attachments || [],
+          },
+        ])
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Copilot assistant failure.')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    // Standard message handler
+    const userContent = rawInput || 'Attached target photo for visual search.'
     const userMsg: ChatMessage = {
       role: 'user',
       content: userContent,
@@ -717,6 +857,29 @@ export default function AICopilotOverlay({
               </div>
             )}
 
+            {/* Slash Command Autocomplete Menu */}
+            {inputPrompt.startsWith('/') && (
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-2 shadow-2xl space-y-1 animate-in slide-in-from-bottom-2 duration-150">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 flex items-center justify-between">
+                  <span>Available Slash Commands</span>
+                  <span className="text-[9px] text-teal-400 font-mono">Click to select</span>
+                </div>
+                {SLASH_COMMANDS.filter(s => s.cmd.startsWith(inputPrompt.toLowerCase().split(' ')[0])).map((sc) => (
+                  <button
+                    key={sc.cmd}
+                    type="button"
+                    onClick={() => {
+                      setInputPrompt(sc.cmd + ' ')
+                    }}
+                    className="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 flex items-center justify-between text-xs transition-colors group"
+                  >
+                    <span className="font-mono text-teal-300 font-bold group-hover:text-teal-200">{sc.cmd}</span>
+                    <span className="text-slate-400 text-[11px] group-hover:text-slate-200">{sc.desc}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <form onSubmit={handleSendMessage} className="flex gap-2">
               <input
                 type="file"
@@ -734,12 +897,22 @@ export default function AICopilotOverlay({
                 <Upload className="h-4 w-4" />
               </button>
 
+              <button
+                type="button"
+                onClick={() => setInputPrompt('/help')}
+                className="px-3 rounded-xl border border-teal-500/30 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 hover:text-teal-200 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-xs shrink-0"
+                title="View platform capabilities & /help guide"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-teal-400" />
+                <span>/help</span>
+              </button>
+
               <input
                 type="text"
                 value={inputPrompt}
                 onChange={(e) => setInputPrompt(e.target.value)}
-                placeholder="Ask Copilot anything... (e.g. 'man in red jacket near CAM_001')"
-                className="flex-1 bg-slate-950 border border-slate-700 focus:border-teal-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none transition-colors shadow-inner"
+                placeholder="Ask Copilot or type /help for commands guide..."
+                className="flex-1 bg-slate-950 border border-slate-700 focus:border-teal-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none transition-colors shadow-inner font-sans"
               />
 
               <button
