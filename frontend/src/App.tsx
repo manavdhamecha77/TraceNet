@@ -407,8 +407,6 @@ function App() {
       } else if (paths[0] === 'models') {
         crumbs.push({ label: 'Model Registry', link: '/models' })
       }
-    } else {
-      crumbs.push({ label: 'Home', link: '/' })
     }
 
     return crumbs
@@ -909,7 +907,7 @@ function App() {
           {/* Breadcrumbs */}
           <nav className="flex items-center gap-1.5 text-xs font-medium">
             {getBreadcrumbs().map((crumb, idx, arr) => (
-              <Fragment key={crumb.link}>
+              <Fragment key={`${crumb.link}-${idx}`}>
                 {idx > 0 && <span className="text-slate-400 dark:text-slate-700">/</span>}
                 {idx === arr.length - 1 ? (
                   <span className="text-slate-800 dark:text-slate-200 font-semibold">{crumb.label}</span>
