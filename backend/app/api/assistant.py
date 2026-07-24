@@ -85,6 +85,22 @@ def save_assistant_config(payload: ConfigPayload):
     return {"status": "success", "message": "Assistant configuration updated.", "config": cfg}
 
 
+@router.get("/ollama-models")
+def get_installed_ollama_models(host: str = "http://localhost:11434"):
+    """Fetch list of installed models from local Ollama instance."""
+    url = f"{host.rstrip('/')}/api/tags"
+    try:
+        resp = requests.get(url, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = [m.get("name") for m in data.get("models", []) if m.get("name")]
+            if models:
+                return {"status": "success", "models": models}
+    except Exception as e:
+        logger.warning(f"Failed to fetch local Ollama models from {host}: {e}")
+    return {"status": "fallback", "models": ["qwen2.5:3b", "qwen2.5-vl:3b", "qwen2.5:7b"]}
+
+
 @router.get("/sessions")
 def list_chat_sessions(db: Session = Depends(get_db)):
     """List all saved chat sessions ordered by updated_at descending."""

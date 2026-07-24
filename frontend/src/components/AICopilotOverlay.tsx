@@ -59,6 +59,18 @@ const PROVIDER_PRESETS = [
   { name: 'Ollama v1 API', base_url: 'http://localhost:11434/v1', model: 'qwen2.5:3b' },
 ]
 
+const CLOUD_MODEL_OPTIONS = [
+  { label: 'GPT-4o Mini (Fast)', value: 'gpt-4o-mini' },
+  { label: 'GPT-4o (Multimodal High Precision)', value: 'gpt-4o' },
+  { label: 'Llama 3.3 70B (Groq Fast)', value: 'llama-3.3-70b-versatile' },
+  { label: 'Llama 3.1 8B (Groq Instant)', value: 'llama-3.1-8b-instant' },
+  { label: 'Claude 3.5 Sonnet (OpenRouter)', value: 'anthropic/claude-3.5-sonnet' },
+  { label: 'DeepSeek Chat V3', value: 'deepseek-chat' },
+  { label: 'DeepSeek Reasoner R1', value: 'deepseek-reasoner' },
+  { label: 'Local Model (Ollama / LMStudio)', value: 'local-model' },
+  { label: '+ Enter Custom Model Name...', value: '__custom__' },
+]
+
 export default function AICopilotOverlay({
   isOpen,
   onClose,
@@ -90,6 +102,12 @@ export default function AICopilotOverlay({
   })
   const [savingConfig, setSavingConfig]       = useState(false)
 
+  // Installed Ollama Models list state
+  const [ollamaModels, setOllamaModels]       = useState<string[]>(['qwen2.5:3b', 'qwen2.5-vl:3b'])
+  const [loadingOllamaModels, setLoadingOllamaModels] = useState(false)
+  const [isCustomOllamaModel, setIsCustomOllamaModel] = useState(false)
+  const [isCustomCloudModel, setIsCustomCloudModel]   = useState(false)
+
   const chatEndRef   = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -100,6 +118,13 @@ export default function AICopilotOverlay({
       loadSessions()
     }
   }, [isOpen])
+
+  // Fetch installed Ollama models when settings opens
+  useEffect(() => {
+    if (isSettingsOpen && config.provider === 'ollama') {
+      fetchInstalledOllamaModels(config.ollama_host)
+    }
+  }, [isSettingsOpen, config.provider, config.ollama_host])
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -131,6 +156,23 @@ export default function AICopilotOverlay({
       }
     } catch (e) {
       // Ignore fallback
+    }
+  }
+
+  const fetchInstalledOllamaModels = async (host: string) => {
+    setLoadingOllamaModels(true)
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/assistant/ollama-models?host=${encodeURIComponent(host)}`)
+      if (r.ok) {
+        const data = await r.json()
+        if (data.models && data.models.length > 0) {
+          setOllamaModels(data.models)
+        }
+      }
+    } catch (e) {
+      // Fallback
+    } finally {
+      setLoadingOllamaModels(false)
     }
   }
 
@@ -326,7 +368,7 @@ export default function AICopilotOverlay({
           isSidebarOpen ? 'w-72' : 'w-0 opacity-0 overflow-hidden'
         } shrink-0 border-r border-slate-800/80 bg-slate-900/95 flex flex-col transition-all duration-200 ease-in-out z-10`}
       >
-        {/* Sidebar Header with Single Primary New Chat Button */}
+        {/* Sidebar Header */}
         <div className="p-3 border-b border-slate-800/80 flex items-center justify-between gap-2">
           <button
             onClick={handleStartNewSession}
@@ -437,7 +479,7 @@ export default function AICopilotOverlay({
           </div>
         </div>
 
-        {/* FULL-WIDTH SCROLLABLE MESSAGES CONTAINER (Scrollbar docked to viewport edge!) */}
+        {/* FULL-WIDTH SCROLLABLE MESSAGES CONTAINER */}
         <div className="flex-1 overflow-y-auto w-full">
           <div className="max-w-4xl mx-auto p-6 space-y-6">
             {messages.length === 0 ? (
@@ -713,7 +755,7 @@ export default function AICopilotOverlay({
         </div>
       </div>
 
-      {/* UNIVERSAL API & MODEL SETTINGS MODAL */}
+      {/* UNIVERSAL API & MODEL SETTINGS MODAL WITH DROPDOWN SELECTORS */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150">
@@ -779,20 +821,63 @@ export default function AICopilotOverlay({
                       value={config.ollama_host}
                       onChange={(e) => setConfig((prev) => ({ ...prev, ollama_host: e.target.value }))}
                       placeholder="http://localhost:11434"
-                      className="w-full bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono"
                     />
                   </div>
 
+                  {/* Ollama Installed Models Dropdown */}
                   <div className="space-y-1">
-                    <label className="font-semibold text-slate-300">Ollama Model Name</label>
-                    <input
-                      type="text"
-                      value={config.ollama_model}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, ollama_model: e.target.value }))}
-                      placeholder="qwen2.5:3b"
-                      className="w-full bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono"
-                    />
-                    <p className="text-[10px] text-slate-500">Examples: `qwen2.5:3b`, `qwen2.5-vl:7b`, `llama3.2-vision`</p>
+                    <div className="flex items-center justify-between">
+                      <label className="font-semibold text-slate-300">Ollama Model Name</label>
+                      <button
+                        type="button"
+                        onClick={() => fetchInstalledOllamaModels(config.ollama_host)}
+                        className="text-[10px] text-teal-400 hover:underline flex items-center gap-1"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${loadingOllamaModels ? 'animate-spin' : ''}`} />
+                        <span>Refresh Installed</span>
+                      </button>
+                    </div>
+
+                    {!isCustomOllamaModel ? (
+                      <select
+                        value={ollamaModels.includes(config.ollama_model) ? config.ollama_model : '__custom__'}
+                        onChange={(e) => {
+                          if (e.target.value === '__custom__') {
+                            setIsCustomOllamaModel(true)
+                          } else {
+                            setConfig((prev) => ({ ...prev, ollama_model: e.target.value }))
+                          }
+                        }}
+                        className="w-full bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono text-xs cursor-pointer"
+                      >
+                        <optgroup label="Installed Local Models">
+                          {ollamaModels.map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <option value="__custom__">+ Enter Custom Model Name...</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={config.ollama_model}
+                          onChange={(e) => setConfig((prev) => ({ ...prev, ollama_model: e.target.value }))}
+                          placeholder="e.g. qwen2.5:3b"
+                          className="flex-1 bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsCustomOllamaModel(false)}
+                          className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-750 text-xs text-slate-300 shrink-0"
+                        >
+                          Select from List
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -811,6 +896,7 @@ export default function AICopilotOverlay({
                               cloud_base_url: p.base_url,
                               cloud_model: p.model,
                             }))
+                            setIsCustomCloudModel(false)
                           }}
                           className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-[11px] font-semibold text-slate-300 hover:text-teal-300 transition-colors"
                         >
@@ -842,15 +928,47 @@ export default function AICopilotOverlay({
                     />
                   </div>
 
+                  {/* Cloud Model Selector Dropdown */}
                   <div className="space-y-1">
                     <label className="font-semibold text-slate-300">Model Name</label>
-                    <input
-                      type="text"
-                      value={config.cloud_model}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, cloud_model: e.target.value }))}
-                      placeholder="gpt-4o-mini"
-                      className="w-full bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono"
-                    />
+                    {!isCustomCloudModel ? (
+                      <select
+                        value={CLOUD_MODEL_OPTIONS.some((o) => o.value === config.cloud_model) ? config.cloud_model : '__custom__'}
+                        onChange={(e) => {
+                          if (e.target.value === '__custom__') {
+                            setIsCustomCloudModel(true)
+                          } else {
+                            setConfig((prev) => ({ ...prev, cloud_model: e.target.value }))
+                          }
+                        }}
+                        className="w-full bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono text-xs cursor-pointer"
+                      >
+                        <optgroup label="Popular Provider Models">
+                          {CLOUD_MODEL_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={config.cloud_model}
+                          onChange={(e) => setConfig((prev) => ({ ...prev, cloud_model: e.target.value }))}
+                          placeholder="e.g. gpt-4o-mini"
+                          className="flex-1 bg-slate-950 border border-slate-750 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsCustomCloudModel(false)}
+                          className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-750 text-xs text-slate-300 shrink-0"
+                        >
+                          Select from List
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
