@@ -187,7 +187,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | # | Task | Owner/Layer | Status | Notes |
 |---|---|---|---|---|
 | 4.1 | Export with SHA-256 hash + audit record (evidentiary integrity) | Backend/Audit | done | Implemented results set export hashing (SHA-256) inside `Search.tsx` client-side, downloading a verified compliance text report. |
-| 4.2 | Missing-person fast search (upload reference photo → search all tracklets) | Backend + Frontend | not started | High ROI — reuses existing CLIP pipeline, just a new endpoint + UI entry point |
+| 4.2 | Missing-person fast search (upload reference photo → search all tracklets) | Backend + Frontend | done | Implemented `ImageSearchService` + `POST /api/v1/search/image` + drag-drop UI toggle in `Search.tsx`; verified via `compileall`, `npm run build`, and `git push`. |
 | 4.3 | Abandoned object detection (object-tracklet persists after associated person-tracklet ends) | Backend/Alerts | not started | Pure logic on existing tracklet data, no new model |
 | 4.4 | Loitering / dwell-time detection (track_id stays in defined zone beyond threshold) | Backend/Alerts | not started | Needs zone definition — simple polygon config per camera |
 | 4.5 | Explainability display: show per-attribute match breakdown, not just overall confidence % | Frontend + Backend | not started | Strengthens human-in-the-loop principle — worth doing over more alert types |
