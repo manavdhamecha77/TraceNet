@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import io
-import imghdr
 import tempfile
 from pathlib import Path
 from typing import Optional, Sequence
@@ -16,7 +15,7 @@ from app.embeddings.clip_encoder import get_clip_encoder
 from app.search.query_engine import QueryEngine
 
 MAX_FILE_BYTES = 10 * 1024 * 1024  # 10 MB
-ALLOWED_FORMATS = {"jpeg", "png", "webp", "bmp"}
+ALLOWED_FORMATS = {"jpeg", "png", "webp", "bmp", "mpo"}
 
 
 class ImageSearchService:
@@ -44,16 +43,19 @@ class ImageSearchService:
                 f"Image exceeds maximum size of {MAX_FILE_BYTES // (1024 * 1024)} MB."
             )
 
-        # 2. Validate format using stdlib imghdr (no extra deps)
-        detected = imghdr.what(None, h=file_bytes)
-        if detected not in ALLOWED_FORMATS:
-            raise ValueError(
-                f"Unsupported image format: '{detected}'. Must be JPEG, PNG, WebP, or BMP."
-            )
-
-        # 3. Open and convert to RGB using Pillow
+        # 2. Open image with Pillow & validate format
         try:
-            pil_image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+            raw_img = Image.open(io.BytesIO(file_bytes))
+            fmt = (raw_img.format or "").lower()
+            if fmt == "jpg":
+                fmt = "jpeg"
+            if fmt not in ALLOWED_FORMATS:
+                raise ValueError(
+                    f"Unsupported image format: '{fmt}'. Must be JPEG, PNG, WebP, or BMP."
+                )
+            pil_image = raw_img.convert("RGB")
+        except ValueError:
+            raise
         except Exception as exc:
             raise ValueError(f"Could not open image: {exc}") from exc
 
