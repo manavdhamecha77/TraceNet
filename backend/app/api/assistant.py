@@ -32,7 +32,7 @@ def load_assistant_config() -> Dict[str, Any]:
     return {
         "provider": "ollama",
         "ollama_host": "http://localhost:11434",
-        "ollama_model": "qwen2.5-vl:3b",
+        "ollama_model": "qwen2.5:3b",
         "cloud_api_key": "",
         "cloud_model": "gpt-4o-mini",
         "cloud_base_url": "https://api.openai.com/v1"

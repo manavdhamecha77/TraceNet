@@ -25,9 +25,9 @@ class BaseLLMProvider(abc.ABC):
 
 
 class OllamaProvider(BaseLLMProvider):
-    """Local LLM provider using Ollama REST API (e.g. Qwen2.5-VL 3B/7B)."""
+    """Local LLM provider using Ollama REST API (e.g. Qwen2.5 3B/7B)."""
 
-    def __init__(self, host: str = "http://localhost:11434", model: str = "qwen2.5-vl:3b"):
+    def __init__(self, host: str = "http://localhost:11434", model: str = "qwen2.5:3b"):
         self.host = host.rstrip("/")
         self.model = model
 
