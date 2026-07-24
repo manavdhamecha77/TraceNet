@@ -133,7 +133,7 @@ function App() {
     failedVideos: 0,
   })
 
-  // Theme effect
+  // Theme effect — always dark (forensic command-centre)
   useEffect(() => {
     document.documentElement.classList.add('dark')
     localStorage.setItem('drishti-theme', 'dark')
@@ -733,46 +733,70 @@ function App() {
       ))
     : []
 
+  // Nav link helper
+  const navLinkClass = (active: boolean) =>
+    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 ${
+      active
+        ? 'bg-cyan-500/10 text-cyan-300'
+        : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-200'
+    }`
+
   return (
-    <div className="flex min-h-screen text-slate-100 antialiased font-sans transition-colors duration-150">
-      
-      {/* COLLAPSIBLE SIDEBAR */}
+    <div
+      className="flex min-h-screen text-slate-100 antialiased"
+      style={{ background: 'var(--brand-bg, #080E1C)' }}
+    >
+      {/* ── SIDEBAR ─────────────────────────────────────────── */}
       <aside
-        className={`bg-slate-900 border-r border-slate-800 flex flex-col justify-between transition-all duration-200 z-20 ${
-          isSidebarCollapsed ? 'w-[56px]' : 'w-[220px]'
-        }`}
+        className="flex flex-col justify-between border-r border-slate-800 bg-slate-900 z-20 transition-all duration-200 shrink-0"
+        style={{ width: isSidebarCollapsed ? 56 : 220 }}
       >
-        <div className="space-y-6">
-          {/* Logo & Collapse toggle header */}
-          <div className="h-11 border-b border-slate-800 flex items-center justify-between px-4">
+        <div className="flex flex-col gap-6">
+
+          {/* Brand logo + collapse toggle */}
+          <div
+            className="h-11 border-b border-slate-800 flex items-center px-3 gap-3"
+            style={{ justifyContent: isSidebarCollapsed ? 'center' : 'space-between' }}
+          >
             {!isSidebarCollapsed && (
-              <div className="flex items-center gap-2">
-                <span className="text-cyan-400 font-bold tracking-widest text-xs" style={{ fontFamily: '"IBM Plex Mono", monospace' }}>
-                  <span className="mr-1">◉</span>DRISHTI
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-cyan-400 text-lg leading-none">◉</span>
+                <span
+                  className="font-mono font-bold tracking-widest text-xs text-cyan-400 truncate"
+                  style={{ fontFamily: '"IBM Plex Mono", monospace' }}
+                >
+                  DRISHTI
+                </span>
+                <span
+                  className="text-[8px] px-1 py-0.5 rounded font-bold tracking-wide shrink-0"
+                  style={{ background: 'rgba(0,201,184,0.1)', color: '#00C9B8', border: '1px solid rgba(0,201,184,0.2)' }}
+                >
+                  MVP
                 </span>
               </div>
             )}
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className="text-slate-500 hover:text-slate-300 p-1 rounded hover:bg-slate-800/60 mx-auto"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors shrink-0"
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              <svg className={`h-4 w-4 transition-transform duration-200 ${isSidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg
+                className={`h-3.5 w-3.5 transition-transform duration-200 ${isSidebarCollapsed ? 'rotate-180' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
               </svg>
             </button>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="px-2 space-y-1">
+          {/* Navigation */}
+          <nav className="px-2 space-y-0.5">
             <Link
               to="/dashboard"
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
-                location.pathname === '/dashboard'
-                  ? 'bg-slate-800 text-cyan-300'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
+              className={navLinkClass(location.pathname === '/dashboard')}
+              title={isSidebarCollapsed ? 'Dashboard' : undefined}
             >
-              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
               </svg>
               {!isSidebarCollapsed && <span>Dashboard</span>}
@@ -780,27 +804,43 @@ function App() {
 
             <Link
               to="/cameras"
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
-                location.pathname.startsWith('/cameras')
-                  ? 'bg-slate-800 text-cyan-300'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
+              className={navLinkClass(location.pathname.startsWith('/cameras'))}
+              title={isSidebarCollapsed ? 'Cameras' : undefined}
             >
-              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
               {!isSidebarCollapsed && <span>Cameras</span>}
             </Link>
 
             <Link
-              to="/models"
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
-                location.pathname.startsWith('/models')
-                  ? 'bg-slate-800 text-cyan-300'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
+              to="/search"
+              className={navLinkClass(location.pathname === '/search')}
+              title={isSidebarCollapsed ? 'Search & Rank' : undefined}
             >
-              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {!isSidebarCollapsed && <span>Search & Rank</span>}
+            </Link>
+
+            <Link
+              to="/alerts"
+              className={navLinkClass(location.pathname === '/alerts')}
+              title={isSidebarCollapsed ? 'Alerts' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {!isSidebarCollapsed && <span>Alerts</span>}
+            </Link>
+
+            <Link
+              to="/models"
+              className={navLinkClass(location.pathname.startsWith('/models'))}
+              title={isSidebarCollapsed ? 'ML Models' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
               </svg>
               {!isSidebarCollapsed && <span>ML Models</span>}
@@ -808,80 +848,57 @@ function App() {
 
             <Link
               to="/embedding-models"
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
-                location.pathname.startsWith('/embedding-models')
-                  ? 'bg-slate-800 text-cyan-300'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
+              className={navLinkClass(location.pathname.startsWith('/embedding-models'))}
+              title={isSidebarCollapsed ? 'Embedding Models' : undefined}
             >
-              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
               </svg>
-              {!isSidebarCollapsed && <span>Embedding Models</span>}
-            </Link>
-
-            <Link
-              to="/alerts"
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
-                location.pathname === '/alerts'
-                  ? 'bg-slate-800 text-cyan-300'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              {!isSidebarCollapsed && <span>Alerts</span>}
-            </Link>
-
-            <Link
-              to="/search"
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold tracking-wide transition-all ${
-                location.pathname === '/search'
-                  ? 'bg-slate-800 text-cyan-300'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              {!isSidebarCollapsed && <span>Search & Rank</span>}
+              {!isSidebarCollapsed && <span>Embeddings</span>}
             </Link>
           </nav>
         </div>
 
-        {/* User avatar area at bottom */}
-        <div className="border-t border-slate-800 p-4 flex items-center justify-center">
-          <div className="relative shrink-0">
-            <div className="h-8 w-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-200 text-xs font-bold border border-slate-600">
+        {/* Sidebar footer — operator identity */}
+        <div className="border-t border-slate-800 p-3">
+          <div
+            className={`flex items-center gap-3 rounded-lg p-2 ${
+              isSidebarCollapsed ? 'justify-center' : ''
+            }`}
+          >
+            <div
+              className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+              style={{ background: 'rgba(0,201,184,0.15)', color: '#00C9B8', border: '1px solid rgba(0,201,184,0.25)' }}
+            >
               JD
             </div>
-            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-slate-900"></span>
+            {!isSidebarCollapsed && (
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-slate-300 truncate">J. Doe</p>
+                <p className="text-[10px] text-slate-600 truncate font-mono">Forensic Operator</p>
+              </div>
+            )}
           </div>
-          {!isSidebarCollapsed && (
-            <div className="ml-3 flex-1 min-w-0">
-              <div className="text-xs font-semibold text-slate-200 truncate">John Doe</div>
-              <div className="text-[10px] text-slate-500 truncate">Operator</div>
-            </div>
-          )}
         </div>
       </aside>
 
-      {/* CORE WORKSPACE FRAME */}
+      {/* ── MAIN WORKSPACE ───────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
-        
-        {/* COMPACT APP BAR */}
-        <header className="h-11 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 px-6 flex items-center justify-between z-10 transition-colors duration-150">
-          
+
+        {/* TOPBAR */}
+        <header
+          className="h-11 border-b border-slate-800 px-5 flex items-center justify-between z-10 shrink-0"
+          style={{ background: 'rgba(13, 21, 41, 0.92)', backdropFilter: 'blur(8px)' }}
+        >
           {/* Breadcrumbs */}
-          <nav className="flex items-center space-x-2 text-xs font-medium text-slate-500">
+          <nav className="flex items-center gap-1.5 text-xs font-medium">
             {getBreadcrumbs().map((crumb, idx, arr) => (
               <Fragment key={crumb.link}>
-                {idx > 0 && <span className="text-slate-600">/</span>}
+                {idx > 0 && <span className="text-slate-700">/</span>}
                 {idx === arr.length - 1 ? (
                   <span className="text-slate-200 font-semibold">{crumb.label}</span>
                 ) : (
-                  <Link to={crumb.link} className="text-slate-500 hover:text-slate-300 transition-colors">
+                  <Link to={crumb.link} className="text-slate-500 hover:text-cyan-400 transition-colors">
                     {crumb.label}
                   </Link>
                 )}
@@ -889,20 +906,32 @@ function App() {
             ))}
           </nav>
 
-          {/* Global AI Copilot Search Bar Trigger */}
+          {/* AI Copilot global search bar */}
           <GlobalSearchBar onOpenCopilot={() => setIsCopilotOpen(true)} />
 
-          {/* System status & action */}
-          <div className="flex items-center gap-4">
-            <span className="text-[11px] text-slate-400 font-semibold bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-full flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${metrics.pendingVideos > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+          {/* Pipeline status pill */}
+          <div className="flex items-center gap-2">
+            <span
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5"
+              style={{
+                background: metrics.pendingVideos > 0 ? 'rgba(245,158,11,0.1)' : 'rgba(34,197,94,0.08)',
+                color: metrics.pendingVideos > 0 ? '#FCD34D' : '#4ADE80',
+                border: `1px solid ${metrics.pendingVideos > 0 ? 'rgba(245,158,11,0.25)' : 'rgba(34,197,94,0.2)'}`,
+              }}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${metrics.pendingVideos > 0 ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}
+              />
               {metrics.pendingVideos > 0 ? `Transcoding: ${metrics.pendingVideos} Jobs` : 'Pipeline Idle'}
             </span>
           </div>
         </header>
 
-        {/* WORKSPACE CONTENT AREA */}
-        <div className="flex-grow p-6 pb-24 overflow-y-auto bg-slate-950 transition-colors duration-150">
+        {/* WORKSPACE CONTENT */}
+        <div
+          className="flex-grow p-6 pb-24 overflow-y-auto"
+          style={{ background: 'var(--brand-bg, #080E1C)' }}
+        >
           
           <Routes>
             <Route path="/" element={<Landing />} />
