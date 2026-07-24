@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import abc
 import json
+import re
+import time
 import requests
 from typing import Any, List, Dict, Optional
 from loguru import logger
@@ -186,84 +188,109 @@ class CloudOpenAIProvider(BaseLLMProvider):
         if tools:
             payload["tools"] = tools
 
-        try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=90)
-            
-            # Handle 400 Client Error fallback retries (e.g. text-only models on Groq or tool mismatch)
-            if resp.status_code == 400:
-                err_text = ""
-                try:
-                    err_json = resp.json()
-                    err_text = err_json.get("error", {}).get("message", "") or str(err_json)
-                except Exception:
-                    err_text = resp.text
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                resp = requests.post(url, headers=headers, json=payload, timeout=90)
 
-                logger.warning(f"Provider {url} (model={self.model}) returned 400 Bad Request: {err_text}")
+                # Handle 429 Rate Limit with smart sleep backoff
+                if resp.status_code == 429 and attempt < max_retries:
+                    err_text = ""
+                    try:
+                        err_json = resp.json()
+                        err_text = err_json.get("error", {}).get("message", "") or str(err_json)
+                    except Exception:
+                        err_text = resp.text
 
-                # Retry 1: If 400 is caused by image input on a text-only model (e.g. Groq llama-3.3-70b-versatile)
-                has_image = any("image_url" in str(m.get("content")) for m in formatted_messages)
-                if has_image:
-                    logger.info("Model rejected image input. Retrying request with text content only...")
-                    clean_messages = []
-                    for m in formatted_messages:
-                        c = dict(m)
-                        if isinstance(c.get("content"), list):
-                            text_items = [
-                                item["text"] for item in c["content"]
-                                if isinstance(item, dict) and item.get("type") == "text"
-                            ]
-                            c["content"] = " ".join(text_items) if text_items else ""
-                        clean_messages.append(c)
-                    payload["messages"] = clean_messages
-                    resp = requests.post(url, headers=headers, json=payload, timeout=90)
+                    wait_seconds = 2.0
+                    match = re.search(r"try again in (\d+)(ms|s)", err_text, re.IGNORECASE)
+                    if match:
+                        val, unit = float(match.group(1)), match.group(2).lower()
+                        wait_seconds = (val / 1000.0 if unit == "ms" else val) + 0.3
 
-                # Retry 2: If still 400 and payload has tools (e.g. endpoint doesn't support tools parameter)
-                if resp.status_code == 400 and "tools" in payload:
-                    logger.info("Model/Endpoint rejected tools schema. Retrying request without tools parameter...")
-                    payload.pop("tools", None)
-                    resp = requests.post(url, headers=headers, json=payload, timeout=90)
+                    logger.warning(
+                        f"Provider {url} HTTP 429 Rate Limited (attempt {attempt + 1}/{max_retries}). "
+                        f"Sleeping {wait_seconds:.2f}s before retry..."
+                    )
+                    time.sleep(wait_seconds)
+                    continue
 
-            # Detailed exception extraction if still HTTP error
-            if resp.status_code >= 400:
-                try:
-                    err_json = resp.json()
-                    err_detail = err_json.get("error", {}).get("message", "") or str(err_json)
-                except Exception:
-                    err_detail = resp.text
-                raise RuntimeError(f"API Provider HTTP {resp.status_code}: {err_detail}")
+                # Handle 400 Client Error fallback retries (e.g. text-only models on Groq or tool mismatch)
+                if resp.status_code == 400:
+                    err_text = ""
+                    try:
+                        err_json = resp.json()
+                        err_text = err_json.get("error", {}).get("message", "") or str(err_json)
+                    except Exception:
+                        err_text = resp.text
 
-            data = resp.json()
-            choice = data["choices"][0]["message"]
-            
-            tool_calls = []
-            if choice.get("tool_calls"):
-                for tc in choice["tool_calls"]:
-                    func = tc.get("function", {})
-                    args_raw = func.get("arguments", {})
-                    if isinstance(args_raw, str):
-                        try:
-                            args = json.loads(args_raw)
-                        except Exception:
-                            args = {}
-                    else:
-                        args = args_raw
+                    logger.warning(f"Provider {url} (model={self.model}) returned 400 Bad Request: {err_text}")
 
-                    tool_calls.append({
-                        "id": tc.get("id", f"call_{len(tool_calls)}"),
-                        "type": "function",
-                        "function": {
-                            "name": func.get("name"),
-                            "arguments": args
-                        }
-                    })
+                    # Retry 1: If 400 is caused by image input on a text-only model (e.g. Groq llama-3.3-70b-versatile)
+                    has_image = any("image_url" in str(m.get("content")) for m in formatted_messages)
+                    if has_image:
+                        logger.info("Model rejected image input. Retrying request with text content only...")
+                        clean_messages = []
+                        for m in formatted_messages:
+                            c = dict(m)
+                            if isinstance(c.get("content"), list):
+                                text_items = [
+                                    item["text"] for item in c["content"]
+                                    if isinstance(item, dict) and item.get("type") == "text"
+                                ]
+                                c["content"] = " ".join(text_items) if text_items else ""
+                            clean_messages.append(c)
+                        payload["messages"] = clean_messages
+                        resp = requests.post(url, headers=headers, json=payload, timeout=90)
 
-            return {
-                "content": choice.get("content") or "",
-                "tool_calls": tool_calls
-            }
-        except RuntimeError:
-            raise
-        except Exception as e:
-            logger.error(f"Universal API provider error on {url}: {e}")
-            raise RuntimeError(f"API Provider execution error ({self.base_url}, model={self.model}): {e}") from e
+                    # Retry 2: If still 400 and payload has tools (e.g. endpoint doesn't support tools parameter)
+                    if resp.status_code == 400 and "tools" in payload:
+                        logger.info("Model/Endpoint rejected tools schema. Retrying request without tools parameter...")
+                        payload.pop("tools", None)
+                        resp = requests.post(url, headers=headers, json=payload, timeout=90)
+
+                # Detailed exception extraction if still HTTP error
+                if resp.status_code >= 400:
+                    try:
+                        err_json = resp.json()
+                        err_detail = err_json.get("error", {}).get("message", "") or str(err_json)
+                    except Exception:
+                        err_detail = resp.text
+                    raise RuntimeError(f"API Provider HTTP {resp.status_code}: {err_detail}")
+
+                data = resp.json()
+                choice = data["choices"][0]["message"]
+                
+                tool_calls = []
+                if choice.get("tool_calls"):
+                    for tc in choice["tool_calls"]:
+                        func = tc.get("function", {})
+                        args_raw = func.get("arguments", {})
+                        if isinstance(args_raw, str):
+                            try:
+                                args = json.loads(args_raw)
+                            except Exception:
+                                args = {}
+                        else:
+                            args = args_raw
+
+                        tool_calls.append({
+                            "id": tc.get("id", f"call_{len(tool_calls)}"),
+                            "type": "function",
+                            "function": {
+                                "name": func.get("name"),
+                                "arguments": args
+                            }
+                        })
+
+                return {
+                    "content": choice.get("content") or "",
+                    "tool_calls": tool_calls
+                }
+            except RuntimeError:
+                raise
+            except Exception as e:
+                if attempt == max_retries:
+                    logger.error(f"Universal API provider error on {url}: {e}")
+                    raise RuntimeError(f"API Provider execution error ({self.base_url}, model={self.model}): {e}") from e
 

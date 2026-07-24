@@ -125,7 +125,7 @@ class ToolExecutor:
                 query_text = args.get("query", "")
                 camera_ids = args.get("camera_ids")
                 object_type = args.get("object_type", "all")
-                top_k = args.get("top_k", 10)
+                top_k = min(args.get("top_k", 5), 5)
 
                 engine = QueryEngine()
                 results = engine.search_tracklets(
@@ -135,11 +135,42 @@ class ToolExecutor:
                     object_type=object_type,
                     top_k=top_k
                 )
-                return {"status": "success", "count": len(results), "results": results}
+                
+                # Concise summary for LLM token efficiency
+                llm_summary = [
+                    {
+                        "tracklet_id": r.get("tracklet_id") or r.get("id"),
+                        "camera_id": r.get("camera_id"),
+                        "object_type": r.get("object_type"),
+                        "class_name": r.get("class_name"),
+                        "confidence": r.get("mean_confidence") or r.get("confidence"),
+                        "timestamp_seconds": r.get("timestamp_start_seconds"),
+                        "score": r.get("score")
+                    }
+                    for r in results[:5]
+                ]
+
+                return {
+                    "status": "success",
+                    "count": len(results),
+                    "summary": llm_summary,
+                    "results": results
+                }
 
             elif name == "list_cameras":
                 cameras = self.db.query(CameraProfile).all()
-                return {"status": "success", "count": len(cameras), "cameras": [c.to_dict() for c in cameras]}
+                camera_summaries = [
+                    {
+                        "camera_id": c.camera_id,
+                        "name": c.name,
+                        "status": c.status,
+                        "corridor_group": c.corridor_group,
+                        "latitude": c.latitude,
+                        "longitude": c.longitude
+                    }
+                    for c in cameras
+                ]
+                return {"status": "success", "count": len(cameras), "cameras": camera_summaries}
 
             elif name == "get_camera_details":
                 camera_id = args.get("camera_id", "").strip()
@@ -147,28 +178,60 @@ class ToolExecutor:
                 if not camera:
                     return {"status": "error", "message": f"Camera '{camera_id}' not found."}
 
-                videos = self.db.query(VideoAsset).filter(VideoAsset.camera_id == camera_id).all()
+                videos = self.db.query(VideoAsset).filter(VideoAsset.camera_id == camera_id).order_by(VideoAsset.upload_timestamp.desc()).limit(5).all()
                 return {
                     "status": "success",
-                    "camera": camera.to_dict(),
-                    "videos": [v.to_dict() for v in videos]
+                    "camera": {
+                        "camera_id": camera.camera_id,
+                        "name": camera.name,
+                        "status": camera.status,
+                        "corridor_group": camera.corridor_group,
+                        "model_id": camera.model_id
+                    },
+                    "recent_videos": [
+                        {
+                            "id": v.id,
+                            "filename": v.original_filename,
+                            "status": v.processing_status
+                        }
+                        for v in videos
+                    ]
                 }
 
             elif name == "get_system_alerts":
                 alert_type = args.get("alert_type", "all")
-                limit = args.get("limit", 10)
+                limit = min(args.get("limit", 5), 5)
 
                 query = self.db.query(Alert)
                 if alert_type != "all":
                     query = query.filter(Alert.alert_type == alert_type)
 
                 alerts = query.order_by(Alert.timestamp.desc()).limit(limit).all()
-                return {"status": "success", "count": len(alerts), "alerts": [a.to_dict() for a in alerts]}
+                alert_summaries = [
+                    {
+                        "id": a.id,
+                        "alert_type": a.alert_type,
+                        "camera_id": a.camera_id,
+                        "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+                        "acknowledged": a.acknowledged
+                    }
+                    for a in alerts
+                ]
+                return {"status": "success", "count": len(alerts), "alerts": alert_summaries}
 
             elif name == "get_search_logs":
-                limit = args.get("limit", 10)
+                limit = min(args.get("limit", 5), 5)
                 logs = self.db.query(SearchLog).order_by(SearchLog.timestamp.desc()).limit(limit).all()
-                return {"status": "success", "count": len(logs), "logs": [l.to_dict() for l in logs]}
+                log_summaries = [
+                    {
+                        "id": l.id,
+                        "query": l.query,
+                        "results_count": l.results_count,
+                        "timestamp": l.timestamp.isoformat() if l.timestamp else None
+                    }
+                    for l in logs
+                ]
+                return {"status": "success", "count": len(logs), "logs": log_summaries}
 
             else:
                 return {"status": "error", "message": f"Unknown tool name '{name}'."}

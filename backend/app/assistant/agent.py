@@ -38,7 +38,8 @@ class AssistantAgent:
         max_tool_loops: int = 3
     ) -> Dict[str, Any]:
         executor = ToolExecutor(db)
-        history = list(messages)
+        # Keep only the last 6 messages to stay well within API token rate limits (TPM)
+        history = list(messages[-6:])
         executed_tools: List[Dict[str, Any]] = []
         structured_attachments: List[Dict[str, Any]] = []
 
