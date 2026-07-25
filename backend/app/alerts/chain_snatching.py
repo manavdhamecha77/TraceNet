@@ -144,7 +144,7 @@ class ChainSnatchingAnalyzer:
         # 1. Eligibility Check
         model_class_names_lower = {c.lower() for c in model_classes} if model_classes else set()
         has_person_class = any(any(k in c for k in PERSON_CLASS_KEYWORDS) for c in model_class_names_lower) or not model_classes
-        has_vehicle_class = any(any(k in c for k in VEHICLE_CLASS_KEYWORDS) for c in model_class_names_lower) or not model_classes
+        has_vehicle_class = any(any(k in c for k in SUSPECT_VEHICLE_KEYWORDS) for c in model_class_names_lower) or not model_classes
 
         if not (has_person_class and has_vehicle_class):
             reason = (
