@@ -9,6 +9,7 @@ import Models from './pages/Models'
 import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
 import Alerts from './pages/Alerts'
+import TheftAlerts from './pages/TheftAlerts'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import {
@@ -20,6 +21,7 @@ import {
   RefreshCw,
   Sun,
   Moon,
+  ShieldAlert,
 } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
@@ -835,6 +837,15 @@ function App() {
             </Link>
 
             <Link
+              to="/theft-alerts"
+              className={navLinkClass(location.pathname === '/theft-alerts')}
+              title={isSidebarCollapsed ? 'Outdoor Theft' : undefined}
+            >
+              <ShieldAlert className="h-4 w-4 shrink-0 text-rose-500" />
+              {!isSidebarCollapsed && <span>Outdoor Theft</span>}
+            </Link>
+
+            <Link
               to="/models"
               className={navLinkClass(location.pathname.startsWith('/models'))}
               title={isSidebarCollapsed ? 'ML Models' : undefined}
@@ -985,6 +996,7 @@ function App() {
             <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
             <Route path="/embedding-models" element={<EmbeddingModels />} />
             <Route path="/alerts" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
