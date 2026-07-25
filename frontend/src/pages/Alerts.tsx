@@ -194,12 +194,15 @@ function AbandonedAlertCard({
     : null
 
   const isUnattended = alert.alert_type === 'unattended_object'
+  const isLoitering = alert.alert_type === 'loitering'
 
   return (
     <div
       className={`rounded-xl border transition-all ${
         alert.acknowledged
           ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60'
+          : isLoitering
+          ? 'border-violet-500/30 bg-violet-50/50 dark:border-violet-500/30 dark:bg-violet-950/20 shadow-sm'
           : isUnattended
           ? 'border-teal-500/30 bg-teal-50/50 dark:border-teal-500/30 dark:bg-teal-950/20 shadow-sm'
           : 'border-amber-500/30 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 shadow-sm'
@@ -235,23 +238,27 @@ function AbandonedAlertCard({
             <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold border ${
               alert.acknowledged
                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-500/30 dark:text-emerald-400'
+                : isLoitering
+                ? 'bg-violet-500/10 border-violet-500/20 text-violet-700 dark:bg-violet-950/30 dark:border-violet-500/30 dark:text-violet-300'
                 : isUnattended
                 ? 'bg-teal-500/10 border-teal-500/20 text-teal-700 dark:bg-teal-950/30 dark:border-teal-500/30 dark:text-teal-400'
                 : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:bg-amber-950/40 dark:border-amber-500/30 dark:text-amber-400'
             }`}>
               {alert.acknowledged ? (
                 <CheckCheck className="w-3 h-3" />
+              ) : isLoitering ? (
+                <Clock className="w-3 h-3" />
               ) : isUnattended ? (
                 <ShieldAlert className="w-3 h-3" />
               ) : (
                 <AlertTriangle className="w-3 h-3" />
               )}
-              {alert.acknowledged ? 'Acknowledged' : isUnattended ? 'Unattended Luggage' : 'Abandoned Object'}
+              {alert.acknowledged ? 'Acknowledged' : isLoitering ? 'Loitering review' : isUnattended ? 'Unattended Luggage' : 'Abandoned Object'}
             </span>
             {durationStr && (
               <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">
                 <Clock className="w-3 h-3" />
-                {durationStr} unattended
+                {durationStr} {isLoitering ? 'dwell time' : 'unattended'}
               </span>
             )}
           </div>
@@ -546,7 +553,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
   const [showSettings, setShowSettings] = useState(false)
   const [filterAcknowledged, setFilterAcknowledged] = useState<boolean | undefined>(undefined)
   const [filterCamera, setFilterCamera] = useState('')
-  const [activeTab, setActiveTab] = useState<'alerts' | 'unattended' | 'all-objects'>('alerts')
+  const [activeTab, setActiveTab] = useState<'alerts' | 'unattended' | 'loitering' | 'all-objects'>('alerts')
   const [allObjects, setAllObjects] = useState<DetectedObject[]>([])
   const [objectsLoading, setObjectsLoading] = useState(false)
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
@@ -584,8 +591,10 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
       if (filterCamera) params.append('camera_id', filterCamera)
       if (filterAcknowledged !== undefined) params.append('acknowledged', String(filterAcknowledged))
       
-      const typeParam = activeTab === 'unattended' ? 'unattended_object' : 'abandoned_object'
-      params.append('alert_type', typeParam)
+      if (activeTab !== 'all-objects') {
+        const typeParam = activeTab === 'unattended' ? 'unattended_object' : activeTab === 'loitering' ? 'loitering' : 'abandoned_object'
+        params.append('alert_type', typeParam)
+      }
 
       const [aRes, sRes] = await Promise.all([
         fetch(`${API_BASE}/api/v1/alerts?${params}`),
@@ -974,6 +983,12 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
           Flagged Abandonments ({activeTab === 'alerts' ? alerts.length : '—'})
         </button>
         <button
+          onClick={() => setActiveTab('loitering')}
+          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${activeTab === 'loitering' ? 'border-violet-700 dark:border-violet-500 text-violet-700 dark:text-violet-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+        >
+          <Clock className="w-4 h-4" /> Loitering Reviews ({activeTab === 'loitering' ? alerts.length : '—'})
+        </button>
+        <button
           onClick={() => setActiveTab('unattended')}
           className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${
             activeTab === 'unattended'
@@ -998,7 +1013,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
       </div>
 
       {/* Tab Contents */}
-      {activeTab === 'alerts' || activeTab === 'unattended' ? (
+      {activeTab === 'alerts' || activeTab === 'unattended' || activeTab === 'loitering' ? (
         <div className="space-y-4">
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -1040,7 +1055,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
             <div className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 py-16 text-center">
               <Package className="w-8 h-8 text-slate-350 dark:text-slate-700 mx-auto mb-3" />
               <div className="text-sm font-medium text-slate-500">
-                {activeTab === 'unattended' ? 'No unattended object logs found' : 'No abandoned object alerts found'}
+                {activeTab === 'loitering' ? 'No loitering review alerts found' : activeTab === 'unattended' ? 'No unattended object logs found' : 'No abandoned object alerts found'}
               </div>
               <div className="text-xs text-slate-400 dark:text-slate-600 mt-1">
                 Run analysis on opt-in cameras. Complete videos will be evaluated using the settings above.

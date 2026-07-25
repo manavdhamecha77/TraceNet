@@ -17,6 +17,7 @@ from app.preprocess.storage import MockStorageProvider
 from app.preprocess.preprocessor import VideoPreprocessor
 
 from app.config import get_data_path
+from app.alerts.loitering import LoiteringAnalyzer
 
 router = APIRouter(prefix="/api/v1", tags=["upload"])
 
@@ -187,6 +188,9 @@ def process_video_background(
             video.processing_status = "complete"
             video.progress_percentage = 100
             db.commit()
+            zone = db.query(LoiteringZone).filter(LoiteringZone.video_id == asset_id, LoiteringZone.enabled == True).first()
+            if zone:
+                LoiteringAnalyzer().analyze(asset_id, zone, db)
             logger.info(
                 f"Asset {asset_id} ingestion pipeline completed successfully "
                 f"with {len(detection_result.tracklets)} tracklets, indexed to Qdrant."
@@ -347,6 +351,7 @@ def get_loitering_zone(video_id: str, db: Session = Depends(get_db)):
 def save_loitering_zone(
     video_id: str,
     payload: LoiteringZoneUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Save a normalized polygon only after the standardized preview exists."""
@@ -372,7 +377,23 @@ def save_loitering_zone(
     zone.enabled = True
     db.commit()
     db.refresh(zone)
-    return zone.to_dict()
+    response = zone.to_dict()
+    if video.processing_status == "complete":
+        background_tasks.add_task(_run_loitering_analysis, video_id)
+        response["analysis_started"] = True
+    else:
+        response["analysis_started"] = False
+    return response
+
+
+def _run_loitering_analysis(video_id: str):
+    db = SessionLocal()
+    try:
+        zone = db.query(LoiteringZone).filter(LoiteringZone.video_id == video_id, LoiteringZone.enabled == True).first()
+        if zone:
+            LoiteringAnalyzer().analyze(video_id, zone, db)
+    finally:
+        db.close()
 
 
 @router.get("/videos/{video_id}")
