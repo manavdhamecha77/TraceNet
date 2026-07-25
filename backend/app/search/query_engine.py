@@ -20,7 +20,6 @@ class QueryEngine:
     def __init__(self) -> None:
         db_dir = get_data_path("vector_db")
         self.client = QdrantClient(path=db_dir)
-        self.encoder = get_clip_encoder()
 
     def search_by_vector(
         self,
@@ -36,12 +35,36 @@ class QueryEngine:
         user_id: str = "demo",
     ) -> list[dict]:
         """
-        Hybrid vector + metadata search:
-        1. Queries local Qdrant collection with pre-vector and payload filters.
-        2. Enriches results with SQLite joins and filters by absolute timeline window.
-        3. Logs search query label, timestamp, and results count for the evidentiary audit trail.
+        Hybrid semantic + metadata search:
+        1. Encodes text query to vector using active CLIP model.
+        2. Queries local Qdrant collection with camera_id, video_id, and object_type pre-filters.
+        3. Enriches results with SQLite joins and filters by absolute timeline window.
+        4. Logs search query, timestamp, and results count for the evidentiary audit trail.
         """
-        logger.info(f"QueryEngine: search query_label='{query_label}', camera_ids={camera_ids}, video_id={video_id}, type={object_type}")
+        logger.info(f"QueryEngine: search query='{query_text}', camera_ids={camera_ids}, video_id={video_id}, type={object_type}")
+
+        # 1. Embed query text with active model
+        encoder = get_clip_encoder()
+        query_vector = encoder.embed_text(query_text)
+        query_dim = len(query_vector)
+
+        # Ensure collection exists and matches active query dimension
+        try:
+            from app.search.vector_index import VectorIndexService
+            if not self.client.collection_exists(COLLECTION_NAME):
+                VectorIndexService(target_dim=query_dim)
+            else:
+                col_info = self.client.get_collection(COLLECTION_NAME)
+                col_dim = col_info.config.params.vectors.size
+                if col_dim != query_dim:
+                    logger.warning(
+                        f"Qdrant collection dimension ({col_dim}) does not match active query dimension ({query_dim}). "
+                        f"Auto-aligning collection to {query_dim}-dim."
+                    )
+                    indexer = VectorIndexService(target_dim=query_dim)
+                    indexer.recreate_collection(new_dim=query_dim)
+        except Exception as col_err:
+            logger.error(f"Failed vector collection dimension validation: {col_err}")
 
         # 1. Build Qdrant payload filters
         must_filters = []

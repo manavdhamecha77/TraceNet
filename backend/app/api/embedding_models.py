@@ -155,11 +155,20 @@ def select_embedding_model(req: SelectModelRequest):
     
     # Reset singleton encoder cache so next query uses new model architecture
     get_clip_encoder.cache_clear()
-    logger.info(f"Switched active embedding model to: {target['name']} ({target['architecture']})")
+    
+    # Automatically align Qdrant vector index collection to new model dimension
+    target_dim = target.get("dimension", 512)
+    try:
+        indexer = VectorIndexService(target_dim=target_dim)
+        indexer.recreate_collection(new_dim=target_dim)
+    except Exception as e:
+        logger.warning(f"Failed to reset Qdrant collection on model select: {e}")
+
+    logger.info(f"Switched active embedding model to: {target['name']} ({target['architecture']}, {target_dim}-dim)")
 
     return {
         "status": "success",
-        "message": f"Activated {target['name']}. Re-indexing is recommended to align vector dimensions.",
+        "message": f"Activated {target['name']}. Vector index collection set to {target_dim}-dim. Re-indexing will auto-embed crops with active model.",
         "active_model": target
     }
 
@@ -171,11 +180,26 @@ def reindex_all_tracklets(db: Session = Depends(get_db)):
     if not videos:
         return {"reindexed_count": 0, "status": "no_videos", "message": "No completed videos to re-index."}
 
-    indexer = VectorIndexService()
+    # Clear encoder cache to ensure active model instance is loaded
+    get_clip_encoder.cache_clear()
+    active_cfg = load_active_config()
+    target_dim = active_cfg.get("dimension", 512)
+
+    from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
+    embedding_service = TrackletEmbeddingService()
+    indexer = VectorIndexService(target_dim=target_dim)
+    indexer.recreate_collection(new_dim=target_dim)
+
     reindexed = 0
 
     for video in videos:
         try:
+            # 1. Re-embed saved tracklet crops using the active CLIP encoder
+            det_path = get_data_path(os.path.join("processed/detections", video.id, "detections.json"))
+            if os.path.exists(det_path):
+                embedding_service.embed_detection_artifact(det_path)
+
+            # 2. Upsert new embeddings to Qdrant & update SQLite database
             indexer.index_video_tracklets(video.id, db)
             reindexed += 1
         except Exception as e:
@@ -184,5 +208,7 @@ def reindex_all_tracklets(db: Session = Depends(get_db)):
     return {
         "status": "success",
         "reindexed_count": reindexed,
-        "message": f"Re-indexed tracklets for {reindexed} video assets using active model."
+        "active_model": active_cfg.get("name"),
+        "dimension": target_dim,
+        "message": f"Successfully re-embedded crops & indexed {reindexed} video(s) into {target_dim}-dim vector collection using {active_cfg.get('name')}."
     }

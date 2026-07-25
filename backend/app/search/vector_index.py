@@ -14,33 +14,90 @@ from app.config import get_data_path
 from app.db.models import Tracklet, VideoAsset
 
 COLLECTION_NAME = "tracenet_tracklets"
-VECTOR_DIM = 512  # CLIP ViT-B/32 output dimension
+_qdrant_client_instance: QdrantClient | None = None
+
+
+def get_qdrant_client() -> QdrantClient:
+    global _qdrant_client_instance
+    if _qdrant_client_instance is None:
+        db_dir = get_data_path("vector_db")
+        os.makedirs(db_dir, exist_ok=True)
+        _qdrant_client_instance = QdrantClient(path=db_dir)
+    return _qdrant_client_instance
 
 
 class VectorIndexService:
-    def __init__(self) -> None:
-        db_dir = get_data_path("vector_db")
-        os.makedirs(db_dir, exist_ok=True)
-        # Initialize client in local/embedded mode (saves directly to disk in backend/data/vector_db)
-        self.client = QdrantClient(path=db_dir)
+    def __init__(self, target_dim: int | None = None) -> None:
+        self.client = get_qdrant_client()
+        if target_dim is None:
+            from app.api.embedding_models import load_active_config
+            cfg = load_active_config()
+            target_dim = cfg.get("dimension", 512)
+        self.target_dim = target_dim
         self._ensure_collection()
 
     def _ensure_collection(self) -> None:
-        """Create the collection with Cosine similarity if it does not already exist."""
+        """Create or validate the collection with Cosine similarity matching the target dimension."""
         try:
-            if not self.client.collection_exists(COLLECTION_NAME):
-                logger.info(f"Creating Qdrant collection '{COLLECTION_NAME}' (dim={VECTOR_DIM})")
+            if self.client.collection_exists(COLLECTION_NAME):
+                info = self.client.get_collection(COLLECTION_NAME)
+                existing_dim = info.config.params.vectors.size
+                if existing_dim != self.target_dim:
+                    logger.warning(
+                        f"Qdrant collection '{COLLECTION_NAME}' dimension ({existing_dim}) "
+                        f"does not match active embedding model dimension ({self.target_dim}). Recreating collection."
+                    )
+                    self.recreate_collection(self.target_dim)
+                else:
+                    logger.debug(f"Qdrant collection '{COLLECTION_NAME}' exists with dimension ({self.target_dim}).")
+            else:
+                logger.info(f"Creating Qdrant collection '{COLLECTION_NAME}' (dim={self.target_dim})")
                 self.client.create_collection(
                     collection_name=COLLECTION_NAME,
                     vectors_config=VectorParams(
-                        size=VECTOR_DIM,
+                        size=self.target_dim,
                         distance=Distance.COSINE
                     )
                 )
-            else:
-                logger.debug(f"Qdrant collection '{COLLECTION_NAME}' already exists.")
         except Exception as e:
             logger.error(f"Failed to initialize Qdrant collection: {e}")
+
+    def recreate_collection(self, new_dim: int | None = None) -> None:
+        """Forces deletion and clean creation of the collection matching new_dim."""
+        if new_dim is not None:
+            self.target_dim = new_dim
+        try:
+            if self.client.collection_exists(COLLECTION_NAME):
+                # Safely close underlying SQLite connection handle if present (Windows file lock fix)
+                try:
+                    if hasattr(self.client, "_client") and hasattr(self.client._client, "collections"):
+                        coll = self.client._client.collections.get(COLLECTION_NAME)
+                        if coll and hasattr(coll, "storage") and coll.storage and hasattr(coll.storage, "storage"):
+                            coll.storage.storage.close()
+                except Exception as close_err:
+                    logger.debug(f"Closing collection storage handle: {close_err}")
+
+                self.client.delete_collection(COLLECTION_NAME)
+
+                # Clean up any residual collection directory on disk
+                try:
+                    cdir = get_data_path(os.path.join("vector_db/collection", COLLECTION_NAME))
+                    if os.path.exists(cdir):
+                        import shutil
+                        shutil.rmtree(cdir, ignore_errors=True)
+                except Exception:
+                    pass
+
+            self.client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=VectorParams(
+                    size=self.target_dim,
+                    distance=Distance.COSINE
+                )
+            )
+            logger.info(f"Recreated Qdrant collection '{COLLECTION_NAME}' with dimension {self.target_dim}.")
+        except Exception as e:
+            logger.error(f"Failed to recreate Qdrant collection: {e}")
 
     def index_video_tracklets(self, video_id: str, db: Session) -> dict:
         """
@@ -60,6 +117,22 @@ class VectorIndexService:
         if not tracklet_items:
             logger.info(f"No tracklets to index for video {video_id}")
             return {"indexed": 0, "status": "no_tracklets"}
+
+        # Auto-re-embed if stored embeddings dimension does not match target_dim
+        first_emb = tracklet_items[0].get("embedding") if tracklet_items else None
+        if first_emb and len(first_emb) != self.target_dim:
+            logger.warning(
+                f"Video {video_id} embeddings dimension ({len(first_emb)}) "
+                f"does not match active target dimension ({self.target_dim}). Auto-re-embedding crops..."
+            )
+            det_path = get_data_path(os.path.join("processed/detections", video_id, "detections.json"))
+            if os.path.exists(det_path):
+                from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
+                emb_service = TrackletEmbeddingService()
+                emb_service.embed_detection_artifact(det_path)
+                with open(embeddings_path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+                tracklet_items = payload.get("tracklets", [])
 
         points = []
         indexed_count = 0
