@@ -189,7 +189,10 @@ When finished AND verified, set to `done` and note the verification method used.
 | 4.1 | Export with SHA-256 hash + audit record (evidentiary integrity) | Backend/Audit | done | Implemented results set export hashing (SHA-256) inside `Search.tsx` client-side, downloading a verified compliance text report. |
 | 4.2 | Missing-person fast search (upload reference photo → search all tracklets) | Backend + Frontend | done | Implemented `ImageSearchService` + `POST /api/v1/search/image` + drag-drop UI toggle in `Search.tsx`; verified via `compileall`, `npm run build`, and `git push`. |
 | 4.3 | Abandoned object detection (object-tracklet persists after associated person-tracklet ends) | Backend/Alerts | not started | Pure logic on existing tracklet data, no new model |
-| 4.4 | Loitering / dwell-time detection (track_id stays in defined zone beyond threshold) | Backend/Alerts | not started | Needs zone definition — simple polygon config per camera |
+| 4.4 | Loitering / dwell-time detection (track_id stays in defined zone beyond threshold) | Backend/Alerts | done | Verified end-to-end with a real upload: user-drawn video zone, thresholded dwell analysis, deduplicated alert, evidence timeline, track inspection, and acknowledgement. |
+| 4.4a | Video-scoped polygon-zone configuration, preview-frame API, and zone editor | Backend + Frontend | done | Manually verified upload opt-in, standardized-preview polling, polygon drawing, threshold configuration, and saved normalized zone. |
+| 4.4b | Dwell-time analysis using bottom-centre track points, grace gaps, and alert deduplication | Backend/Alerts | done | Verified with synthetic dwell/gap cases and the real-video end-to-end run; alerts use bottom-centre points and respect configured grace gaps. |
+| 4.4c | Loitering alert presentation, playback, acknowledgement, and end-to-end verification | Frontend + Backend | done | Manually verified Loitering Reviews evidence card, timeline, track inspection, and alert acknowledgement after a real upload. |
 | 4.5 | Explainability display: show per-attribute match breakdown, not just overall confidence % | Frontend + Backend | done | Added per-result evidence: CLIP similarity, detector confidence, generated caption, caption/class overlap, unverified requested attributes, applied filters, and a human-review limitation. Verified with backend compilation, `npm.cmd run build`, a live `POST /api/v1/search`, and manual expansion of “Why this matched” in the Search UI. |
 | 4.6 | Dynamic ML Model Registry (/models) and camera assignment | Backend + Frontend | done | Implemented model upload, dynamic file-system weights resolution, auto YOLO class parsing, and serving execution logs in UI. |
 | 4.7 | Global Conversational AI Search Assistant & Full-Screen Copilot Overlay | Fullstack | done | Implemented `app/assistant/` engine (Ollama + Universal Cloud LLMs), MCP tool calling, session management, domain-locked refusal boundary, 429 rate limit backoff, `GlobalSearchBar` (Ctrl+K), and `AICopilotOverlay`. Verified via `compileall`, `npm run build`, and `git push`. |
@@ -204,6 +207,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 5.4 | README with setup/run instructions | Docs | not started | |
 | 5.5 | Error handling pass (empty results, failed uploads, malformed queries) | Backend + Frontend | not started | |
 | 5.6 | `docs/detection-tracking-api.md` — detection/tracking API quick guide and model placement | Docs | done | Added a short operator guide for `best.pt`, the detection endpoints, and the frontend review flow. |
+| 5.7 | `docs/loitering-detection.md` — zone-selection and alert-review operator guide | Docs | done | Added a concise operator/developer guide covering upload opt-in, manual polygon selection, evidence review, API endpoints, and guardrails. |
 
 ---
 

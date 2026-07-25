@@ -61,6 +61,8 @@ class DetectionRunResult:
     video_path: str
     frame_count: int
     fps: float
+    frame_width: int
+    frame_height: int
     frame_detections: list[FrameDetections]
     tracklets: list[TrackletSummary]
     artifact_path: str
@@ -73,6 +75,8 @@ class DetectionRunResult:
             "video_path": self.video_path,
             "frame_count": self.frame_count,
             "fps": self.fps,
+            "frame_width": self.frame_width,
+            "frame_height": self.frame_height,
             "frame_detections": [
                 {
                     "frame_index": item.frame_index,
@@ -237,6 +241,8 @@ class DetectionService:
 
         fps = cap.get(cv2.CAP_PROP_FPS) or 10.0
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
         frame_index = 0
         frame_detections: list[FrameDetections] = []
         tracklet_states: dict[int, dict[str, Any]] = {}
@@ -360,6 +366,8 @@ class DetectionService:
             video_path=video_path,
             frame_count=frame_count or frame_index,
             fps=fps,
+            frame_width=frame_width,
+            frame_height=frame_height,
             frame_detections=frame_detections,
             tracklets=tracklets,
             artifact_path=os.path.join(output_dir, "detections.json"),
