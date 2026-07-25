@@ -11,6 +11,7 @@ import VideoDetail from './pages/VideoDetail'
 import Alerts from './pages/Alerts'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
+import LoiteringZoneEditor from './components/LoiteringZoneEditor'
 import {
   ExternalLink,
   Download,
@@ -125,6 +126,9 @@ function App() {
   const [uploadProgress, setUploadProgress] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [uploadError, setUploadError] = useState('')
   const [uploadDragActive, setUploadDragActive] = useState(false)
+  const [enableLoitering, setEnableLoitering] = useState(false)
+  const [loiteringThreshold, setLoiteringThreshold] = useState(60)
+  const [loiteringEditorVideoId, setLoiteringEditorVideoId] = useState<string | null>(null)
 
   // Dashboard metrics state
   const [metrics, setMetrics] = useState({
@@ -282,6 +286,8 @@ function App() {
     const formData = new FormData()
     formData.append('file', uploadFile)
     formData.append('camera_id', selectedCamera.camera_id)
+    formData.append('enable_loitering', String(enableLoitering))
+    if (enableLoitering) formData.append('loitering_threshold_seconds', String(loiteringThreshold))
     if (uploadStartTime) {
       formData.append('start_time', new Date(uploadStartTime).toISOString())
     }
@@ -293,7 +299,9 @@ function App() {
       })
 
       if (res.status === 202) {
+        const result = await res.json()
         setUploadProgress('success')
+        if (result.loitering_zone_id) setLoiteringEditorVideoId(result.asset_id)
         // Refresh videos lists
         const response = await fetch(`${API_BASE}/api/v1/cameras/${selectedCamera.camera_id}/videos`)
         if (response.ok) {
@@ -305,6 +313,8 @@ function App() {
           setIsUploadModalOpen(false)
           setUploadFile(null)
           setUploadStartTime('')
+          setEnableLoitering(false)
+          setLoiteringThreshold(60)
           setUploadProgress('idle')
         }, 1500)
       } else {
@@ -1229,6 +1239,16 @@ function App() {
                 />
               </div>
 
+              <div className="rounded border border-teal-200 bg-teal-50/60 p-3 dark:border-teal-900/60 dark:bg-teal-950/20">
+                <label className="flex cursor-pointer items-start gap-2 text-xs font-semibold text-teal-800 dark:text-teal-300">
+                  <input type="checkbox" checked={enableLoitering} onChange={(event) => setEnableLoitering(event.target.checked)} className="mt-0.5 rounded border-teal-400 text-teal-700 focus:ring-teal-600" />
+                  <span>Configure loitering detection for this video<span className="mt-0.5 block text-[10px] font-normal text-teal-700/80 dark:text-teal-400">After preprocessing, draw a review zone on a standardized frame.</span></span>
+                </label>
+                {enableLoitering && <label className="mt-2 block text-[10px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-300">Dwell threshold (seconds)
+                  <input type="number" min="5" max="86400" value={loiteringThreshold} onChange={(event) => setLoiteringThreshold(Number(event.target.value))} className="mt-1 w-full rounded border border-teal-200 bg-white px-2 py-1.5 text-xs font-normal text-slate-800 dark:border-teal-800 dark:bg-slate-900 dark:text-slate-100" />
+                </label>}
+              </div>
+
               {uploadProgress === 'uploading' && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-[11px] text-teal-700 dark:text-teal-400 font-semibold">
@@ -1278,6 +1298,8 @@ function App() {
       )}
 
       {/* VIDEO PLAYER PREVIEW WINDOW — Clean / Annotated tabs */}
+      {loiteringEditorVideoId && <LoiteringZoneEditor videoId={loiteringEditorVideoId} onClose={() => setLoiteringEditorVideoId(null)} />}
+
       {selectedVideoToPlay && selectedCamera && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-[3px]">
           <div className="w-full max-w-5xl rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-100 flex flex-col max-h-[92vh]">

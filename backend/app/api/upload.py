@@ -2,7 +2,7 @@ import os
 import uuid
 import hashlib
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, BackgroundTasks, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from loguru import logger
 
 from app.db.session import get_db, SessionLocal
-from app.db.models import CameraProfile, VideoAsset, MLModel, ModelExecutionLog
+from app.db.models import CameraProfile, VideoAsset, LoiteringZone, MLModel, ModelExecutionLog
 from app.detection.detector import DetectionService
 from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
 from app.preprocess.storage import MockStorageProvider
@@ -27,6 +27,19 @@ class IngestResponse(BaseModel):
     intake_sha256: str
     status: str
     message: str
+    loitering_zone_id: Optional[str] = None
+
+
+class PolygonPoint(BaseModel):
+    x: float
+    y: float
+
+
+class LoiteringZoneUpdate(BaseModel):
+    name: str = "Loitering zone"
+    polygon_points: List[PolygonPoint]
+    threshold_seconds: float = 60.0
+    grace_seconds: float = 3.0
 
 def process_video_background(
     asset_id: str, 
@@ -196,6 +209,8 @@ async def ingest_video(
     file: UploadFile = File(...),
     camera_id: str = Form(...),
     start_time: Optional[str] = Form(None),
+    enable_loitering: bool = Form(False),
+    loitering_threshold_seconds: float = Form(60.0),
     db: Session = Depends(get_db)
 ):
     """Accepts a video upload, stores it in the mock WORM repository,
@@ -214,6 +229,11 @@ async def ingest_video(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Camera with ID '{camera_id}' is not registered. Register the camera profile first."
+        )
+    if enable_loitering and not 5 <= loitering_threshold_seconds <= 86400:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Loitering threshold must be between 5 seconds and 24 hours.",
         )
 
     # 2. Read File content
@@ -264,6 +284,17 @@ async def ingest_video(
             processing_status="pending"
         )
         db.add(video_asset)
+        loitering_zone_id = None
+        if enable_loitering:
+            loitering_zone = LoiteringZone(
+                id=str(uuid.uuid4()),
+                video_id=asset_id,
+                threshold_seconds=loitering_threshold_seconds,
+                grace_seconds=3.0,
+                enabled=False,
+            )
+            db.add(loitering_zone)
+            loitering_zone_id = loitering_zone.id
         db.commit()
         db.refresh(video_asset)
     except Exception as e:
@@ -291,8 +322,57 @@ async def ingest_video(
         original_filename=original_filename,
         intake_sha256=sha256_hash,
         status="pending",
-        message="Upload accepted. Video transcoding and analysis started in the background."
+        message="Upload accepted. Video transcoding and analysis started in the background.",
+        loitering_zone_id=loitering_zone_id,
     )
+
+
+@router.get("/videos/{video_id}/loitering-zone")
+def get_loitering_zone(video_id: str, db: Session = Depends(get_db)):
+    """Return the zone configuration and standardized preview once preprocessing is ready."""
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video asset not found.")
+    zone = db.query(LoiteringZone).filter(LoiteringZone.video_id == video_id).first()
+    if not zone:
+        raise HTTPException(status_code=404, detail="Loitering analysis was not enabled for this upload.")
+    payload = zone.to_dict()
+    payload["preview_ready"] = bool(video.thumbnail_path)
+    payload["preview_url"] = f"/data/{video.thumbnail_path.lstrip('/')}" if video.thumbnail_path else None
+    payload["video_status"] = video.processing_status
+    return payload
+
+
+@router.put("/videos/{video_id}/loitering-zone")
+def save_loitering_zone(
+    video_id: str,
+    payload: LoiteringZoneUpdate,
+    db: Session = Depends(get_db),
+):
+    """Save a normalized polygon only after the standardized preview exists."""
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    zone = db.query(LoiteringZone).filter(LoiteringZone.video_id == video_id).first()
+    if not video or not zone:
+        raise HTTPException(status_code=404, detail="Loitering configuration not found for this video.")
+    if not video.thumbnail_path:
+        raise HTTPException(status_code=409, detail="The standardized preview is not ready yet. Wait for preprocessing to finish.")
+    if len(payload.polygon_points) < 3:
+        raise HTTPException(status_code=422, detail="A loitering zone needs at least three polygon points.")
+    if not 5 <= payload.threshold_seconds <= 86400:
+        raise HTTPException(status_code=422, detail="Loitering threshold must be between 5 seconds and 24 hours.")
+    if not 0 <= payload.grace_seconds <= 30:
+        raise HTTPException(status_code=422, detail="Tracking grace period must be between 0 and 30 seconds.")
+    points = [{"x": point.x, "y": point.y} for point in payload.polygon_points]
+    if any(point["x"] < 0 or point["x"] > 1 or point["y"] < 0 or point["y"] > 1 for point in points):
+        raise HTTPException(status_code=422, detail="Polygon points must be normalized between 0 and 1.")
+    zone.name = payload.name.strip()[:100] or "Loitering zone"
+    zone.polygon_points = json.dumps(points)
+    zone.threshold_seconds = payload.threshold_seconds
+    zone.grace_seconds = payload.grace_seconds
+    zone.enabled = True
+    db.commit()
+    db.refresh(zone)
+    return zone.to_dict()
 
 
 @router.get("/videos/{video_id}")

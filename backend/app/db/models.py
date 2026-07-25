@@ -98,6 +98,7 @@ class VideoAsset(Base):
 
     camera = relationship("CameraProfile", back_populates="videos")
     execution_logs = relationship("ModelExecutionLog", back_populates="video", cascade="all, delete-orphan")
+    loitering_zones = relationship("LoiteringZone", back_populates="video", cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
@@ -287,6 +288,40 @@ class Alert(Base):
             "analysis_log": self.analysis_log,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "acknowledged": self.acknowledged,
+        }
+
+
+class LoiteringZone(Base):
+    """A user-drawn, video-scoped region of interest for dwell-time review."""
+    __tablename__ = "loitering_zones"
+
+    id = Column(String, primary_key=True, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False, default="Loitering zone")
+    polygon_points = Column(Text, default="[]")  # normalized [{"x": 0..1, "y": 0..1}]
+    threshold_seconds = Column(Float, nullable=False, default=60.0)
+    grace_seconds = Column(Float, nullable=False, default=3.0)
+    enabled = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    video = relationship("VideoAsset", back_populates="loitering_zones")
+
+    def to_dict(self):
+        try:
+            polygon = json.loads(self.polygon_points) if self.polygon_points else []
+        except Exception:
+            polygon = []
+        return {
+            "id": self.id,
+            "video_id": self.video_id,
+            "name": self.name,
+            "polygon_points": polygon,
+            "threshold_seconds": self.threshold_seconds,
+            "grace_seconds": self.grace_seconds,
+            "enabled": self.enabled,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 
