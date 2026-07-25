@@ -4,6 +4,7 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, BackgroundTasks, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -447,4 +448,48 @@ def delete_video_permanently(video_id: str, db: Session = Depends(get_db)):
         )
 
     return {"status": "success", "message": "Video and all associated tracklets, embeddings, and files permanently deleted."}
+
+
+@router.get("/videos/{video_id}/stream")
+def stream_video(video_id: str, db: Session = Depends(get_db)):
+    """Failsafe video stream endpoint for playing video files."""
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video asset not found.")
+
+    target_path = None
+
+    # Strategy 1: Check expected camera directory
+    camera = video.camera
+    if camera:
+        from app.preprocess.preprocessor import sanitize_filename
+        camera_dir_name = f"{camera.camera_id}_{sanitize_filename(camera.name)}"
+        expected_path = get_data_path(os.path.join("cameras", camera_dir_name, "original_assets", video.standardized_filename))
+        if os.path.exists(expected_path):
+            target_path = expected_path
+
+    # Strategy 2: Search all subfolders under data/cameras/ for video file
+    if not target_path or not os.path.exists(target_path):
+        cameras_base = get_data_path("cameras")
+        if os.path.exists(cameras_base):
+            for root, _, files in os.walk(cameras_base):
+                if video.standardized_filename in files:
+                    target_path = os.path.join(root, video.standardized_filename)
+                    break
+
+    # Strategy 3: Check minio_mock raw upload folder
+    if not target_path or not os.path.exists(target_path):
+        raw_path = get_data_path(os.path.join("minio_mock", video.original_filename))
+        if os.path.exists(raw_path):
+            target_path = raw_path
+
+    if not target_path or not os.path.exists(target_path):
+        logger.error(f"Video file '{video.standardized_filename}' not found for video {video_id}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Video file '{video.standardized_filename}' not found on server disk."
+        )
+
+    return FileResponse(path=target_path, media_type="video/mp4", filename=video.standardized_filename)
+
 

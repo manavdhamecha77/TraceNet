@@ -163,6 +163,7 @@ class Tracklet(Base):
     mean_confidence = Column(Float, nullable=False)
     best_bbox = Column(Text, nullable=False)  # JSON string of best bounding box coordinates "[xmin, ymin, xmax, ymax]"
     best_crop_path = Column(String, nullable=True)
+    attributes = Column(Text, nullable=True)  # JSON string of BLIP attributes, e.g. {"caption": "..."}
     qdrant_point_id = Column(String, nullable=True)  # UUID string stored in Qdrant
     embedding_dim = Column(Integer, default=512)
     indexed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -174,6 +175,12 @@ class Tracklet(Base):
             bbox = json.loads(self.best_bbox) if self.best_bbox else []
         except Exception:
             bbox = []
+
+        try:
+            attr_dict = json.loads(self.attributes) if self.attributes else {}
+        except Exception:
+            attr_dict = {}
+
         crop_path = self.best_crop_path or ""
         normalized = crop_path.replace("\\", "/")
         crop_url = ""
@@ -198,6 +205,8 @@ class Tracklet(Base):
             "mean_confidence": self.mean_confidence,
             "best_bbox": bbox,
             "best_crop_path": crop_url,
+            "attributes": attr_dict,
+            "caption": attr_dict.get("caption", ""),
             "qdrant_point_id": self.qdrant_point_id,
             "embedding_dim": self.embedding_dim,
             "indexed_at": self.indexed_at.isoformat() if self.indexed_at else None,
@@ -279,4 +288,29 @@ class Alert(Base):
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "acknowledged": self.acknowledged,
         }
+
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(String, primary_key=True, index=True)  # UUID string
+    title = Column(String, nullable=False, default="New Conversation")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    messages = Column(Text, default="[]")  # JSON array string
+
+    def to_dict(self):
+        try:
+            msgs = json.loads(self.messages) if self.messages else []
+        except Exception:
+            msgs = []
+        return {
+            "id": self.id,
+            "title": self.title,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "message_count": len(msgs),
+            "messages": msgs
+        }
+
 

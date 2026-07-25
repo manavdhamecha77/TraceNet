@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -11,6 +11,7 @@ from loguru import logger
 from app.db.session import get_db
 from app.db.models import SearchLog, Tracklet
 from app.search.query_engine import QueryEngine
+from app.search.image_search import ImageSearchService
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
 
@@ -106,6 +107,70 @@ def search_footage(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Vector search execution failure: {exc}"
+        ) from exc
+
+
+@router.post("/search/image", response_model=List[SearchQueryResultItem])
+async def search_footage_by_image(
+    file: UploadFile = File(..., description="Reference photo of person or vehicle"),
+    camera_ids: Optional[str] = Form(default=None, description="Comma-separated camera IDs"),
+    time_start: Optional[str] = Form(default=None, description="Start date-time in ISO format"),
+    time_end: Optional[str] = Form(default=None, description="End date-time in ISO format"),
+    object_type: Optional[str] = Form(default="all", description="'all' | 'person' | 'vehicle'"),
+    top_k: int = Form(default=15, ge=1, le=50),
+    db: Session = Depends(get_db),
+) -> List[SearchQueryResultItem]:
+    """
+    Reverse photo search: upload a reference image of a person or vehicle
+    and retrieve ranked matching tracklets via CLIP image-to-image similarity.
+    Shares the same Qdrant collection and SQLite enrichment as text search.
+    Logs audit record: query_text = '[IMAGE SEARCH] <filename>'.
+    """
+    file_bytes = await file.read()
+    parsed_cameras = [c.strip() for c in camera_ids.split(",")] if camera_ids else None
+    
+    parsed_start = None
+    if time_start:
+        try:
+            parsed_start = datetime.fromisoformat(time_start.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Malformed start time: '{time_start}'. Must be ISO 8601 format."
+            )
+
+    parsed_end = None
+    if time_end:
+        try:
+            parsed_end = datetime.fromisoformat(time_end.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Malformed end time: '{time_end}'. Must be ISO 8601 format."
+            )
+
+    service = ImageSearchService()
+    try:
+        results = await service.search_from_upload(
+            file_bytes=file_bytes,
+            filename=file.filename or "reference.jpg",
+            db=db,
+            camera_ids=parsed_cameras,
+            time_start=parsed_start,
+            time_end=parsed_end,
+            object_type=object_type,
+            top_k=top_k,
+        )
+        return results
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc)
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Reverse image search failure: {exc}"
         ) from exc
 
 

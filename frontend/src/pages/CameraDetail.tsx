@@ -411,16 +411,16 @@ export default function CameraDetail({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-4 rounded-md shadow-sm">
           <div>
             <div className="flex items-center gap-2">
-              <span className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-teal-700 dark:text-teal-400">
+              <span className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold text-teal-700 dark:text-teal-400">
                 {selectedCamera.camera_id}
               </span>
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">{selectedCamera.name}</h3>
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-4">
-              <span>Latitude: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.latitude ?? 'N/A'}</strong></span>
-              <span>Longitude: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.longitude ?? 'N/A'}</strong></span>
-              <span>Corridor: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.corridor_group ?? 'General'}</strong></span>
-              <span>Topology Neighbors: <strong className="text-slate-700 dark:text-slate-350">{selectedCamera.adjacency.length > 0 ? selectedCamera.adjacency.join(', ') : 'None'}</strong></span>
+              <span>Latitude: <strong className="text-slate-700 dark:text-slate-300">{selectedCamera.latitude ?? 'N/A'}</strong></span>
+              <span>Longitude: <strong className="text-slate-700 dark:text-slate-300">{selectedCamera.longitude ?? 'N/A'}</strong></span>
+              <span>Corridor: <strong className="text-slate-700 dark:text-slate-300">{selectedCamera.corridor_group ?? 'General'}</strong></span>
+              <span>Topology Neighbors: <strong className="text-slate-700 dark:text-slate-300">{selectedCamera.adjacency.length > 0 ? selectedCamera.adjacency.join(', ') : 'None'}</strong></span>
               <span>Model: <strong className="text-teal-700 dark:text-teal-400 font-semibold">{assignedModelName}</strong></span>
             </div>
           </div>

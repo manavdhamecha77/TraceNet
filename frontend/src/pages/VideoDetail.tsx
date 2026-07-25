@@ -597,6 +597,9 @@ export default function VideoDetail() {
 
   const getVideoPlayerUrl = (videoObj: any, cameraObj: any): string => {  // eslint-disable-line @typescript-eslint/no-explicit-any
     if (!videoObj) return ''
+    if (videoObj.id) {
+      return `${API_BASE}/api/v1/videos/${videoObj.id}/stream`
+    }
     if (videoObj.thumbnail_path && videoObj.standardized_filename) {
       const parts = videoObj.thumbnail_path.split(/[/\\]/)
       const ci    = parts.indexOf('cameras')
@@ -764,7 +767,7 @@ export default function VideoDetail() {
       )}
 
       {/* ── 1. HEADER & METADATA BANNER ───────────────────────────────────────── */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-2 px-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
         <div className="flex items-center gap-2.5 flex-wrap">
           <span className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">
             {camera.name || camera_id}
@@ -810,7 +813,7 @@ export default function VideoDetail() {
         {/* ── LEFT: Video Player ──────────────────────────────────────────────── */}
         <div className="space-y-0">
           {/* Player toolbar */}
-          <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-b-0 px-3 py-2 rounded-t-md">
+          <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 border-b-0 px-3.5 py-2.5 rounded-t-xl">
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Forensic Stream</span>

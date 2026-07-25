@@ -92,6 +92,17 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'object_tracklet_id' column to alerts.")
 
+            # Check if tracklets table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tracklets'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(tracklets)")
+                columns = [c[1] for c in cursor.fetchall()]
+                
+                if "attributes" not in columns:
+                    cursor.execute("ALTER TABLE tracklets ADD COLUMN attributes TEXT")
+                    conn.commit()
+                    print("Schema Migration: Added 'attributes' column to tracklets.")
+
                 if "owner_tracklet_ids" not in columns:
                     cursor.execute("ALTER TABLE alerts ADD COLUMN owner_tracklet_ids TEXT DEFAULT '[]'")
                     conn.commit()
@@ -153,6 +164,8 @@ app.add_middleware(
 # Serve the data directory statically to allow access to thumbnails and transcoded clips
 app.mount("/data", StaticFiles(directory=get_data_path("")), name="data")
 
+from app.api.assistant import router as assistant_router
+
 # Register routes
 app.include_router(health_router, prefix=settings.api_prefix)
 app.include_router(cameras_router, prefix=settings.api_prefix)
@@ -165,6 +178,7 @@ app.include_router(metrics_router, prefix=settings.api_prefix)
 app.include_router(alerts_router, prefix=settings.api_prefix)
 app.include_router(analytics_router, prefix=settings.api_prefix)
 app.include_router(audit_router, prefix=settings.api_prefix)
+app.include_router(assistant_router, prefix=settings.api_prefix)
 
 
 @app.get("/", include_in_schema=False)

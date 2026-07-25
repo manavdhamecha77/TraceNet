@@ -150,7 +150,7 @@ export default function EmbeddingModels() {
 
       {/* Active Model Banner */}
       {activeModel && (
-        <div className="bg-white dark:bg-slate-800 border-2 border-teal-600 dark:border-teal-500 rounded-md p-5 shadow-sm space-y-3 relative overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 border-2 border-teal-600 dark:border-teal-500 rounded-xl p-5 shadow-xs space-y-3 relative overflow-hidden">
           <div className="absolute top-0 right-0 bg-teal-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl uppercase tracking-wider">
             Active Embedding Engine
           </div>
@@ -197,7 +197,7 @@ export default function EmbeddingModels() {
             return (
               <div
                 key={m.id}
-                className={`bg-white dark:bg-slate-800 border rounded-md p-4 flex flex-col justify-between space-y-4 transition-all ${
+                className={`bg-white dark:bg-slate-900 border rounded-xl p-4 flex flex-col justify-between space-y-4 transition-all shadow-xs ${
                   isActive
                     ? 'border-teal-500 ring-1 ring-teal-500/30 shadow-sm'
                     : 'border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600'

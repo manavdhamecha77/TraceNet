@@ -21,10 +21,11 @@ class QueryEngine:
         db_dir = get_data_path("vector_db")
         self.client = QdrantClient(path=db_dir)
 
-    def search_tracklets(
+    def search_by_vector(
         self,
         db: Session,
-        query_text: str,
+        query_vector: list[float],
+        query_label: str,
         camera_ids: Optional[Sequence[str]] = None,
         time_start: Optional[datetime] = None,
         time_end: Optional[datetime] = None,
@@ -65,7 +66,7 @@ class QueryEngine:
         except Exception as col_err:
             logger.error(f"Failed vector collection dimension validation: {col_err}")
 
-        # 2. Build Qdrant payload filters
+        # 1. Build Qdrant payload filters
         must_filters = []
         if camera_ids:
             must_filters.append(
@@ -108,7 +109,7 @@ class QueryEngine:
             qdrant_results = []
 
         if not qdrant_results:
-            self._log_search(db, query_text, user_id, 0, camera_ids, time_start, time_end)
+            self._log_search(db, query_label, user_id, 0, camera_ids, time_start, time_end)
             return []
 
         # Map tracklet IDs to scores
@@ -117,7 +118,7 @@ class QueryEngine:
             for res in qdrant_results if res.payload
         }
 
-        # 3. Enrich with SQLite
+        # 2. Enrich with SQLite
         tracklet_ids = list(scores_by_tracklet.keys())
         tracklets = (
             db.query(Tracklet)
@@ -171,6 +172,13 @@ class QueryEngine:
             if data_index != -1:
                 crop_url = normalized[data_index:]
 
+            attr_dict = {}
+            try:
+                if tracklet.attributes:
+                    attr_dict = json.loads(tracklet.attributes)
+            except Exception:
+                pass
+
             filtered_results.append({
                 "score": score,
                 "tracklet_id": tracklet.id,
@@ -187,6 +195,8 @@ class QueryEngine:
                 "best_crop_path": crop_url,
                 "mean_confidence": tracklet.mean_confidence,
                 "best_bbox": best_bbox,
+                "caption": attr_dict.get("caption", ""),
+                "attributes": attr_dict,
                 "video_original_filename": video.original_filename,
                 "video_start_time": video_ref_time.isoformat(),
                 "video_standardized_filename": video.standardized_filename,
@@ -197,10 +207,10 @@ class QueryEngine:
         filtered_results.sort(key=lambda x: x["score"], reverse=True)
         final_results = filtered_results[:top_k]
 
-        # 4. Log search audit trail
+        # 3. Log search audit trail
         self._log_search(
             db=db,
-            query=query_text,
+            query=query_label,
             user=user_id,
             count=len(final_results),
             camera_ids=camera_ids,
@@ -209,6 +219,37 @@ class QueryEngine:
         )
 
         return final_results
+
+    def search_tracklets(
+        self,
+        db: Session,
+        query_text: str,
+        camera_ids: Optional[Sequence[str]] = None,
+        time_start: Optional[datetime] = None,
+        time_end: Optional[datetime] = None,
+        object_type: Optional[str] = None,
+        video_id: Optional[str] = None,
+        top_k: int = 15,
+        user_id: str = "demo",
+    ) -> list[dict]:
+        """
+        Text search wrapper:
+        Encodes query text to vector using CLIP, then delegates to search_by_vector().
+        """
+        logger.info(f"QueryEngine: text search query='{query_text}'")
+        query_vector = self.encoder.embed_text(query_text)
+        return self.search_by_vector(
+            db=db,
+            query_vector=query_vector,
+            query_label=query_text,
+            camera_ids=camera_ids,
+            time_start=time_start,
+            time_end=time_end,
+            object_type=object_type,
+            video_id=video_id,
+            top_k=top_k,
+            user_id=user_id,
+        )
 
     def _log_search(
         self,

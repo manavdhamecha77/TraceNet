@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
 from app.embeddings.clip_encoder import ClipEncoder, get_clip_encoder
+from app.embeddings.captioner import get_blip_captioner
 
 
 @dataclass
@@ -20,6 +21,8 @@ class TrackletEmbeddingRecord:
     best_crop_path: str
     embedding_dim: int
     embedding: list[float]
+    caption: str = ""
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -53,10 +56,11 @@ class TrackletEmbeddingRunResult:
 
 
 class TrackletEmbeddingService:
-    """Generate CLIP embeddings for saved tracklet crops."""
+    """Generate CLIP embeddings and BLIP auto-captions for saved tracklet crops."""
 
     def __init__(self, encoder: ClipEncoder | None = None) -> None:
         self.encoder = encoder or get_clip_encoder()
+        self.captioner = get_blip_captioner()
 
     def embed_detection_artifact(self, detection_artifact_path: str | Path) -> TrackletEmbeddingRunResult:
         artifact_path = Path(detection_artifact_path)
@@ -76,16 +80,30 @@ class TrackletEmbeddingService:
                 skipped_tracklets += 1
                 continue
 
+            obj_type = str(tracklet.get("object_type", "unknown"))
+
+            # Generate CLIP vector embedding
             embedding = self.encoder.embed_image(crop_path)
+
+            # Generate BLIP auto-caption for extra text attributes
+            caption = self.captioner.caption_image(crop_path, object_type=obj_type)
+            attr_payload = {
+                "caption": caption,
+                "model": "Salesforce/blip-image-captioning-base",
+                "class_name": tracklet.get("class_name")
+            }
+
             embedded_records.append(
                 TrackletEmbeddingRecord(
                     tracklet_id=str(tracklet.get("tracklet_id", "")),
                     video_id=str(tracklet.get("video_id", "")),
                     camera_id=str(tracklet.get("camera_id", "")),
-                    object_type=str(tracklet.get("object_type", "unknown")),
+                    object_type=obj_type,
                     best_crop_path=str(crop_path),
                     embedding_dim=len(embedding),
                     embedding=embedding,
+                    caption=caption,
+                    attributes=attr_payload,
                 )
             )
 
@@ -108,7 +126,7 @@ class TrackletEmbeddingService:
             json.dump(result.to_dict(), handle, indent=2)
 
         logger.info(
-            "Embedding run complete for video {}: {} tracklets embedded, {} skipped.",
+            "Embedding run complete for video {}: {} tracklets embedded & BLIP captioned, {} skipped.",
             result.video_id,
             result.embedded_tracklets,
             result.skipped_tracklets,
