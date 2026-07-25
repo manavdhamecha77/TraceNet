@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Sequence
 from loguru import logger
@@ -14,6 +15,11 @@ from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Tracklet, VideoAsset, SearchLog
 
 COLLECTION_NAME = "tracenet_tracklets"
+
+_QUERY_STOP_WORDS = {
+    "a", "an", "and", "at", "by", "for", "from", "in", "near", "of", "on",
+    "the", "to", "with", "person", "people", "vehicle", "car", "someone", "man", "woman",
+}
 
 
 class QueryEngine:
@@ -41,11 +47,7 @@ class QueryEngine:
         3. Enriches results with SQLite joins and filters by absolute timeline window.
         4. Logs search query, timestamp, and results count for the evidentiary audit trail.
         """
-        logger.info(f"QueryEngine: search query='{query_text}', camera_ids={camera_ids}, video_id={video_id}, type={object_type}")
-
-        # 1. Embed query text with active model
-        encoder = get_clip_encoder()
-        query_vector = encoder.embed_text(query_text)
+        logger.info(f"QueryEngine: search query='{query_label}', camera_ids={camera_ids}, video_id={video_id}, type={object_type}")
         query_dim = len(query_vector)
 
         # Ensure collection exists and matches active query dimension
@@ -179,6 +181,19 @@ class QueryEngine:
             except Exception:
                 pass
 
+            explanation = self._build_explanation(
+                query_label=query_label,
+                score=score,
+                mean_confidence=tracklet.mean_confidence,
+                class_name=tracklet.class_name,
+                caption=attr_dict.get("caption", ""),
+                camera_ids=camera_ids,
+                time_start=time_start,
+                time_end=time_end,
+                object_type=object_type,
+                video_id=video_id,
+            )
+
             filtered_results.append({
                 "score": score,
                 "tracklet_id": tracklet.id,
@@ -197,6 +212,7 @@ class QueryEngine:
                 "best_bbox": best_bbox,
                 "caption": attr_dict.get("caption", ""),
                 "attributes": attr_dict,
+                "explanation": explanation,
                 "video_original_filename": video.original_filename,
                 "video_start_time": video_ref_time.isoformat(),
                 "video_standardized_filename": video.standardized_filename,
@@ -237,7 +253,7 @@ class QueryEngine:
         Encodes query text to vector using CLIP, then delegates to search_by_vector().
         """
         logger.info(f"QueryEngine: text search query='{query_text}'")
-        query_vector = self.encoder.embed_text(query_text)
+        query_vector = get_clip_encoder().embed_text(query_text)
         return self.search_by_vector(
             db=db,
             query_vector=query_vector,
@@ -250,6 +266,64 @@ class QueryEngine:
             top_k=top_k,
             user_id=user_id,
         )
+
+    @staticmethod
+    def _build_explanation(
+        query_label: str,
+        score: float,
+        mean_confidence: float,
+        class_name: str,
+        caption: str,
+        camera_ids: Optional[Sequence[str]],
+        time_start: Optional[datetime],
+        time_end: Optional[datetime],
+        object_type: Optional[str],
+        video_id: Optional[str],
+    ) -> dict:
+        """Return transparent retrieval evidence; it is not an identity determination."""
+        is_image_search = query_label.startswith("[IMAGE SEARCH]")
+        query_terms = [] if is_image_search else [
+            token for token in re.findall(r"[a-z0-9-]+", query_label.lower())
+            if len(token) > 2 and token not in _QUERY_STOP_WORDS
+        ]
+        searchable_evidence = f"{class_name} {caption}".lower()
+        matched_terms = [term for term in query_terms if term in searchable_evidence]
+        unknown_terms = [term for term in query_terms if term not in matched_terms]
+
+        evidence = [{
+            "label": "Visual similarity",
+            "detail": ("Reference-image similarity" if is_image_search else "CLIP text-to-image similarity"),
+            "value_percent": round(max(0.0, min(score, 1.0)) * 100, 1),
+        }, {
+            "label": "Detector confidence",
+            "detail": f"Detected as {class_name}",
+            "value_percent": round(max(0.0, min(mean_confidence or 0.0, 1.0)) * 100, 1),
+        }]
+        if caption:
+            evidence.append({
+                "label": "Generated visual description",
+                "detail": caption,
+                "value_percent": None,
+            })
+
+        applied_filters = []
+        if camera_ids:
+            applied_filters.append(f"Camera: {', '.join(camera_ids)}")
+        if object_type and object_type != "all":
+            applied_filters.append(f"Category: {object_type}")
+        if time_start or time_end:
+            applied_filters.append("Time window applied")
+        if video_id:
+            applied_filters.append("Single video applied")
+
+        return {
+            "retrieval_method": "reference-image similarity" if is_image_search else "text-to-image semantic similarity",
+            "evidence": evidence,
+            "matched_query_terms": matched_terms,
+            "unknown_or_unverified_terms": unknown_terms,
+            "applied_filters": applied_filters,
+            "limitation": "Similarity ranks candidates for human review; it does not verify identity or prove an attribute is present or absent.",
+        }
 
     def _log_search(
         self,

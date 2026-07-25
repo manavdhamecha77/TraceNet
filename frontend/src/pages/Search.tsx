@@ -30,6 +30,21 @@ interface MLModel {
   model_type: string
 }
 
+interface ExplanationEvidence {
+  label: string
+  detail: string
+  value_percent: number | null
+}
+
+interface SearchExplanation {
+  retrieval_method: string
+  evidence: ExplanationEvidence[]
+  matched_query_terms: string[]
+  unknown_or_unverified_terms: string[]
+  applied_filters: string[]
+  limitation: string
+}
+
 interface SearchResult {
   score: number
   tracklet_id: string
@@ -51,7 +66,8 @@ interface SearchResult {
   video_thumbnail_path?: string | null
   tracker_id?: number
   caption?: string
-  attributes?: Record<string, any>
+  attributes?: Record<string, unknown>
+  explanation?: SearchExplanation
 }
 
 interface SearchLog {
@@ -799,6 +815,33 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                         "{result.caption}"
                       </div>
                     )}
+
+                    <details className="rounded border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50 text-[9.5px]">
+                      <summary className="cursor-pointer select-none px-2 py-1.5 font-bold text-teal-700 dark:text-teal-400 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" /> Why this matched
+                      </summary>
+                      <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-2 space-y-1.5 text-slate-600 dark:text-slate-300">
+                        {(result.explanation?.evidence || []).map((evidence) => (
+                          <div key={evidence.label} className="flex gap-1.5">
+                            <span className="font-semibold shrink-0">{evidence.label}:</span>
+                            <span>
+                              {evidence.detail}
+                              {evidence.value_percent !== null && ` (${evidence.value_percent}%)`}
+                            </span>
+                          </div>
+                        ))}
+                        {(result.explanation?.matched_query_terms?.length ?? 0) > 0 && (
+                          <div><span className="font-semibold">Caption/class overlap:</span> {result.explanation?.matched_query_terms.join(', ')}</div>
+                        )}
+                        {(result.explanation?.unknown_or_unverified_terms?.length ?? 0) > 0 && (
+                          <div className="text-amber-700 dark:text-amber-400"><span className="font-semibold">Unverified:</span> {result.explanation?.unknown_or_unverified_terms.join(', ')} — not confirmed by the caption.</div>
+                        )}
+                        {(result.explanation?.applied_filters?.length ?? 0) > 0 && (
+                          <div><span className="font-semibold">Filters:</span> {result.explanation?.applied_filters.join(' · ')}</div>
+                        )}
+                        <p className="text-slate-450 dark:text-slate-500 leading-tight">{result.explanation?.limitation || 'Similarity ranking supports human review; it is not an identity determination.'}</p>
+                      </div>
+                    </details>
                   </div>
 
                   {/* Dynamic player action trigger */}

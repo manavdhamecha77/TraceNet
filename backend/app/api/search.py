@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import Optional, List
+from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -45,6 +45,10 @@ class SearchQueryResultItem(BaseModel):
     video_start_time: str
     video_standardized_filename: str
     video_thumbnail_path: Optional[str] = None
+    tracker_id: Optional[int] = None
+    caption: str = ""
+    attributes: dict[str, Any] = Field(default_factory=dict)
+    explanation: dict[str, Any] = Field(default_factory=dict)
 
 
 class SearchLogItem(BaseModel):
