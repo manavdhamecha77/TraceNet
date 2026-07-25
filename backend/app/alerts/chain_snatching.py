@@ -24,9 +24,13 @@ from loguru import logger
 
 from app.config import get_data_path
 
-VEHICLE_CLASS_KEYWORDS = [
+SUSPECT_VEHICLE_KEYWORDS = [
     "motorcycle", "bike", "scooter", "two-wheeler",
-    "vehicle", "car", "bicycle", "auto", "moped"
+    "moped", "bicycle", "auto", "vehicle"
+]
+
+EXCLUDED_VEHICLE_KEYWORDS = [
+    "bus", "truck", "train", "van", "lorry", "container"
 ]
 
 PERSON_CLASS_KEYWORDS = [
@@ -43,10 +47,13 @@ def _is_person_detection(det: dict) -> bool:
 
 
 def _is_vehicle_detection(det: dict) -> bool:
-    if det.get("object_type") in ["vehicle", "motorcycle", "two-wheeler"]:
-        return True
     cname = (det.get("class_name") or "").lower()
-    return any(k in cname for k in VEHICLE_CLASS_KEYWORDS)
+    # Explicitly exclude heavy vehicles like buses and trucks
+    if any(k in cname for k in EXCLUDED_VEHICLE_KEYWORDS):
+        return False
+    if det.get("object_type") in ["motorcycle", "two-wheeler"]:
+        return True
+    return any(k in cname for k in SUSPECT_VEHICLE_KEYWORDS)
 
 
 def _center(bbox: List[float]) -> Tuple[float, float]:

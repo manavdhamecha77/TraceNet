@@ -23,7 +23,7 @@ class BLIPCaptioner:
         self._is_loaded = False
         self._load_failed = False
 
-    def load() -> None:
+    def load(self) -> None:
         if self._is_loaded or self._load_failed:
             return
 
