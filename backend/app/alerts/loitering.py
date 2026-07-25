@@ -53,16 +53,34 @@ class LoiteringAnalyzer:
                     continue
                 state = states.get(tracker_id)
                 if not state or timestamp - float(state["last_seen"]) > zone.grace_seconds:
-                    state = {"entered_at": timestamp, "last_seen": timestamp, "alerted": False}
+                    state = {"entered_at": timestamp, "last_seen": timestamp, "alerted": False, "inside_observations": 1}
                     states[tracker_id] = state
                 else:
                     state["last_seen"] = timestamp
+                    state["inside_observations"] = int(state["inside_observations"]) + 1
                 dwell = timestamp - float(state["entered_at"])
                 tracklet_id = f"{video_id}_trk_{tracker_id}"
                 if dwell >= zone.threshold_seconds and not state["alerted"]:
                     existing = db.query(Alert).filter(Alert.alert_type == "loitering", Alert.video_id == video_id, Alert.tracklet_id == tracklet_id).first()
                     if not existing:
-                        db.add(Alert(alert_type="loitering", tracklet_id=tracklet_id, camera_id=zone.video.camera_id, video_id=video_id, abandon_duration_seconds=dwell, analysis_log=json.dumps({"zone_id": zone.id, "zone_name": zone.name, "dwell_seconds": round(dwell, 2), "point_rule": "bottom_center"})))
+                        db.add(Alert(
+                            alert_type="loitering",
+                            tracklet_id=tracklet_id,
+                            camera_id=zone.video.camera_id,
+                            video_id=video_id,
+                            abandon_duration_seconds=dwell,
+                            analysis_log=json.dumps({
+                                "evidence_type": "loitering_dwell",
+                                "zone_id": zone.id,
+                                "zone_name": zone.name,
+                                "observation_start_seconds": round(float(state["entered_at"]), 2),
+                                "triggered_at_seconds": round(timestamp, 2),
+                                "dwell_seconds": round(dwell, 2),
+                                "threshold_seconds": zone.threshold_seconds,
+                                "inside_observations": int(state["inside_observations"]),
+                                "point_rule": "bottom_center",
+                            }),
+                        ))
                         alerts_created += 1
                     state["alerted"] = True
         db.commit()

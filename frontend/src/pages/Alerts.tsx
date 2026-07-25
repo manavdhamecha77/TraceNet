@@ -174,7 +174,7 @@ function AbandonedAlertCard({
 }: {
   alert: AlertEntry;
   onAcknowledge: (id: number) => void;
-  onTrackTracklet: (videoId: string, trackletIdStr: string, tag: 'OBJECT' | 'OWNER', color: string) => void;
+  onTrackTracklet: (videoId: string, trackletIdStr: string, tag: 'OBJECT' | 'OWNER' | 'LOITERER', color: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false)
   const [acking, setAcking] = useState(false)
@@ -195,6 +195,13 @@ function AbandonedAlertCard({
 
   const isUnattended = alert.alert_type === 'unattended_object'
   const isLoitering = alert.alert_type === 'loitering'
+  let loiteringEvidence: Record<string, unknown> | null = null
+  if (isLoitering && alert.analysis_log) {
+    try {
+      const parsed = JSON.parse(alert.analysis_log)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) loiteringEvidence = parsed
+    } catch { /* The generic analysis log remains available below. */ }
+  }
 
   return (
     <div
@@ -212,7 +219,9 @@ function AbandonedAlertCard({
       <div className="p-4 flex items-start gap-4">
         {/* Object thumbnail + Track Object action */}
         <div className="shrink-0 flex flex-col items-center gap-1.5">
-          {alert.object_tracklet_id ? (
+          {isLoitering ? (
+            <TrackletThumb trackletId={alert.tracklet_id} label="Person" />
+          ) : alert.object_tracklet_id ? (
             <TrackletThumb trackletId={alert.object_tracklet_id} label="Object" />
           ) : (
             <div className="w-12 h-12 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
@@ -228,6 +237,15 @@ function AbandonedAlertCard({
             >
               <Target className="w-3 h-3 text-rose-500" />
               Track Object
+            </button>
+          )}
+          {isLoitering && alert.video_id && (
+            <button
+              onClick={() => onTrackTracklet(alert.video_id!, alert.tracklet_id, 'LOITERER', '#8B5CF6')}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold bg-violet-500/10 border border-violet-500/30 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20 transition-colors shadow-xs"
+              title="Inspect this person's track at the beginning of the dwell window"
+            >
+              <Target className="w-3 h-3" /> Inspect track
             </button>
           )}
         </div>
@@ -268,6 +286,23 @@ function AbandonedAlertCard({
             <span className="mx-1.5 text-slate-300 dark:text-slate-700">·</span>
             <span>{new Date(alert.timestamp).toLocaleString()}</span>
           </div>
+
+          {isLoitering && loiteringEvidence && (
+            <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50/70 p-3 dark:border-violet-900/60 dark:bg-violet-950/20">
+              <div className="flex items-center justify-between gap-3 text-[10px] font-bold uppercase tracking-wider text-violet-800 dark:text-violet-300">
+                <span>Review evidence · {String(loiteringEvidence.zone_name || 'Configured zone')}</span>
+                <span>{Number(loiteringEvidence.inside_observations || 0)} observations</span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-violet-200/70 dark:bg-violet-900/70">
+                <div className="h-full w-full bg-gradient-to-r from-violet-500 via-violet-600 to-amber-400" />
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] text-violet-700 dark:text-violet-300">
+                <span>Entered {Number(loiteringEvidence.observation_start_seconds || 0).toFixed(1)}s</span>
+                <span>Triggered {Number(loiteringEvidence.triggered_at_seconds || 0).toFixed(1)}s</span>
+              </div>
+              <p className="mt-2 text-[10px] leading-relaxed text-violet-800/80 dark:text-violet-200/80">The person’s bottom-centre track point remained inside this user-defined zone for {Number(loiteringEvidence.dwell_seconds || 0).toFixed(1)}s, meeting the {Number(loiteringEvidence.threshold_seconds || 0).toFixed(1)}s review threshold. This is evidence for human review, not a finding of intent.</p>
+            </div>
+          )}
 
           {/* Owner / Visitor strips */}
           {(alert.owner_tracklet_ids.length > 0 || alert.visitor_tracklet_ids.length > 0) && (
@@ -485,7 +520,7 @@ function DetectedObjectCard({
   onTrackTracklet
 }: {
   obj: DetectedObject;
-  onTrackTracklet: (videoId: string, trackletIdStr: string, tag: 'OBJECT' | 'OWNER', color: string) => void;
+  onTrackTracklet: (videoId: string, trackletIdStr: string, tag: 'OBJECT' | 'OWNER' | 'LOITERER', color: string) => void;
 }) {
   const [err, setErr] = useState(false)
   const duration = (obj.timestamp_end_seconds - obj.timestamp_start_seconds).toFixed(1)
@@ -734,7 +769,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
   const handleTrackTracklet = async (
     videoId: string,
     trackletIdStr: string,
-    tag: 'OBJECT' | 'OWNER',
+    tag: 'OBJECT' | 'OWNER' | 'LOITERER',
     color: string
   ) => {
     if (!onPlayVideoAtTime) return
