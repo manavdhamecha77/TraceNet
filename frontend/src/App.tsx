@@ -10,6 +10,7 @@ import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
 import Alerts from './pages/Alerts'
 import TheftAlerts from './pages/TheftAlerts'
+import AlertsDashboard from './pages/AlertsDashboard'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
@@ -22,7 +23,6 @@ import {
   RefreshCw,
   Sun,
   Moon,
-  ShieldAlert,
 } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
@@ -835,25 +835,57 @@ function App() {
               {!isSidebarCollapsed && <span>Search & Rank</span>}
             </Link>
 
-            <Link
-              to="/alerts"
-              className={navLinkClass(location.pathname === '/alerts')}
-              title={isSidebarCollapsed ? 'Alerts' : undefined}
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              {!isSidebarCollapsed && <span>Alerts</span>}
-            </Link>
+            {/* Parent Alerts Item with Sub-sections */}
+            <div className="space-y-0.5">
+              <Link
+                to="/alerts"
+                className={navLinkClass(location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts')}
+                title={isSidebarCollapsed ? 'Alerts' : undefined}
+              >
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {!isSidebarCollapsed && <span className="flex-1">Alerts</span>}
+              </Link>
 
-            <Link
-              to="/theft-alerts"
-              className={navLinkClass(location.pathname === '/theft-alerts')}
-              title={isSidebarCollapsed ? 'Outdoor Theft' : undefined}
-            >
-              <ShieldAlert className="h-4 w-4 shrink-0 text-rose-500" />
-              {!isSidebarCollapsed && <span>Outdoor Theft</span>}
-            </Link>
+              {/* Sub-sections when Alerts is active or hovered */}
+              {!isSidebarCollapsed && (location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts') && (
+                <div className="ml-4 pl-2.5 border-l border-slate-200 dark:border-slate-800 space-y-1 my-1">
+                  <Link
+                    to="/alerts"
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
+                      location.pathname === '/alerts'
+                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span>Overview Dashboard</span>
+                  </Link>
+
+                  <Link
+                    to="/alerts/abandoned"
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
+                      location.pathname === '/alerts/abandoned'
+                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span>Abandoned Objects</span>
+                  </Link>
+
+                  <Link
+                    to="/alerts/theft"
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
+                      location.pathname === '/alerts/theft' || location.pathname === '/theft-alerts'
+                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span>Outdoor Theft</span>
+                  </Link>
+                </div>
+              )}
+            </div>
 
             <Link
               to="/models"
@@ -1005,7 +1037,9 @@ function App() {
             />
             <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
             <Route path="/embedding-models" element={<EmbeddingModels />} />
-            <Route path="/alerts" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/alerts" element={<AlertsDashboard cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/alerts/abandoned" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
