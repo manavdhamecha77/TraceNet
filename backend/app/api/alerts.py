@@ -9,6 +9,7 @@ from loguru import logger
 from app.db.session import get_db, SessionLocal
 from app.db.models import Alert, VideoAsset, CameraProfile, MLModel
 from app.alerts.abandoned_object import AbandonedObjectAnalyzer
+from app.alerts.chain_snatching import ChainSnatchingAnalyzer
 from app.config import get_data_path
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
@@ -47,6 +48,15 @@ class AbandonedAnalysisConfig(BaseModel):
     occlusion_grace_frames: int = 30
 
 
+class ChainSnatchingAnalysisConfig(BaseModel):
+    proximity_threshold_px: int = 120
+    fall_aspect_ratio_trigger: float = 0.85
+    fall_frame_window: int = 2
+    chase_velocity_multiplier: float = 3.0
+    chase_vector_cosine_sim: float = 0.75
+    observation_window_frames: int = 4
+
+
 class TriggerAnalysisResponse(BaseModel):
     status: str
     video_id: str
@@ -74,6 +84,7 @@ _analysis_run_log: List[dict] = []
 # -------------------------------------------------------
 
 CONFIG_FILE = get_data_path("alert_config.json")
+CHAIN_SNATCHING_CONFIG_FILE = get_data_path("chain_snatching_config.json")
 
 
 def load_persistent_config() -> dict:
@@ -92,6 +103,24 @@ def save_persistent_config(config_data: dict):
             json.dump(config_data, f, indent=2)
     except Exception as e:
         logger.error(f"Failed to save alert config file: {e}")
+
+
+def load_persistent_chain_snatching_config() -> dict:
+    if os.path.exists(CHAIN_SNATCHING_CONFIG_FILE):
+        try:
+            with open(CHAIN_SNATCHING_CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to read chain snatching config file: {e}")
+    return ChainSnatchingAnalysisConfig().dict()
+
+
+def save_persistent_chain_snatching_config(config_data: dict):
+    try:
+        with open(CHAIN_SNATCHING_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save chain snatching config file: {e}")
 
 
 # -------------------------------------------------------
@@ -356,6 +385,188 @@ def _run_analysis_background(video_ids: list, config_dict: dict):
             except Exception as e:
                 logger.error(f"Analysis failed for video {video_id}: {e}")
                 for entry in _analysis_run_log:
+                    if entry["video_id"] == video_id:
+                        entry["status"] = "error"
+                        entry["log_entries"] = [f"[ERROR] {str(e)}"]
+    finally:
+        db.close()
+
+
+# -------------------------------------------------------
+# Chain Snatching Endpoints & Config Routes
+# -------------------------------------------------------
+
+_chain_snatching_run_log: List[dict] = []
+
+
+@router.get("/alerts/chain-snatching-config", response_model=ChainSnatchingAnalysisConfig)
+def get_chain_snatching_config():
+    config_dict = load_persistent_chain_snatching_config()
+    return ChainSnatchingAnalysisConfig(**config_dict)
+
+
+@router.put("/alerts/chain-snatching-config", response_model=ChainSnatchingAnalysisConfig)
+def update_chain_snatching_config(config: ChainSnatchingAnalysisConfig):
+    save_persistent_chain_snatching_config(config.dict())
+    return config
+
+
+@router.get("/alerts/chain-snatching-analysis-log")
+def get_chain_snatching_analysis_log():
+    return {"entries": _chain_snatching_run_log}
+
+
+@router.post("/alerts/trigger-chain-snatching-all")
+def trigger_chain_snatching_analysis_all(
+    background_tasks: BackgroundTasks,
+    config: Optional[ChainSnatchingAnalysisConfig] = None,
+    db: Session = Depends(get_db),
+):
+    if config is None:
+        saved_dict = load_persistent_chain_snatching_config()
+        config = ChainSnatchingAnalysisConfig(**saved_dict)
+    else:
+        save_persistent_chain_snatching_config(config.dict())
+
+    cameras = db.query(CameraProfile).filter(
+        CameraProfile.participate_in_alerts == True
+    ).all()
+    camera_ids = [c.camera_id for c in cameras]
+
+    videos = db.query(VideoAsset).filter(
+        VideoAsset.camera_id.in_(camera_ids),
+        VideoAsset.processing_status == "complete",
+        VideoAsset.is_bin == False,
+    ).all()
+
+    video_ids = [v.id for v in videos]
+    logger.info(f"[ChainSnatchingTrigger] Scheduling analysis for {len(video_ids)} videos.")
+
+    global _chain_snatching_run_log
+    _chain_snatching_run_log = []
+
+    for v in videos:
+        camera = db.query(CameraProfile).filter(CameraProfile.camera_id == v.camera_id).first()
+        _chain_snatching_run_log.append({
+            "video_id": v.id,
+            "video_name": v.original_filename,
+            "camera_name": camera.name if camera else v.camera_id,
+            "status": "pending",
+            "eligible": False,
+            "skip_reason": None,
+            "alerts_created": 0,
+            "log_entries": [],
+            "progress_percentage": 0,
+        })
+
+    background_tasks.add_task(_run_chain_snatching_analysis_background, video_ids, config.dict())
+
+    return {
+        "status": "started",
+        "video_count": len(video_ids),
+        "message": f"Chain Snatching analysis started for {len(video_ids)} eligible videos.",
+    }
+
+
+@router.post("/alerts/trigger-chain-snatching/{video_id}")
+def trigger_chain_snatching_analysis_single(
+    video_id: str,
+    background_tasks: BackgroundTasks,
+    config: Optional[ChainSnatchingAnalysisConfig] = None,
+    db: Session = Depends(get_db),
+):
+    if config is None:
+        saved_dict = load_persistent_chain_snatching_config()
+        config = ChainSnatchingAnalysisConfig(**saved_dict)
+    else:
+        save_persistent_chain_snatching_config(config.dict())
+
+    video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found.")
+    if video.processing_status != "complete":
+        raise HTTPException(status_code=400, detail="Video is not fully processed yet.")
+    if video.is_bin:
+        raise HTTPException(status_code=400, detail="Cannot analyze a binned video.")
+
+    camera = db.query(CameraProfile).filter(CameraProfile.camera_id == video.camera_id).first()
+
+    global _chain_snatching_run_log
+    _chain_snatching_run_log = [{
+        "video_id": video_id,
+        "video_name": video.original_filename,
+        "camera_name": camera.name if camera else video.camera_id,
+        "status": "pending",
+        "eligible": False,
+        "skip_reason": None,
+        "alerts_created": 0,
+        "log_entries": [],
+        "progress_percentage": 0,
+    }]
+
+    background_tasks.add_task(_run_chain_snatching_analysis_background, [video_id], config.dict())
+    return {"status": "started", "video_id": video_id, "message": "Chain Snatching analysis started."}
+
+
+def _run_chain_snatching_analysis_background(video_ids: list, config_dict: dict):
+    global _chain_snatching_run_log
+    db = SessionLocal()
+    try:
+        analyzer = ChainSnatchingAnalyzer(**config_dict)
+        for video_id in video_ids:
+            for log_entry in _chain_snatching_run_log:
+                if log_entry["video_id"] == video_id:
+                    log_entry["status"] = "running"
+
+            try:
+                video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+                if not video:
+                    continue
+                camera = db.query(CameraProfile).filter(
+                    CameraProfile.camera_id == video.camera_id
+                ).first()
+                model_classes = []
+                if camera and camera.model_id:
+                    model = db.query(MLModel).filter(MLModel.id == camera.model_id).first()
+                    if model:
+                        try:
+                            model_classes = json.loads(model.classes) if model.classes else []
+                        except Exception:
+                            model_classes = []
+
+                def progress_cb(percent):
+                    for entry in _chain_snatching_run_log:
+                        if entry["video_id"] == video_id:
+                            entry["progress_percentage"] = percent
+
+                result = analyzer.analyze_video(
+                    video_id=video_id,
+                    model_classes=model_classes,
+                    db=db,
+                    progress_callback=progress_cb,
+                )
+
+                if camera:
+                    db.query(Alert).filter(
+                        Alert.video_id == video_id,
+                        Alert.camera_id == ""
+                    ).update({"camera_id": camera.camera_id})
+                    db.commit()
+
+                for entry in _chain_snatching_run_log:
+                    if entry["video_id"] == video_id:
+                        entry.update({
+                            "status": "skipped" if not result["eligible"] else "complete",
+                            "eligible": result["eligible"],
+                            "skip_reason": result["skip_reason"],
+                            "alerts_created": result["alerts_created"],
+                            "log_entries": result["log_entries"],
+                            "progress_percentage": 100 if result["eligible"] else 0,
+                        })
+
+            except Exception as e:
+                logger.error(f"Chain Snatching analysis failed for video {video_id}: {e}")
+                for entry in _chain_snatching_run_log:
                     if entry["video_id"] == video_id:
                         entry["status"] = "error"
                         entry["log_entries"] = [f"[ERROR] {str(e)}"]
