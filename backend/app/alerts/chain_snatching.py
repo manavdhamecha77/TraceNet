@@ -81,13 +81,44 @@ def _cosine_similarity(v1: Tuple[float, float], v2: Tuple[float, float]) -> floa
     return max(-1.0, min(1.0, dot / (mag1 * mag2)))
 
 
+def _is_rider(person_bbox: List[float], vehicle_bbox: List[float]) -> bool:
+    """Returns True if the person's bounding box significantly overlaps with the vehicle bounding box (riding)."""
+    px1, py1, px2, py2 = person_bbox
+    vx1, vy1, vx2, vy2 = vehicle_bbox
+
+    inter_x1 = max(px1, vx1)
+    inter_y1 = max(py1, vy1)
+    inter_x2 = min(px2, vx2)
+    inter_y2 = min(py2, vy2)
+
+    if inter_x2 <= inter_x1 or inter_y2 <= inter_y1:
+        return False
+
+    inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+    p_area = max(1.0, (px2 - px1) * (py2 - py1))
+
+    # If >25% of the person bounding box overlaps with the vehicle box, they are riding the vehicle
+    return (inter_area / p_area) > 0.25
+
+
+def _upper_body_neck_zone(person_bbox: List[float]) -> Tuple[float, float]:
+    """Returns the center (cx, cy) of the upper 30% of a person's bounding box (Head / Neck / Chain zone)."""
+    x1, y1, x2, y2 = person_bbox
+    h = y2 - y1
+    cx = (x1 + x2) / 2.0
+    cy = y1 + (0.25 * h)
+    return (cx, cy)
+
+
 @dataclass
 class ProximityEvent:
-    person_trid: int
-    vehicle_trid: int
+    person_trid: int          # Pedestrian (Victim) ID
+    vehicle_trid: int         # Suspect Vehicle ID
+    rider_trid: Optional[int] # Suspect Rider ID (if riding vehicle)
     frame_idx: int
     timestamp_sec: float
     distance_px: float
+    snatch_interaction: bool = False
 
 
 @dataclass
@@ -101,6 +132,7 @@ class PersonKinematics:
     velocity_history: List[Tuple[int, Tuple[float, float]]] = field(default_factory=list) # [(frame, (vx, vy))]
     is_fallen: bool = False
     is_chasing: bool = False
+    is_snatch_contact: bool = False
     alert_triggered: bool = False
     best_crop_path: Optional[str] = None
 
@@ -268,27 +300,55 @@ class ChainSnatchingAnalyzer:
                 else:
                     v.velocity_history.append((frame_idx, (0.0, 0.0)))
 
-            # RULE A: Evaluate Vehicle-Person Proximity Spikes
-            for pid, pdet in current_persons.items():
-                pcx, pcy = _center(pdet.get("bbox", [0, 0, 1, 1]))
+            # 1. Partition Persons: Riders (on vehicle) vs Pedestrians (target victims)
+            rider_pids = set()
+            vehicle_riders: Dict[int, List[int]] = {}
+
+            for vid, vdet in current_vehicles.items():
+                vbbox = vdet.get("bbox", [0, 0, 1, 1])
+                vehicle_riders[vid] = []
+                for pid, pdet in current_persons.items():
+                    pbbox = pdet.get("bbox", [0, 0, 1, 1])
+                    if _is_rider(pbbox, vbbox):
+                        rider_pids.add(pid)
+                        vehicle_riders[vid].append(pid)
+
+            pedestrian_pids = [pid for pid in current_persons if pid not in rider_pids]
+
+            # 2. Evaluate Proximity Spikes & Snatch Contact between Suspect Vehicle and Pedestrians
+            for pid in pedestrian_pids:
+                pdet = current_persons[pid]
+                pbbox = pdet.get("bbox", [0, 0, 1, 1])
+                pcx, pcy = _center(pbbox)
+                p_neck = _upper_body_neck_zone(pbbox)
+
                 for vid, vdet in current_vehicles.items():
-                    vcx, vcy = _center(vdet.get("bbox", [0, 0, 1, 1]))
+                    vbbox = vdet.get("bbox", [0, 0, 1, 1])
+                    vcx, vcy = _center(vbbox)
                     dist = _dist((pcx, pcy), (vcx, vcy))
-                    if dist < self.proximity_threshold_px:
+                    neck_dist = _dist(p_neck, (vcx, vcy))
+
+                    snatch_contact = neck_dist < (self.proximity_threshold_px * 0.5)
+
+                    if dist < self.proximity_threshold_px or snatch_contact:
+                        rider_id = vehicle_riders[vid][0] if vehicle_riders[vid] else None
                         proximity_events.append(
                             ProximityEvent(
                                 person_trid=pid,
                                 vehicle_trid=vid,
+                                rider_trid=rider_id,
                                 frame_idx=frame_idx,
                                 timestamp_sec=timestamp_sec,
                                 distance_px=dist,
+                                snatch_interaction=snatch_contact,
                             )
                         )
                         log_entries.append(
-                            f"[PROXIMITY_SPIKE] Person #{pid} & Vehicle #{vid} distance={dist:.1f}px at frame {frame_idx} (ts={timestamp_sec:.1f}s)"
+                            f"[PROXIMITY_SPIKE] Target Pedestrian #{pid} & Suspect Vehicle #{vid} "
+                            f"(Rider={rider_id or 'unknown'}) dist={dist:.1f}px (NeckDist={neck_dist:.1f}px) at frame {frame_idx}"
                         )
 
-            # RULE B & RULE C Evaluation
+            # RULE B, RULE C & RULE D Evaluation
             recent_events = [
                 pe for pe in proximity_events
                 if frame_idx - pe.frame_idx <= self.observation_window_frames
@@ -297,13 +357,14 @@ class ChainSnatchingAnalyzer:
             for pevent in recent_events:
                 pid = pevent.person_trid
                 vid = pevent.vehicle_trid
+                rider_id = pevent.rider_trid
                 if pid not in person_registry or person_registry[pid].alert_triggered:
                     continue
 
                 p_kin = person_registry[pid]
                 v_kin = vehicle_registry.get(vid)
 
-                # RULE B: Victim Fall Anomaly (Aspect ratio drop from > 1.1 to < trigger in <= fall_frame_window frames)
+                # RULE B: Victim Fall Anomaly (Aspect ratio drop from > 1.1 to < trigger)
                 if len(p_kin.aspect_history) >= 2 and not p_kin.is_fallen:
                     recent_aspects = [ar for fi, ar in p_kin.aspect_history[-self.fall_frame_window - 1:]]
                     if len(recent_aspects) >= 2:
@@ -312,7 +373,7 @@ class ChainSnatchingAnalyzer:
                         if max_prior_ar > 1.1 and curr_ar < self.fall_aspect_ratio_trigger:
                             p_kin.is_fallen = True
                             log_entries.append(
-                                f"[VICTIM_FALL] Person #{pid} aspect ratio dropped from {max_prior_ar:.2f} to {curr_ar:.2f} "
+                                f"[VICTIM_FALL] Target Pedestrian #{pid} aspect ratio dropped from {max_prior_ar:.2f} to {curr_ar:.2f} "
                                 f"following proximity with Vehicle #{vid} at frame {frame_idx}"
                             )
 
@@ -322,7 +383,6 @@ class ChainSnatchingAnalyzer:
                     v_vx, v_vy = v_kin.velocity_history[-1][1]
 
                     p_speed = math.sqrt(p_vx ** 2 + p_vy ** 2)
-                    # Baseline average speed over earlier frames
                     earlier_speeds = [
                         math.sqrt(vx ** 2 + vy ** 2) for _, (vx, vy) in p_kin.velocity_history[:-1]
                     ]
@@ -334,24 +394,31 @@ class ChainSnatchingAnalyzer:
                     if p_speed > (avg_baseline_speed * self.chase_velocity_multiplier) and cos_sim > self.chase_vector_cosine_sim:
                         p_kin.is_chasing = True
                         log_entries.append(
-                            f"[CHASE_VECTOR] Person #{pid} speed={p_speed:.1f}px/f (base={avg_baseline_speed:.1f}) "
+                            f"[CHASE_VECTOR] Target Pedestrian #{pid} speed={p_speed:.1f}px/f (base={avg_baseline_speed:.1f}) "
                             f"aligned with Vehicle #{vid} (CosSim={cos_sim:.2f}) at frame {frame_idx}"
                         )
 
-                # Trigger Alert Gate: Proximity + (Fall OR Chase)
-                if (p_kin.is_fallen or p_kin.is_chasing) and not p_kin.alert_triggered:
+                # RULE D: Upper-Body Neck Snatch Contact
+                if pevent.snatch_interaction:
+                    p_kin.is_snatch_contact = True
+                    log_entries.append(
+                        f"[SNATCH_CONTACT] Suspect Rider/Vehicle #{vid} hand/front within neck zone of Target Pedestrian #{pid} at frame {frame_idx}"
+                    )
+
+                # Trigger Alert Gate: Proximity + (Fall OR Chase OR Snatch Contact)
+                if (p_kin.is_fallen or p_kin.is_chasing or p_kin.is_snatch_contact) and not p_kin.alert_triggered:
                     p_kin.alert_triggered = True
                     log_entries.append(
-                        f"[CHAIN_SNATCHING_ALERT] TRIGGERED for Person #{pid} (Victim) & Vehicle #{vid} (Suspect) "
+                        f"[CHAIN_SNATCHING_ALERT] TRIGGERED for Pedestrian #{pid} (Victim) & Vehicle #{vid} / Rider #{rider_id or 'unknown'} (Suspect) "
                         f"at frame {frame_idx} (ts={timestamp_sec:.1f}s)"
                     )
-                    alerts_to_create.append((p_kin, v_kin, timestamp_sec))
+                    alerts_to_create.append((p_kin, v_kin, rider_id, timestamp_sec))
 
         # 4. Write Alerts to SQLite Database
         from app.db.models import Alert
         alerts_created = 0
 
-        for p_kin, v_kin, ts in alerts_to_create:
+        for p_kin, v_kin, rider_id, ts in alerts_to_create:
             try:
                 existing = db.query(Alert).filter(
                     Alert.video_id == video_id,
@@ -362,14 +429,20 @@ class ChainSnatchingAnalyzer:
                 if existing:
                     continue
 
+                visitor_tracklets = []
+                if rider_id:
+                    visitor_tracklets.append(f"{video_id}_trk_{rider_id}")
+                if v_kin:
+                    visitor_tracklets.append(v_kin.tracklet_id)
+
                 alert = Alert(
                     alert_type="chain_snatching",
-                    tracklet_id=p_kin.tracklet_id,
+                    tracklet_id=p_kin.tracklet_id,  # Target Victim Pedestrian
                     camera_id="",  # Updated by caller API handler
                     video_id=video_id,
-                    object_tracklet_id=v_kin.tracklet_id if v_kin else None,
-                    owner_tracklet_ids=json.dumps([p_kin.tracklet_id]),
-                    visitor_tracklet_ids=json.dumps([v_kin.tracklet_id]) if v_kin else "[]",
+                    object_tracklet_id=v_kin.tracklet_id if v_kin else None, # Suspect Vehicle
+                    owner_tracklet_ids=json.dumps([p_kin.tracklet_id]),     # VICTIM
+                    visitor_tracklet_ids=json.dumps(visitor_tracklets),      # SUSPECT RIDER / VEHICLE
                     abandon_duration_seconds=0.0,
                     analysis_log=json.dumps(log_entries[-12:]),
                 )
