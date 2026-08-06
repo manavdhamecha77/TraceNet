@@ -1,2 +1,18 @@
 /data/sample_videos/*
 /raw
+/hackathon/
+
+# Model files - should not be version controlled
+*.pt
+*.pth
+*.onnx
+backend/best.pt
+backend/last.pt
+backend/new/
+backend/finetuned_models/
+
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.mkv

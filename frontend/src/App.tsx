@@ -10,6 +10,8 @@ import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
 import Alerts from './pages/Alerts'
 import AssaultDetection from './pages/AssaultDetection'
+import FrameInspection from './pages/FrameInspection'
+import FineTuning from './pages/FineTuning'
 import TheftAlerts from './pages/TheftAlerts'
 import AlertsDashboard from './pages/AlertsDashboard'
 import GlobalSearchBar from './components/GlobalSearchBar'
@@ -1054,6 +1056,8 @@ function App() {
             <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
+            <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
+            <Route path="/finetuning" element={<FineTuning />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
