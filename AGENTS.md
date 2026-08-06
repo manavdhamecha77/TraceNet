@@ -197,6 +197,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 4.6 | Dynamic ML Model Registry (/models) and camera assignment | Backend + Frontend | done | Implemented model upload, dynamic file-system weights resolution, auto YOLO class parsing, and serving execution logs in UI. |
 | 4.7 | Global Conversational AI Search Assistant & Full-Screen Copilot Overlay | Fullstack | done | Implemented `app/assistant/` engine (Ollama + Universal Cloud LLMs), MCP tool calling, session management, domain-locked refusal boundary, 429 rate limit backoff, `GlobalSearchBar` (Ctrl+K), and `AICopilotOverlay`. Verified via `compileall`, `npm run build`, and `git push`. |
 | 4.8 | Outdoor Chain Snatching & Violent Theft Detection Engine | Backend + Docs | done | Implemented `ChainSnatchingAnalyzer` state machine, 4 FPS spatiotemporal proximity/fall/chase vector evaluation, persistent JSON config, API triggers, and full documentation at `docs/chain-snatching-api.md`. Verified via `compileall`. |
+| 4.9 | Multi-Camera Intelligence Suite (Re-ID Journey Map & Sentinel Wave Pursuit) | Fullstack | done | Implemented spatial graph (`camera_graph.py`), DAG trajectory engine (`trajectory_engine.py`), predictive sentinel pursuit manager (`sentinel_wave.py`), FastAPI router (`multicam.py`), interactive Leaflet journey map with step scrubber (`JourneyMapScrubber.tsx`), and floating pursuit HUD (`SentinelWaveHUD.tsx`). Verified via `compileall` and `npm run build`. |
 
 ### Phase 5 — Polish & Demo Prep
 
