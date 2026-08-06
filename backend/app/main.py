@@ -15,6 +15,10 @@ from app.api.alerts import router as alerts_router
 from app.api.analytics import router as analytics_router
 from app.api.audit import router as audit_router
 from app.api.assault_detection import router as assault_detection_router
+from app.api.processing import router as processing_router
+from app.api.webhooks import router as webhooks_router
+from app.api.frame_inspection import router as frame_inspection_router
+from app.api.finetuning import router as finetuning_router
 from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
@@ -27,6 +31,8 @@ os.makedirs(get_data_path("minio_mock"), exist_ok=True)
 os.makedirs(get_data_path("cameras"), exist_ok=True)
 os.makedirs(get_data_path("processed/detections"), exist_ok=True)
 os.makedirs(get_data_path("models"), exist_ok=True)
+os.makedirs(get_data_path("finetuned_models"), exist_ok=True)
+os.makedirs(get_data_path("audit_logs"), exist_ok=True)
 
 # Run schema migrations for SQLite dynamically to prevent OperationalError
 def run_startup_migrations():
@@ -93,6 +99,17 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'object_tracklet_id' column to alerts.")
 
+            # Check if tracklets table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tracklets'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(tracklets)")
+                columns = [c[1] for c in cursor.fetchall()]
+
+                if "attributes" not in columns:
+                    cursor.execute("ALTER TABLE tracklets ADD COLUMN attributes TEXT")
+                    conn.commit()
+                    print("Schema Migration: Added 'attributes' column to tracklets.")
+
                 if "owner_tracklet_ids" not in columns:
                     cursor.execute("ALTER TABLE alerts ADD COLUMN owner_tracklet_ids TEXT DEFAULT '[]'")
                     conn.commit()
@@ -118,16 +135,25 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'analysis_log' column to alerts.")
 
-            # Check if tracklets table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tracklets'")
-            if cursor.fetchone():
-                cursor.execute("PRAGMA table_info(tracklets)")
-                columns = [c[1] for c in cursor.fetchall()]
-                
-                if "attributes" not in columns:
-                    cursor.execute("ALTER TABLE tracklets ADD COLUMN attributes TEXT")
-                    conn.commit()
-                    print("Schema Migration: Added 'attributes' column to tracklets.")
+            # Check if webhooks table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='webhooks'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE webhooks (
+                        id VARCHAR PRIMARY KEY,
+                        url VARCHAR NOT NULL,
+                        webhook_type VARCHAR NOT NULL,
+                        is_active BOOLEAN DEFAULT 1,
+                        confidence_threshold FLOAT DEFAULT 0.6,
+                        camera_ids TEXT DEFAULT '[]',
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        last_triggered_at DATETIME,
+                        delivery_count INTEGER DEFAULT 0
+                    )
+                """)
+                conn.commit()
+                print("Schema Migration: Created 'webhooks' table.")
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -181,6 +207,10 @@ app.include_router(alerts_router, prefix=settings.api_prefix)
 app.include_router(analytics_router, prefix=settings.api_prefix)
 app.include_router(audit_router, prefix=settings.api_prefix)
 app.include_router(assault_detection_router, prefix=settings.api_prefix)
+app.include_router(processing_router, prefix=settings.api_prefix)
+app.include_router(webhooks_router, prefix=settings.api_prefix)
+app.include_router(frame_inspection_router, prefix=settings.api_prefix)
+app.include_router(finetuning_router, prefix=settings.api_prefix)
 app.include_router(assistant_router, prefix=settings.api_prefix)
 app.include_router(multicam_router, prefix=settings.api_prefix)
 
