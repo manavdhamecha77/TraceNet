@@ -9,6 +9,7 @@ import Models from './pages/Models'
 import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
 import Alerts from './pages/Alerts'
+import AssaultDetection from './pages/AssaultDetection'
 import TheftAlerts from './pages/TheftAlerts'
 import AlertsDashboard from './pages/AlertsDashboard'
 import GlobalSearchBar from './components/GlobalSearchBar'
@@ -888,6 +889,17 @@ function App() {
             </div>
 
             <Link
+              to="/assault-detection"
+              className={navLinkClass(location.pathname === '/assault-detection')}
+              title={isSidebarCollapsed ? 'Assault Detection' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 9v2m0 4v2m0-11a9 9 0 110 18 9 9 0 010-18z" />
+              </svg>
+              {!isSidebarCollapsed && <span>Assault Detection</span>}
+            </Link>
+
+            <Link
               to="/models"
               className={navLinkClass(location.pathname.startsWith('/models'))}
               title={isSidebarCollapsed ? 'ML Models' : undefined}
@@ -1041,6 +1053,7 @@ function App() {
             <Route path="/alerts/abandoned" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
