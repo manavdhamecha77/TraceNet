@@ -349,3 +349,66 @@ class ChatSession(Base):
         }
 
 
+class Webhook(Base):
+    __tablename__ = "webhooks"
+
+    id = Column(String, primary_key=True, index=True)
+    url = Column(String, nullable=False)
+    webhook_type = Column(String, nullable=False)  # 'assault' | 'all_alerts'
+    is_active = Column(Boolean, default=True)
+    confidence_threshold = Column(Float, default=0.6)  # Only trigger for assaults above this confidence
+    camera_ids = Column(Text, default="[]")  # JSON list of camera IDs to filter on
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_triggered_at = Column(DateTime, nullable=True)
+    delivery_count = Column(Integer, default=0)
+
+    def to_dict(self):
+        try:
+            cameras = json.loads(self.camera_ids) if self.camera_ids else []
+        except Exception:
+            cameras = []
+        return {
+            "id": self.id,
+            "url": self.url,
+            "webhook_type": self.webhook_type,
+            "is_active": self.is_active,
+            "confidence_threshold": self.confidence_threshold,
+            "camera_ids": cameras,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "last_triggered_at": self.last_triggered_at.isoformat() if self.last_triggered_at else None,
+            "delivery_count": self.delivery_count,
+        }
+
+
+class SentinelSession(Base):
+    __tablename__ = "sentinel_sessions"
+
+    id = Column(String, primary_key=True, index=True)  # UUID string
+    target_tracklet_id = Column(String, ForeignKey("tracklets.id", ondelete="CASCADE"), nullable=True)
+    target_embedding = Column(Text, nullable=True)      # JSON array string (512-dim)
+    status = Column(String, default="active")          # 'active' | 'matched' | 'expired' | 'terminated'
+    origin_camera_id = Column(String, ForeignKey("cameras.camera_id"), nullable=False)
+    speed_mode = Column(String, default="pedestrian")  # 'pedestrian' | 'vehicle'
+    downstream_nodes = Column(Text, default="[]")       # JSON string of active camera IDs + ETAs
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    matched_camera_id = Column(String, nullable=True)
+    matched_tracklet_id = Column(String, nullable=True)
+
+    def to_dict(self):
+        try:
+            nodes = json.loads(self.downstream_nodes) if self.downstream_nodes else []
+        except Exception:
+            nodes = []
+        return {
+            "id": self.id,
+            "target_tracklet_id": self.target_tracklet_id,
+            "status": self.status,
+            "origin_camera_id": self.origin_camera_id,
+            "speed_mode": self.speed_mode,
+            "downstream_nodes": nodes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "matched_camera_id": self.matched_camera_id,
+            "matched_tracklet_id": self.matched_tracklet_id
+        }

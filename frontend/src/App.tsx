@@ -10,8 +10,11 @@ import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
 import Alerts from './pages/Alerts'
 import AssaultDetection from './pages/AssaultDetection'
+import FrameInspection from './pages/FrameInspection'
+import FineTuning from './pages/FineTuning'
 import TheftAlerts from './pages/TheftAlerts'
 import AlertsDashboard from './pages/AlertsDashboard'
+import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
@@ -826,6 +829,17 @@ function App() {
             </Link>
 
             <Link
+              to="/multicam"
+              className={navLinkClass(location.pathname === '/multicam')}
+              title={isSidebarCollapsed ? 'Multi-Cam Intelligence' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              {!isSidebarCollapsed && <span>Multi-Cam Intelligence</span>}
+            </Link>
+
+            <Link
               to="/search"
               className={navLinkClass(location.pathname === '/search')}
               title={isSidebarCollapsed ? 'Search & Rank' : undefined}
@@ -1054,7 +1068,10 @@ function App() {
             <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
+            <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
+            <Route path="/finetuning" element={<FineTuning />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/multicam" element={<MultiCameraTracking />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
 

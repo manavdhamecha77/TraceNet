@@ -173,6 +173,118 @@ class AssaultDetector:
             results.append(result)
         return results
 
+    def predict_with_frames(self, video_path: str, num_frames: int = 16) -> Dict[str, any]:
+        """
+        Predict assault with detailed frame-level analysis.
+        Returns per-frame confidence scores for inspection.
+        """
+        if self.model is None:
+            self.load_model()
+
+        try:
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                logger.error(f"Cannot open video: {video_path}")
+                return {
+                    "has_assault": False,
+                    "assault_type": "unknown",
+                    "confidence": 0.0,
+                    "frame_results": []
+                }
+
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+            frame_indices = np.linspace(0, total_frames - 1, num_frames, dtype=int)
+
+            frame_results = []
+            assault_scores_list = []
+
+            for frame_idx in frame_indices:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                ret, frame = cap.read()
+                if not ret:
+                    continue
+
+                try:
+                    # Convert and process frame
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame_pil = Image.fromarray(frame_rgb)
+
+                    # Prepare input
+                    inputs = self.processor(
+                        images=[np.array(frame_pil)],
+                        return_tensors="pt"
+                    )
+                    inputs = {k: v.to(self.device) for k, v in inputs.items()}
+
+                    # Inference
+                    with torch.no_grad():
+                        outputs = self.model(**inputs)
+                        logits = outputs.logits
+
+                    # Get predictions
+                    probs = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+                    predictions = {
+                        self.labels[i]: float(probs[i])
+                        for i in range(len(self.labels))
+                    }
+
+                    # Get assault scores
+                    assault_scores = {
+                        label: score
+                        for label, score in predictions.items()
+                        if label in self.assault_classes
+                    }
+
+                    max_assault_type = max(assault_scores, key=assault_scores.get)
+                    max_assault_confidence = assault_scores[max_assault_type]
+                    assault_scores_list.append(max_assault_confidence)
+
+                    # Timestamp in seconds
+                    timestamp_seconds = frame_idx / fps if fps > 0 else 0
+
+                    frame_results.append({
+                        "frame_number": frame_idx,
+                        "timestamp_seconds": timestamp_seconds,
+                        "class": max_assault_type,
+                        "confidence": max_assault_confidence,
+                        "predictions": predictions
+                    })
+
+                except Exception as e:
+                    logger.warning(f"Error processing frame {frame_idx}: {e}")
+
+            cap.release()
+
+            # Determine overall assault
+            if assault_scores_list:
+                max_confidence = max(assault_scores_list)
+                has_assault = max_confidence >= self.confidence_threshold
+                max_assault_idx = assault_scores_list.index(max_confidence)
+                assault_type = frame_results[max_assault_idx]["class"] if max_assault_idx < len(frame_results) else "unknown"
+            else:
+                max_confidence = 0.0
+                has_assault = False
+                assault_type = "unknown"
+
+            return {
+                "has_assault": has_assault,
+                "assault_type": assault_type,
+                "confidence": max_confidence,
+                "frame_results": frame_results,
+                "frames_analyzed": len(frame_results)
+            }
+
+        except Exception as e:
+            logger.error(f"Error in predict_with_frames: {e}")
+            return {
+                "has_assault": False,
+                "assault_type": "error",
+                "confidence": 0.0,
+                "frame_results": [],
+                "error": str(e)
+            }
+
 
 # Global instance
 _assault_detector = None
