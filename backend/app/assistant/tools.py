@@ -167,6 +167,121 @@ TOOL_SCHEMAS = [
                 "required": ["video_id"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reconstruct_trajectory",
+            "description": "Reconstruct multi-camera spatial-temporal DAG journey trajectory path for a target tracklet ID across smart city camera graph.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tracklet_id": {
+                        "type": "string",
+                        "description": "Target tracklet ID, e.g. 'video_uuid_trk_5'"
+                    },
+                    "speed_mode": {
+                        "type": "string",
+                        "enum": ["pedestrian", "vehicle", "auto"],
+                        "default": "pedestrian",
+                        "description": "Velocity profile for transit transition feasibility"
+                    }
+                },
+                "required": ["tracklet_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "activate_sentinel_wave",
+            "description": "Activate predictive downstream Sentinel search wave pursuit across neighbor cameras from an origin camera node.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin_camera_id": {
+                        "type": "string",
+                        "description": "Origin camera ID where suspect/target was last seen, e.g. 'CAM_001'"
+                    },
+                    "target_tracklet_id": {
+                        "type": "string",
+                        "description": "Optional target tracklet ID to track"
+                    },
+                    "speed_mode": {
+                        "type": "string",
+                        "enum": ["pedestrian", "vehicle"],
+                        "default": "pedestrian"
+                    }
+                },
+                "required": ["origin_camera_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_chain_snatching_alerts",
+            "description": "Retrieve outdoor chain snatching and violent theft security alerts recorded across smart city camera nodes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "default": 10
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_chain_snatching",
+            "description": "Trigger 4 FPS kinematic chain snatching and violent theft analysis on a target video asset.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "Video asset ID to analyze for chain snatching"
+                    }
+                },
+                "required": ["video_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_assault_alerts",
+            "description": "Retrieve physical assault, fighting, and violent incident alerts detected by VideoMAE model.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "default": 10
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "detect_assault",
+            "description": "Trigger VideoMAE physical assault & fighting detection scan on a target video file asset.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "video_id": {
+                        "type": "string",
+                        "description": "Video asset ID to scan for physical assault or fighting"
+                    }
+                },
+                "required": ["video_id"]
+            }
+        }
     }
 ]
 
@@ -339,6 +454,99 @@ class ToolExecutor:
                 indexer = VectorIndexService()
                 res = indexer.index_video_tracklets(video_id, self.db)
                 return {"status": "success", "video_id": video_id, "indexing_result": res}
+
+            elif name == "reconstruct_trajectory":
+                tracklet_id = args.get("tracklet_id", "").strip()
+                speed_mode = args.get("speed_mode", "pedestrian")
+                from app.analytics.trajectory_engine import TrajectoryEngine
+                engine = TrajectoryEngine(self.db)
+                return engine.reconstruct_trajectory(target_tracklet_id=tracklet_id, speed_mode=speed_mode)
+
+            elif name == "activate_sentinel_wave":
+                origin_cam = args.get("origin_camera_id", "").strip()
+                target_trk = args.get("target_tracklet_id")
+                speed_mode = args.get("speed_mode", "pedestrian")
+                from app.analytics.sentinel_wave import SentinelWaveManager
+                manager = SentinelWaveManager(self.db)
+                return manager.activate_sentinel_wave(
+                    origin_camera_id=origin_cam,
+                    target_tracklet_id=target_trk,
+                    speed_mode=speed_mode
+                )
+
+            elif name == "get_chain_snatching_alerts":
+                limit = min(args.get("limit", 10), 20)
+                alerts = self.db.query(Alert).filter(Alert.alert_type == "chain_snatching").order_by(Alert.timestamp.desc()).limit(limit).all()
+                summaries = [
+                    {
+                        "id": a.id,
+                        "camera_id": a.camera_id,
+                        "video_id": a.video_id,
+                        "victim_tracklet": a.tracklet_id,
+                        "suspect_tracklet": a.object_tracklet_id,
+                        "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+                        "acknowledged": a.acknowledged
+                    }
+                    for a in alerts
+                ]
+                return {"status": "success", "count": len(alerts), "alerts": summaries}
+
+            elif name == "analyze_chain_snatching":
+                video_id = args.get("video_id", "").strip()
+                video = self.db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+                if not video:
+                    return {"status": "error", "message": f"Video '{video_id}' not found."}
+
+                from app.alerts.chain_snatching import ChainSnatchingAnalyzer
+                from app.db.models import CameraProfile, MLModel
+                cam = self.db.query(CameraProfile).filter(CameraProfile.camera_id == video.camera_id).first()
+                model_classes = []
+                if cam and cam.model_id:
+                    m = self.db.query(MLModel).filter(MLModel.id == cam.model_id).first()
+                    if m and m.classes:
+                        try:
+                            model_classes = json.loads(m.classes)
+                        except Exception:
+                            pass
+
+                analyzer = ChainSnatchingAnalyzer()
+                result = analyzer.analyze_video(video_id=video_id, model_classes=model_classes, db=self.db)
+                return {"status": "success", "result": result}
+
+            elif name == "get_assault_alerts":
+                limit = min(args.get("limit", 10), 20)
+                alerts = self.db.query(Alert).filter(Alert.alert_type.in_(["assault", "fighting"])).order_by(Alert.timestamp.desc()).limit(limit).all()
+                summaries = [
+                    {
+                        "id": a.id,
+                        "alert_type": a.alert_type,
+                        "camera_id": a.camera_id,
+                        "video_id": a.video_id,
+                        "tracklet_id": a.tracklet_id,
+                        "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+                        "acknowledged": a.acknowledged
+                    }
+                    for a in alerts
+                ]
+                return {"status": "success", "count": len(alerts), "alerts": summaries}
+
+            elif name == "detect_assault":
+                video_id = args.get("video_id", "").strip()
+                video = self.db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+                if not video:
+                    return {"status": "error", "message": f"Video '{video_id}' not found."}
+
+                from app.config import get_data_path
+                video_path = get_data_path(os.path.join("processed", video.standardized_filename or f"{video_id}.mp4"))
+                if not os.path.exists(video_path):
+                    raw_path = get_data_path(os.path.join("minio_mock", video.original_filename))
+                    if os.path.exists(raw_path):
+                        video_path = raw_path
+
+                from app.detection.assault_detector import get_assault_detector
+                detector = get_assault_detector()
+                result = detector.predict(video_path)
+                return {"status": "success", "video_id": video_id, "prediction": result}
 
             else:
                 return {"status": "error", "message": f"Unknown tool name '{name}'."}

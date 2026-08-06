@@ -15,6 +15,7 @@ from app.db.models import Tracklet, VideoAsset
 
 COLLECTION_NAME = "tracenet_tracklets"
 _qdrant_client_instance: QdrantClient | None = None
+_vector_index_instance: VectorIndexService | None = None
 
 
 def get_qdrant_client() -> QdrantClient:
@@ -26,6 +27,13 @@ def get_qdrant_client() -> QdrantClient:
     return _qdrant_client_instance
 
 
+def get_vector_index() -> VectorIndexService:
+    global _vector_index_instance
+    if _vector_index_instance is None:
+        _vector_index_instance = VectorIndexService()
+    return _vector_index_instance
+
+
 class VectorIndexService:
     def __init__(self, target_dim: int | None = None) -> None:
         self.client = get_qdrant_client()
@@ -35,6 +43,20 @@ class VectorIndexService:
             target_dim = cfg.get("dimension", 512)
         self.target_dim = target_dim
         self._ensure_collection()
+
+    def get_vector_by_point_id(self, point_id: str) -> list[float] | None:
+        """Retrieve vector by Qdrant point ID."""
+        try:
+            records = self.client.retrieve(
+                collection_name=COLLECTION_NAME,
+                ids=[point_id],
+                with_vectors=True
+            )
+            if records and len(records) > 0 and records[0].vector is not None:
+                return list(records[0].vector)
+        except Exception as e:
+            logger.error(f"Failed to retrieve vector for point_id {point_id}: {e}")
+        return None
 
     def _ensure_collection(self) -> None:
         """Create or validate the collection with Cosine similarity matching the target dimension."""
