@@ -298,6 +298,10 @@ Welcome to **TraceNet Copilot**! I am your domain-adapted AI Assistant for Smart
 - **/help** or **/commands** — Open this capability & sitemap reference guide.
 - **/cameras** — List all registered GIS camera nodes, coordinates, and status.
 - **/alerts** — Retrieve real-time loitering and abandoned baggage security alerts.
+- **/theft** — Retrieve outdoor chain snatching and violent theft alerts.
+- **/assault** — Retrieve physical assault & fighting alerts.
+- **/journey <tracklet_id>** — Reconstruct multi-camera spatial-temporal journey path.
+- **/sentinel <camera_id>** — Activate predictive downstream Sentinel pursuit wave.
 - **/models** — Inspect registered ML object detection models & class lists.
 - **/metrics** — View high-level Smart City command-center overview metrics.
 - **/logs** — Inspect search history audit logs for court chain-of-custody compliance.
@@ -306,30 +310,41 @@ Welcome to **TraceNet Copilot**! I am your domain-adapted AI Assistant for Smart
 
 ---
 
-### 🛠️ Automated MCP System Tools (9 Active Tools)
+### 🛠️ Automated MCP System Tools (15 Active Tools)
 1. **\`search_tracklets\`** — Semantic vector search over CCTV footage for target people or vehicles.
 2. **\`list_cameras\`** — Query smart city camera profiles, GIS map locations, and corridor groups.
 3. **\`get_camera_details\`** — View camera metadata, active model, and video feed segments.
 4. **\`get_system_alerts\`** — Query loitering and abandoned baggage security events.
-5. **\`get_search_logs\`** — Audit evidentiary search query history with SHA-256 validation.
-6. **\`get_dashboard_metrics\`** — Command-center stats (cameras, videos, tracklets, alerts).
-7. **\`list_models\`** — View loaded YOLO detection models, weights, and class lists.
-8. **\`assign_camera_model\`** — Assign an ML object detector model to a camera node.
-9. **\`trigger_video_reindex\`** — Re-index tracklet embeddings into Qdrant vector database.
+5. **\`get_chain_snatching_alerts\`** — Retrieve outdoor chain snatching and violent theft alerts.
+6. **\`analyze_chain_snatching\`** — Trigger 4 FPS kinematic chain snatching analysis on video feeds.
+7. **\`get_assault_alerts\`** — Retrieve physical assault, fighting, and violent incident alerts.
+8. **\`detect_assault\`** — Trigger VideoMAE physical assault & fighting scan on video feeds.
+9. **\`reconstruct_trajectory\`** — Reconstruct multi-camera spatial-temporal DAG journey path.
+10. **\`activate_sentinel_wave\`** — Activate predictive downstream Sentinel search wave pursuit.
+11. **\`get_search_logs\`** — Audit evidentiary search query history with SHA-256 validation.
+12. **\`get_dashboard_metrics\`** — Command-center stats (cameras, videos, tracklets, alerts).
+13. **\`list_models\`** — View loaded YOLO detection models, weights, and class lists.
+14. **\`assign_camera_model\`** — Assign an ML object detector model to a camera node.
+15. **\`trigger_video_reindex\`** — Re-index tracklet embeddings into Qdrant vector database.
 
 ---
 
 ### 💡 Example Prompts to Try
 - \`"Find a person in a red jacket near CAM_001"\`
-- \`"List all active camera nodes in Corridor A"\`
-- \`"Are there any active loitering or abandoned baggage security alerts?"\`
-- \`"Assign model yolo-traffic to CAM_002"\`
+- \`"Reconstruct the journey path for tracklet CAM_001_trk_5"\`
+- \`"Activate Sentinel pursuit wave from origin camera CAM_001"\`
+- \`"Check for recent chain snatching or theft alerts"\`
+- \`"Scan video_id_123 for physical assault or fighting"\`
 - \`"Give me an overview of system health and total processed videos"\``
 
 const SLASH_COMMANDS = [
   { cmd: '/help', desc: 'Display platform capabilities & commands reference guide' },
   { cmd: '/cameras', desc: 'List all registered GIS camera nodes & status' },
   { cmd: '/alerts', desc: 'Retrieve recent loitering & security alerts' },
+  { cmd: '/theft', desc: 'Retrieve outdoor chain snatching & theft alerts' },
+  { cmd: '/assault', desc: 'Retrieve physical assault & fighting alerts' },
+  { cmd: '/journey', desc: 'Reconstruct multi-camera trajectory journey path' },
+  { cmd: '/sentinel', desc: 'Activate predictive downstream Sentinel pursuit wave' },
   { cmd: '/models', desc: 'Inspect registered ML detector models & YOLO weights' },
   { cmd: '/metrics', desc: 'View high-level Smart City command-center metrics' },
   { cmd: '/logs', desc: 'View evidentiary search audit history' },
