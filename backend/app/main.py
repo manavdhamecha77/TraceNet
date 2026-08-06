@@ -14,6 +14,7 @@ from app.api.metrics import router as metrics_router
 from app.api.alerts import router as alerts_router
 from app.api.analytics import router as analytics_router
 from app.api.audit import router as audit_router
+from app.api.assault_detection import router as assault_detection_router
 from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
@@ -178,6 +179,7 @@ app.include_router(metrics_router, prefix=settings.api_prefix)
 app.include_router(alerts_router, prefix=settings.api_prefix)
 app.include_router(analytics_router, prefix=settings.api_prefix)
 app.include_router(audit_router, prefix=settings.api_prefix)
+app.include_router(assault_detection_router, prefix=settings.api_prefix)
 app.include_router(assistant_router, prefix=settings.api_prefix)
 
 
