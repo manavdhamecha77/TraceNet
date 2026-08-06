@@ -71,6 +71,258 @@ const CLOUD_MODEL_OPTIONS = [
   { label: '+ Enter Custom Model Name...', value: '__custom__' },
 ]
 
+const Markdown: React.FC<{ content: string }> = ({ content }) => {
+  if (!content) return null
+
+  // Split content by code blocks to avoid formatting markdown inside code blocks
+  const parts = content.split(/(```[\s\S]*?```)/g)
+
+  const formatInlineCodeOnly = (text: string): React.ReactNode[] => {
+    const codeParts = text.split(/(`.*?`)/g)
+    return codeParts.map((part, i) => {
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return (
+          <code key={`c-${i}`} className="px-1.5 py-0.5 rounded bg-slate-950 text-teal-300 font-mono text-[11px] border border-slate-800">
+            {part.slice(1, -1)}
+          </code>
+        )
+      }
+      return part
+    })
+  }
+
+  const formatInline = (text: string): React.ReactNode[] => {
+    const boldParts = text.split(/(\*\*.*?\*\*)/g)
+    return boldParts.flatMap((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const innerText = part.slice(2, -2)
+        return (
+          <strong key={`b-${i}`} className="font-bold text-teal-400">
+            {formatInlineCodeOnly(innerText)}
+          </strong>
+        )
+      }
+      return formatInlineCodeOnly(part)
+    })
+  }
+
+  return (
+    <div className="space-y-2">
+      {parts.map((part, partIdx) => {
+        if (part.startsWith('```') && part.endsWith('```')) {
+          const lines = part.slice(3, -3).trim().split('\n')
+          const firstLine = lines[0].trim()
+          const hasLang = /^[a-zA-Z0-9_-]+$/.test(firstLine)
+          const lang = hasLang ? firstLine : ''
+          const codeLines = hasLang ? lines.slice(1) : lines
+          const codeText = codeLines.join('\n')
+
+          return (
+            <pre key={partIdx} className="my-2 p-3 rounded-xl bg-slate-950 border border-slate-800 overflow-x-auto font-mono text-[11px] text-teal-200 leading-relaxed shadow-inner">
+              {lang && (
+                <div className="text-[10px] text-slate-500 font-sans font-bold uppercase mb-1.5 tracking-wider border-b border-slate-800 pb-1">
+                  {lang}
+                </div>
+              )}
+              <code>{codeText}</code>
+            </pre>
+          )
+        }
+
+        const lines = part.split('\n')
+        const renderedElements: React.ReactNode[] = []
+        let listItems: React.ReactNode[] = []
+        let inList = false
+        let listType: 'ul' | 'ol' = 'ul'
+        let tableRows: string[] = []
+        let inTable = false
+
+        const flushList = (key: string | number) => {
+          if (listItems.length > 0) {
+            if (listType === 'ul') {
+              renderedElements.push(
+                <ul key={`ul-${key}`} className="list-disc pl-5 my-1.5 space-y-1 text-slate-300">
+                  {listItems}
+                </ul>
+              )
+            } else {
+              renderedElements.push(
+                <ol key={`ol-${key}`} className="list-decimal pl-5 my-1.5 space-y-1 text-slate-300">
+                  {listItems}
+                </ol>
+              )
+            }
+            listItems = []
+          }
+          inList = false
+        }
+
+        const flushTable = (key: string | number) => {
+          if (tableRows.length > 0) {
+            const headerRow = tableRows[0]
+            const dataRows = tableRows.slice(1)
+
+            // Check if second row is separator
+            let separatorIndex = -1
+            if (dataRows.length > 0 && /^[\s|:-]+$/.test(dataRows[0].trim())) {
+              separatorIndex = 0
+            }
+
+            const headers = headerRow.replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+            const rowsData = dataRows
+              .filter((_, idx) => idx !== separatorIndex)
+              .map(row => row.replace(/^\||\|$/g, '').split('|').map(c => c.trim()))
+
+            renderedElements.push(
+              <div key={`table-wrapper-${key}`} className="overflow-x-auto my-3 rounded-xl border border-slate-800 shadow-sm max-w-full">
+                <table className="min-w-full divide-y divide-slate-800 text-[11px] font-sans text-slate-300 bg-slate-950/40">
+                  <thead className="bg-slate-900 text-slate-200">
+                    <tr>
+                      {headers.map((h, hIdx) => (
+                        <th key={hIdx} className="px-3 py-2 text-left font-bold border-r border-slate-800 last:border-r-0 whitespace-nowrap">
+                          {formatInline(h)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {rowsData.map((row, rIdx) => (
+                      <tr key={rIdx} className="hover:bg-slate-900/40 transition-colors odd:bg-slate-900/10">
+                        {row.map((cell, cIdx) => (
+                          <td key={cIdx} className="px-3 py-1.5 border-r border-slate-800 last:border-r-0 break-words max-w-[250px]">
+                            {formatInline(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+            tableRows = []
+          }
+          inTable = false
+        }
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i]
+          const trimmed = line.trim()
+          const isTableLine = trimmed.startsWith('|') && trimmed.endsWith('|')
+
+          if (isTableLine) {
+            flushList(i)
+            inTable = true
+            tableRows.push(line)
+            continue
+          } else if (inTable) {
+            flushTable(i)
+          }
+
+          // Horizontal Rule
+          if (trimmed === '---' || trimmed === '***' || trimmed === '___') {
+            flushList(i)
+            renderedElements.push(<hr key={i} className="border-slate-800 my-3" />)
+            continue
+          }
+
+          // Headers
+          const headerMatch = line.match(/^(#{1,6})\s+(.*)$/)
+          if (headerMatch) {
+            flushList(i)
+            const level = headerMatch[1].length
+            const text = headerMatch[2]
+            const inlineFormatted = formatInline(text)
+
+            if (level === 1) {
+              renderedElements.push(
+                <h1 key={i} className="text-sm font-extrabold text-slate-100 mt-3 mb-1.5 tracking-tight border-b border-slate-800 pb-1">
+                  {inlineFormatted}
+                </h1>
+              )
+            } else if (level === 2) {
+              renderedElements.push(
+                <h2 key={i} className="text-xs font-bold text-slate-100 mt-2.5 mb-1">
+                  {inlineFormatted}
+                </h2>
+              )
+            } else {
+              renderedElements.push(
+                <h3 key={i} className="text-xs font-semibold text-slate-200 mt-2 mb-0.5">
+                  {inlineFormatted}
+                </h3>
+              )
+            }
+            continue
+          }
+
+          // Unordered lists
+          const ulMatch = line.match(/^([*\-+]|\u2022)\s+(.*)$/)
+          if (ulMatch) {
+            if (inList && listType !== 'ul') {
+              flushList(i)
+            }
+            inList = true
+            listType = 'ul'
+            listItems.push(
+              <li key={`li-${i}`} className="leading-relaxed">
+                {formatInline(ulMatch[2])}
+              </li>
+            )
+            continue
+          }
+
+          // Ordered lists
+          const olMatch = line.match(/^(\d+)\.\s+(.*)$/)
+          if (olMatch) {
+            if (inList && listType !== 'ol') {
+              flushList(i)
+            }
+            inList = true
+            listType = 'ol'
+            listItems.push(
+              <li key={`li-${i}`} className="leading-relaxed">
+                {formatInline(olMatch[2])}
+              </li>
+            )
+            continue
+          }
+
+          // Empty line
+          if (trimmed === '') {
+            flushList(i)
+            continue
+          }
+
+          // Regular paragraph line
+          if (inList) {
+            if (line.startsWith('  ')) {
+              listItems.push(
+                <div key={`li-cont-${i}`} className="pl-4 text-slate-400">
+                  {formatInline(trimmed)}
+                </div>
+              )
+              continue
+            } else {
+              flushList(i)
+            }
+          }
+
+          renderedElements.push(
+            <p key={i} className="my-1 text-slate-200 leading-relaxed">
+              {formatInline(line)}
+            </p>
+          )
+        }
+
+        flushList(`end-${partIdx}`)
+        flushTable(`end-${partIdx}`)
+
+        return <React.Fragment key={partIdx}>{renderedElements}</React.Fragment>
+      })}
+    </div>
+  )
+}
+
 export default function AICopilotOverlay({
   isOpen,
   onClose,
@@ -708,7 +960,11 @@ const SLASH_COMMANDS = [
                           : 'bg-slate-900/90 border border-slate-800 text-slate-100 rounded-tl-xs shadow-sm'
                       }`}
                     >
-                      <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
+                      {msg.role === 'user' ? (
+                        <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
+                      ) : (
+                        <Markdown content={msg.content} />
+                      )}
                     </div>
 
                     {/* Candidate Tracklet Cards Grid */}
