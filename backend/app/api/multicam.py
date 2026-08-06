@@ -8,7 +8,7 @@ from app.analytics.trajectory_engine import TrajectoryEngine
 from app.analytics.sentinel_wave import SentinelWaveManager
 from app.analytics.camera_graph import CameraSpatialGraph
 
-router = APIRouter(prefix="/multicam", tags=["Multi-Camera Analytics"])
+router = APIRouter(prefix="/api/v1/multicam", tags=["Multi-Camera Analytics"])
 
 
 class TrajectoryRequest(BaseModel):
