@@ -53,13 +53,17 @@ class OllamaProvider(BaseLLMProvider):
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": formatted_messages,
-            "stream": False
+            "stream": False,
+            "options": {
+                "num_ctx": 4096,
+                "temperature": 0.2
+            }
         }
         if tools:
             payload["tools"] = tools
 
         try:
-            resp = requests.post(url, json=payload, timeout=90)
+            resp = requests.post(url, json=payload, timeout=180)
 
             # If 400 error occurs due to passing images to a text-only Ollama model, strip raw images and retry
             if resp.status_code == 400:
@@ -72,7 +76,7 @@ class OllamaProvider(BaseLLMProvider):
                         c.pop("images", None)
                         clean_messages.append(c)
                     payload["messages"] = clean_messages
-                    resp = requests.post(url, json=payload, timeout=90)
+                    resp = requests.post(url, json=payload, timeout=180)
 
             if resp.status_code == 404:
                 try:
@@ -89,7 +93,7 @@ class OllamaProvider(BaseLLMProvider):
                 else:
                     # Fallback try Ollama OpenAI-compatible v1 endpoint
                     v1_url = f"{self.host}/v1/chat/completions"
-                    v1_resp = requests.post(v1_url, json=payload, timeout=90)
+                    v1_resp = requests.post(v1_url, json=payload, timeout=180)
                     if v1_resp.status_code == 200:
                         v1_data = v1_resp.json()
                         v1_choice = v1_data["choices"][0]["message"]
@@ -119,10 +123,16 @@ class OllamaProvider(BaseLLMProvider):
             }
         except RuntimeError:
             raise
+        except requests.exceptions.Timeout:
+            raise RuntimeError(
+                f"Ollama local model '{self.model}' timed out after 180 seconds. "
+                f"Local CPU inference may be slow or overloaded. "
+                f"Tip: You can switch to ultra-fast Groq Cloud (Free) or OpenAI/OpenRouter in Copilot Settings (⚙️ Gear Icon)."
+            ) from None
         except requests.exceptions.ConnectionError:
             raise RuntimeError(
                 f"Could not connect to Ollama server at '{self.host}'. "
-                f"Ensure Ollama application is running on your machine, or switch to Cloud OpenAI API in Copilot Settings."
+                f"Ensure Ollama is running on your machine, or switch to Cloud Provider (Groq / OpenRouter / OpenAI) in Copilot Settings."
             ) from None
         except Exception as e:
             logger.error(f"Ollama provider connection error on {self.host}: {e}")
