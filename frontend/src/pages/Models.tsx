@@ -30,16 +30,33 @@ interface ModelsProps {
 
 const API_BASE = 'http://localhost:8000'
 
+const CATEGORY_LABELS: Record<string, { label: string; color: string; border: string; bg: string }> = {
+  general: { label: 'General', color: 'text-teal-700 dark:text-teal-300', border: 'border-teal-500/30', bg: 'bg-teal-500/10' },
+  theft: { label: 'Outdoor Theft', color: 'text-rose-700 dark:text-rose-300', border: 'border-rose-500/30', bg: 'bg-rose-500/10' },
+  abandoned: { label: 'Abandoned Objects', color: 'text-amber-700 dark:text-amber-300', border: 'border-amber-500/30', bg: 'bg-amber-500/10' },
+  assault: { label: 'Assault Detection', color: 'text-purple-700 dark:text-purple-300', border: 'border-purple-500/30', bg: 'bg-purple-500/10' },
+}
+
 export default function Models({ models, onRefreshModels }: ModelsProps) {
   // Local state for modals & drawers
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [activeLogModelId, setActiveLogModelId] = useState<string | null>(null)
   const [modelLogs, setModelLogs] = useState<ServingLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [editingCategoryModelId, setEditingCategoryModelId] = useState<string | null>(null)
+  const [selectedClassesModel, setSelectedClassesModel] = useState<MLModel | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // Filters & Search State
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [archFilter, setArchFilter] = useState('all')
+  const [classFilter, setClassFilter] = useState('')
+  const [onlyDefaults, setOnlyDefaults] = useState(false)
 
   // Form State
   const [name, setName] = useState('')
-  const [modelType, setModelType] = useState('') // YOLOv8, YOLOv11, YOLOv12, RT-DETR, GroundingDino
+  const [modelType, setModelType] = useState('')
   const [category, setCategory] = useState('general')
   const [isDefault, setIsDefault] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -49,6 +66,25 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
   const [formSuccess, setFormSuccess] = useState(false)
   const [registeredClasses, setRegisteredClasses] = useState<string[]>([])
 
+  // Category update handler
+  const handleUpdateCategory = async (modelId: string, newCategory: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/models/${modelId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: newCategory }),
+      })
+      if (res.ok) {
+        onRefreshModels()
+      }
+    } catch (err) {
+      console.error('Failed to update model category:', err)
+    } finally {
+      setEditingCategoryModelId(null)
+    }
+  }
+
+  // Set default model handler
   const handleSetDefault = async (modelId: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/models/${modelId}/set-default`, { method: 'PUT' })
@@ -58,6 +94,13 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
     } catch (err) {
       console.error('Failed to set default model:', err)
     }
+  }
+
+  // Copy helper
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 2000)
   }
 
   // Fetch model serving logs
@@ -115,11 +158,9 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
       formData.append('manual_classes', manualClasses.trim())
     }
 
-    // Set upload progress to 0 to show progress bar
     setUploadProgress(0)
 
     try {
-      // Create XMLHttp Request to support upload progress monitoring
       const xhr = new XMLHttpRequest()
       xhr.open('POST', `${API_BASE}/api/v1/models`)
 
@@ -145,7 +186,6 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
           onRefreshModels()
           setTimeout(() => {
             setIsRegisterOpen(false)
-            // Reset state
             setName('')
             setModelType('')
             setFile(null)
@@ -204,7 +244,39 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
     }
   }
 
-  // Parse comma separated values to chips preview
+  // Filtered Models Computation
+  const filteredModels = models.filter(m => {
+    // 1. Search Query (Name, ID, Path)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      const matchName = m.name.toLowerCase().includes(q)
+      const matchId = m.id.toLowerCase().includes(q)
+      const matchPath = m.file_path.toLowerCase().includes(q)
+      if (!matchName && !matchId && !matchPath) return false
+    }
+    // 2. Category Filter
+    if (categoryFilter !== 'all') {
+      const cat = m.category || 'general'
+      if (cat !== categoryFilter) return false
+    }
+    // 3. Architecture Filter
+    if (archFilter !== 'all') {
+      if (m.model_type !== archFilter) return false
+    }
+    // 4. Detectable Class Keyword Filter
+    if (classFilter.trim()) {
+      const cq = classFilter.toLowerCase()
+      const matchClass = m.classes.some(c => c.toLowerCase().includes(cq))
+      if (!matchClass) return false
+    }
+    // 5. Defaults Only Filter
+    if (onlyDefaults && !m.is_default) {
+      return false
+    }
+    return true
+  })
+
+  // Parse manual upload class chips
   const classChips = manualClasses
     ? manualClasses.split(',').map(s => s.trim()).filter(Boolean)
     : []
@@ -215,99 +287,265 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 text-slate-800 dark:text-slate-100">
       
       {/* ── PAGE HEADER ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">AI Model Registry</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Manage weight file libraries, inspect supported classes, and view serving statistics.</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">AI Model Registry</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Manage weight libraries, assign specialized engine roles, inspect detectable classes, and analyze execution metrics.
+          </p>
         </div>
         <button
           onClick={() => setIsRegisterOpen(true)}
-          className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors"
+          className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white px-3.5 py-2 rounded-lg text-xs font-bold transition-all shadow-sm shrink-0"
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
           </svg>
           Register Model
         </button>
       </div>
 
+      {/* ── SEARCH & FILTER CONTROLS BAR ── */}
+      <section className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+            <svg className="w-4 h-4 text-teal-600 dark:text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Search &amp; Filter Model Nodes
+          </span>
+          {(searchQuery || categoryFilter !== 'all' || archFilter !== 'all' || classFilter || onlyDefaults) && (
+            <button
+              onClick={() => {
+                setSearchQuery('')
+                setCategoryFilter('all')
+                setArchFilter('all')
+                setClassFilter('')
+                setOnlyDefaults(false)
+              }}
+              className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:underline"
+            >
+              Reset Filters
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+          {/* 1. Name / Text Search */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Search Name / ID</label>
+            <input
+              type="text"
+              placeholder="Search model name..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full h-8 px-2.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+            />
+          </div>
+
+          {/* 2. Category Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Alert Role / Engine</label>
+            <select
+              value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+              className="w-full h-8 px-2.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+            >
+              <option value="all">All Roles &amp; Engines</option>
+              <option value="general">General Object Detector</option>
+              <option value="theft">Outdoor Theft Detector</option>
+              <option value="abandoned">Abandoned Object Detector</option>
+              <option value="assault">Assault Detector</option>
+            </select>
+          </div>
+
+          {/* 3. Architecture Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Architecture</label>
+            <select
+              value={archFilter}
+              onChange={e => setArchFilter(e.target.value)}
+              className="w-full h-8 px-2.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+            >
+              <option value="all">All Architectures</option>
+              <option value="YOLOv8">YOLOv8</option>
+              <option value="YOLOv11">YOLOv11</option>
+              <option value="YOLOv12">YOLOv12</option>
+              <option value="RT-DETR">RT-DETR</option>
+              <option value="GroundingDino">GroundingDino</option>
+            </select>
+          </div>
+
+          {/* 4. Detectable Class Keyword Filter */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Filter Class Keyword</label>
+            <input
+              type="text"
+              placeholder="e.g. person, suitcase"
+              value={classFilter}
+              onChange={e => setClassFilter(e.target.value)}
+              className="w-full h-8 px-2.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+            />
+          </div>
+
+          {/* 5. See All Defaults Toggle */}
+          <div className="flex items-end">
+            <button
+              onClick={() => setOnlyDefaults(p => !p)}
+              className={`w-full h-8 px-3 rounded-md border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                onlyDefaults
+                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                  : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <span>{onlyDefaults ? '★ Showing Defaults Only' : 'See All Defaults'}</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ── MODELS LIST TABLE ── */}
       <section className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-          Registered Models Directory — {models.length} Model{models.length !== 1 ? 's' : ''} Loaded
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+          <span>Registered Models Directory — Showing {filteredModels.length} of {models.length} Models</span>
         </div>
 
         <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-left">
           <thead className="bg-slate-50 dark:bg-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">
             <tr>
-              <th className="px-3 py-2.5">Model Name & Role</th>
-              <th className="px-3 py-2.5">Architecture</th>
-              <th className="px-3 py-2.5">Weights File Path</th>
-              <th className="px-3 py-2.5">Detectable Classes</th>
-              <th className="px-3 py-2.5">Last Used</th>
-              <th className="px-3 py-2.5 text-right w-[240px]">Actions</th>
+              <th className="px-3.5 py-3">Model Name</th>
+              <th className="px-3.5 py-3">Engine Category / Role</th>
+              <th className="px-3.5 py-3">Architecture</th>
+              <th className="px-3.5 py-3">Detectable Classes</th>
+              <th className="px-3.5 py-3">Last Served</th>
+              <th className="px-3.5 py-3 text-right w-[240px]">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-            {models.length === 0 ? (
+            {filteredModels.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-center py-16 text-xs text-slate-400 dark:text-slate-600">
-                  No custom models registered yet. Use <strong>Register Model</strong> to upload weights.
+                  No model nodes match your search criteria. Try clearing search filters or registering a model.
                 </td>
               </tr>
             ) : (
-              models.map(model => {
+              filteredModels.map(model => {
                 const isExpanded = activeLogModelId === model.id
+                const catInfo = CATEGORY_LABELS[model.category || 'general'] || CATEGORY_LABELS['general']
+                const isEditingCat = editingCategoryModelId === model.id
+
                 return (
                   <React.Fragment key={model.id}>
                     <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                      {/* Name & Role */}
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{model.name}</span>
-                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            {model.category || 'general'}
+                      
+                      {/* 1. Model Name */}
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{model.name}</span>
+                            {model.is_default && (
+                              <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                ★ DEFAULT
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate max-w-[200px]" title={model.file_path}>
+                            weights: {model.file_path.split(/[\/\\]/).pop()}
                           </span>
-                          {model.is_default && (
-                            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                              ★ DEFAULT
-                            </span>
-                          )}
                         </div>
                       </td>
-                      {/* Type */}
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="inline-flex rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20 px-2 py-0.5 text-[10px] font-bold">
+
+                      {/* 2. Engine Category (Click to edit) */}
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        {isEditingCat ? (
+                          <select
+                            autoFocus
+                            defaultValue={model.category || 'general'}
+                            onChange={(e) => handleUpdateCategory(model.id, e.target.value)}
+                            onBlur={() => setEditingCategoryModelId(null)}
+                            className="text-xs px-2 py-1 rounded border border-teal-500 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none"
+                          >
+                            <option value="general">General</option>
+                            <option value="theft">Outdoor Theft</option>
+                            <option value="abandoned">Abandoned Objects</option>
+                            <option value="assault">Assault Detection</option>
+                          </select>
+                        ) : (
+                          <button
+                            onClick={() => setEditingCategoryModelId(model.id)}
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider border transition-transform hover:scale-105 ${catInfo.bg} ${catInfo.color} ${catInfo.border}`}
+                            title="Click to change engine role"
+                          >
+                            <span>{catInfo.label}</span>
+                            <svg className="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                        )}
+                      </td>
+
+                      {/* 3. Architecture */}
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <span className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 text-[10px] font-bold">
                           {model.model_type}
                         </span>
                       </td>
-                      {/* File Path */}
-                      <td className="px-3 py-2.5 whitespace-nowrap text-xs font-mono text-slate-500 dark:text-slate-450 truncate max-w-[180px]" title={model.file_path}>
-                        {model.file_path}
+
+                      {/* 4. Detectable Classes (Clipped with See More modal link) */}
+                      <td className="px-3.5 py-3 max-w-[240px]">
+                        {model.classes.length > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap gap-1">
+                              {model.classes.slice(0, 3).map((cls, idx) => (
+                                <span key={idx} className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded px-1.5 py-0.5 text-[9px] font-medium border border-slate-200 dark:border-slate-700">
+                                  {cls}
+                                </span>
+                              ))}
+                            </div>
+                            {model.classes.length > 3 && (
+                              <button
+                                onClick={() => setSelectedClassesModel(model)}
+                                className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline shrink-0"
+                              >
+                                +{model.classes.length - 3} more...
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 dark:text-slate-600 italic text-[10px]">None registered</span>
+                        )}
                       </td>
-                      {/* Classes */}
-                      <td className="px-3 py-2.5 max-w-[220px]">
-                        <div className="flex flex-wrap gap-1 max-h-[44px] overflow-y-auto">
-                          {model.classes.length > 0 ? (
-                            model.classes.map((cls, idx) => (
-                              <span key={idx} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded px-1.5 py-0.5 text-[9px] font-medium border border-slate-200 dark:border-slate-600">
-                                {cls}
+
+                      {/* 5. Last Used (Formatted datetime + truncated path with hover tooltip and click-to-copy) */}
+                      <td className="px-3.5 py-3 whitespace-nowrap text-xs">
+                        <div className="flex flex-col">
+                          <span className="text-slate-700 dark:text-slate-300 font-medium">
+                            {formatDateTime(model.last_used_timestamp)}
+                          </span>
+                          {model.last_used_timestamp && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span
+                                onClick={() => handleCopy(`Model ${model.name} (${model.id}) last dispatched`, model.id)}
+                                title={`Last served on node target. Click to copy details.`}
+                                className="text-[10px] font-mono text-teal-600 dark:text-teal-400 hover:underline cursor-pointer truncate max-w-[140px]"
+                              >
+                                Dispatched
                               </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-400 dark:text-slate-600 italic text-[10px]">None registered</span>
+                              {copiedId === model.id && (
+                                <span className="text-[9px] font-bold text-emerald-500 animate-in fade-in">
+                                  Copied!
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       </td>
-                      {/* Last Used */}
-                      <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
-                        {formatDateTime(model.last_used_timestamp)}
-                      </td>
-                      {/* Actions */}
-                      <td className="px-3 py-2.5 whitespace-nowrap text-right">
+
+                      {/* 6. Actions */}
+                      <td className="px-3.5 py-3 whitespace-nowrap text-right">
                         <div className="inline-flex items-center gap-1.5 justify-end">
                           <button
                             onClick={() => handleSetDefault(model.id)}
@@ -350,8 +588,9 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                       <tr>
                         <td colSpan={6} className="bg-slate-50/50 dark:bg-slate-900/30 px-6 py-4">
                           <div className="border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-900/60 shadow-inner">
-                            <div className="px-3 py-1.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                              Model serving execution logs
+                            <div className="px-3.5 py-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center justify-between">
+                              <span>Model serving execution logs</span>
+                              <span className="font-mono text-[9px] text-slate-400">Uploaded at: {model.file_path}</span>
                             </div>
                             {logsLoading ? (
                               <div className="flex items-center gap-2 p-5 text-xs text-slate-450 dark:text-slate-550">
@@ -382,7 +621,14 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                                     <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
                                       <td className="px-3 py-2 whitespace-nowrap">{new Date(log.timestamp).toLocaleString()}</td>
                                       <td className="px-3 py-2 font-mono text-teal-700 dark:text-teal-400">{log.camera_id}</td>
-                                      <td className="px-3 py-2 truncate max-w-[150px] font-mono" title={log.video_id}>{log.video_id.substring(0, 8)}...</td>
+                                      <td
+                                        className="px-3 py-2 truncate max-w-[150px] font-mono text-teal-600 dark:text-teal-400 cursor-pointer hover:underline"
+                                        title={`Click to copy Video ID: ${log.video_id}`}
+                                        onClick={() => handleCopy(log.video_id, `log-${log.id}`)}
+                                      >
+                                        {log.video_id.substring(0, 12)}...
+                                        {copiedId === `log-${log.id}` && <span className="ml-1 text-[9px] text-emerald-500 font-bold">Copied!</span>}
+                                      </td>
                                       <td className="px-3 py-2 text-center">{log.frames_processed}</td>
                                       <td className="px-3 py-2 text-center font-bold text-slate-800 dark:text-slate-100">{log.objects_detected_count}</td>
                                       <td className="px-3 py-2 text-right font-mono text-emerald-700 dark:text-emerald-400">
@@ -405,10 +651,54 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
         </table>
       </section>
 
+      {/* ── DETECTABLE CLASSES FULL DETAILS MODAL ── */}
+      {selectedClassesModel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Supported Classes: {selectedClassesModel.name}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Total {selectedClassesModel.classes.length} detectable object classes registered in weight file.</p>
+              </div>
+              <button
+                onClick={() => setSelectedClassesModel(null)}
+                className="text-slate-400 hover:text-slate-800 dark:hover:text-white"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="max-h-[350px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {selectedClassesModel.classes.map((cls, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    <span className="w-5 h-5 rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center text-[10px] font-bold">
+                      {idx + 1}
+                    </span>
+                    <span className="truncate">{cls}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                onClick={() => setSelectedClassesModel(null)}
+                className="px-4 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── REGISTER MODEL MODAL ── */}
       {isRegisterOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-md rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 shadow-lg animate-in fade-in zoom-in-95 duration-100">
+          <div className="w-full max-w-md rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 shadow-lg animate-in fade-in zoom-in-95 duration-100">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-700">
               <h3 className="text-sm font-bold text-slate-850 dark:text-slate-100">Register ML Model Node</h3>
               <button
@@ -521,7 +811,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                   placeholder="e.g. Surveillance Person Detector"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-850 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
                   required
                 />
               </div>
@@ -536,7 +826,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                   placeholder="e.g. person, car, truck, bus (comma separated)"
                   value={manualClasses}
                   onChange={(e) => setManualClasses(e.target.value)}
-                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-850 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
                 />
                 {classChips.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2 p-2 border border-slate-150 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900/60 max-h-[80px] overflow-y-auto">

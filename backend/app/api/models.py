@@ -131,6 +131,34 @@ async def upload_and_register_model(
         )
 
 
+class ModelUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    is_default: Optional[bool] = None
+
+
+@router.put("/models/{model_id}")
+def update_model(model_id: str, payload: ModelUpdate, db: Session = Depends(get_db)):
+    """Updates model attributes (name, category, default status)."""
+    model = db.query(MLModel).filter(MLModel.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found.")
+    
+    if payload.name is not None:
+        model.name = payload.name.strip()
+    if payload.category is not None:
+        model.category = payload.category
+    if payload.is_default is not None and payload.is_default != model.is_default:
+        if payload.is_default:
+            cat = payload.category or model.category or "general"
+            db.query(MLModel).filter(MLModel.category == cat).update({"is_default": False})
+        model.is_default = payload.is_default
+
+    db.commit()
+    db.refresh(model)
+    return model.to_dict()
+
+
 @router.put("/models/{model_id}/set-default")
 def set_default_model(model_id: str, db: Session = Depends(get_db)):
     """Marks a specific model as the system default for its category."""

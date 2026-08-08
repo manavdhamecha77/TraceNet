@@ -19,7 +19,7 @@ class MLModel(Base):
     last_used_timestamp = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    cameras = relationship("CameraProfile", back_populates="assigned_model")
+    cameras = relationship("CameraProfile", foreign_keys="[CameraProfile.model_id]", back_populates="assigned_model")
     logs = relationship("ModelExecutionLog", back_populates="model", cascade="all, delete-orphan")
 
     def to_dict(self):
@@ -59,7 +59,7 @@ class CameraProfile(Base):
     assault_model_id = Column(String, ForeignKey("models.id"), nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
-    assigned_model = relationship("MLModel", back_populates="cameras")
+    assigned_model = relationship("MLModel", foreign_keys=[model_id], back_populates="cameras")
 
     def to_dict(self):
         try:
