@@ -32,20 +32,30 @@ class VideoPreprocessor:
     """Engine responsible for transcoding and frame sampling."""
     
     @staticmethod
+    def get_ffmpeg_binary() -> str:
+        try:
+            import imageio_ffmpeg
+            return imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            return "ffmpeg"
+
+    @staticmethod
     def transcode_video(input_path: str, output_path: str, fps: int = 10, resolution: str = "1280:720") -> bool:
-        """Transcodes a video to standard H.264 MP4 with forced FPS and resolution."""
+        """Transcodes a video to standard H.264 MP4 (yuv420p) with forced FPS and resolution."""
         logger.info(f"Transcoding video {input_path} to {output_path} (FPS: {fps}, Res: {resolution})")
         
         # Ensure output directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
+        ffmpeg_bin = VideoPreprocessor.get_ffmpeg_binary()
         cmd = [
-            "ffmpeg", "-y",
+            ffmpeg_bin, "-y",
             "-i", input_path,
             "-vf", f"scale={resolution},fps={fps}",
             "-c:v", "libx264",
             "-preset", "fast",
             "-crf", "23",
+            "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             output_path
         ]
