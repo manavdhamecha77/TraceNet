@@ -13,8 +13,7 @@ from qdrant_client import models
 from app.config import get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Tracklet, VideoAsset, SearchLog
-
-COLLECTION_NAME = "tracenet_tracklets"
+from app.search.vector_index import get_qdrant_client, COLLECTION_NAME
 
 _QUERY_STOP_WORDS = {
     "a", "an", "and", "at", "by", "for", "from", "in", "near", "of", "on",
@@ -24,8 +23,7 @@ _QUERY_STOP_WORDS = {
 
 class QueryEngine:
     def __init__(self) -> None:
-        db_dir = get_data_path("vector_db")
-        self.client = QdrantClient(path=db_dir)
+        self.client = get_qdrant_client()
 
     def search_by_vector(
         self,
