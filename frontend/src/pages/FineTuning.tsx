@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 
 interface TrainingJob {
@@ -11,6 +11,8 @@ interface TrainingJob {
   created_at: string;
   error?: string;
 }
+
+const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000';
 
 export default function FineTuning() {
   const [jobs, setJobs] = useState<TrainingJob[]>([]);
@@ -34,7 +36,7 @@ export default function FineTuning() {
 
   const loadTrainingHistory = async () => {
     try {
-      const response = await axios.get("/api/v1/finetuning/history");
+      const response = await axios.get(`${API_BASE}/api/v1/finetuning/history`);
       setJobs(response.data);
     } catch (err) {
       console.error("Failed to load training history:", err);
@@ -47,7 +49,7 @@ export default function FineTuning() {
     setError(null);
 
     try {
-      const response = await axios.post("/api/v1/finetuning/start", {
+      const response = await axios.post(`${API_BASE}/api/v1/finetuning/start`, {
         camera_id: formData.camera_id || null,
         learning_rate: formData.learning_rate,
         num_epochs: formData.num_epochs,
@@ -73,7 +75,7 @@ export default function FineTuning() {
       await new Promise((r) => setTimeout(r, 2000));
 
       try {
-        const response = await axios.get(`/api/v1/finetuning/status/${jobId}`);
+        const response = await axios.get(`${API_BASE}/api/v1/finetuning/status/${jobId}`);
         if (["completed", "failed"].includes(response.data.status)) {
           loadTrainingHistory();
           break;
