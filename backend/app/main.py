@@ -19,6 +19,7 @@ from app.api.processing import router as processing_router
 from app.api.webhooks import router as webhooks_router
 from app.api.frame_inspection import router as frame_inspection_router
 from app.api.finetuning import router as finetuning_router
+from app.api.system_jobs import router as system_jobs_router
 from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
@@ -251,6 +252,7 @@ app.include_router(webhooks_router, prefix=settings.api_prefix)
 app.include_router(frame_inspection_router, prefix=settings.api_prefix)
 app.include_router(finetuning_router, prefix=settings.api_prefix)
 app.include_router(assistant_router, prefix=settings.api_prefix)
+app.include_router(system_jobs_router, prefix=settings.api_prefix)
 # app.include_router(multicam_router, prefix=settings.api_prefix)
 
 

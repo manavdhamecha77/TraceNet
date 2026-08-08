@@ -422,3 +422,32 @@ class SentinelSession(Base):
             "matched_camera_id": self.matched_camera_id,
             "matched_tracklet_id": self.matched_tracklet_id
         }
+
+
+class SystemJob(Base):
+    __tablename__ = "system_jobs"
+
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    job_type = Column(String, nullable=False)  # 'reindex' | 'vectordb' | 'upload' | 'model_run' | 'alerts' | 'other'
+    status = Column(String, default="pending")  # 'pending' | 'running' | 'completed' | 'failed'
+    progress = Column(Float, default=0.0)
+    payload = Column(Text, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        try:
+            extra = json.loads(self.payload) if self.payload else {}
+        except Exception:
+            extra = {}
+        return {
+            "id": self.id,
+            "name": self.name,
+            "job_type": self.job_type,
+            "status": self.status,
+            "progress": self.progress,
+            "payload": extra,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

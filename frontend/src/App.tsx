@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Cameras from './pages/Cameras'
 import CameraDetail from './pages/CameraDetail'
@@ -75,13 +75,31 @@ const extractTrackerId = (val: any): string | null => {
   return str
 }
 
+interface SystemJob {
+  id: string
+  name: string
+  job_type: 'reindex' | 'vectordb' | 'upload' | 'model_run' | 'alerts' | 'other'
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  progress: number
+  payload: any
+  created_at: string
+  updated_at: string
+}
+
 function App() {
   const location = useLocation()
+  const navigate = useNavigate()
 
   // Theme & Layout state
   // @ts-ignore
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  // Pipeline jobs state
+  const [systemJobs, setSystemJobs] = useState<SystemJob[]>([])
+  const [isJobsModalOpen, setIsJobsModalOpen] = useState(false)
+  const [lastActiveCount, setLastActiveCount] = useState(0)
+  const [hasActiveTransition, setHasActiveTransition] = useState(false)
 
   // Data state
   const [cameras, setCameras] = useState<Camera[]>([])
@@ -216,6 +234,31 @@ function App() {
     }
     fetchMetrics()
   }, [location.pathname])
+
+  const fetchSystemJobs = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/jobs`)
+      if (res.ok) {
+        const data = await res.json()
+        setSystemJobs(data)
+        const activeCount = data.filter((j: any) => j.status === 'running' || j.status === 'pending').length
+        
+        if (activeCount !== lastActiveCount) {
+          setHasActiveTransition(true)
+          setLastActiveCount(activeCount)
+          setTimeout(() => setHasActiveTransition(false), 1000)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch system jobs:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchSystemJobs()
+    const timer = setInterval(fetchSystemJobs, 3000)
+    return () => clearInterval(timer)
+  }, [lastActiveCount])
 
   // Register camera submit
   const handleCreateCamera = async (e: React.FormEvent) => {
@@ -1023,14 +1066,30 @@ function App() {
 
           {/* Pipeline status pill & theme toggle */}
           <div className="flex items-center gap-2.5">
-            <span
-              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 border bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${metrics.pendingVideos > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}
-              />
-              {metrics.pendingVideos > 0 ? `Transcoding: ${metrics.pendingVideos} Jobs` : 'Pipeline Idle'}
-            </span>
+            {/* Clickable Pipeline Status Pill */}
+            {(() => {
+              const activeJobs = systemJobs.filter(j => j.status === 'running' || j.status === 'pending');
+              const isPipelineActive = activeJobs.length > 0;
+              return (
+                <span
+                  onClick={() => setIsJobsModalOpen(true)}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 border cursor-pointer select-none transition-all duration-300 hover:scale-105 active:scale-95 ${
+                    isPipelineActive
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 font-bold shadow-sm shadow-amber-500/10 animate-pulse'
+                      : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                  } ${hasActiveTransition ? 'ring-2 ring-teal-500 dark:ring-teal-400 scale-110' : ''}`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
+                      isPipelineActive ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'
+                    }`}
+                  />
+                  {isPipelineActive 
+                    ? `Active: ${activeJobs[0].name.substring(0, 18)}${activeJobs[0].name.length > 18 ? '...' : ''}`
+                    : 'Pipeline Idle'}
+                </span>
+              );
+            })()}
 
             <button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -1762,6 +1821,150 @@ function App() {
         onClose={() => setIsCopilotOpen(false)}
         onPlayVideoAtTime={handlePlayVideoAtTime}
       />
+
+      {/* ── SYSTEM PIPELINE BACKGROUND JOBS MONITOR MODAL ── */}
+      {isJobsModalOpen && (
+        <div 
+          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs"
+          onClick={() => setIsJobsModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-md rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 shadow-2xl space-y-4 cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-150 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${systemJobs.some(j => j.status === 'running' || j.status === 'pending') ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  System Pipeline Monitor
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Real-time video indexing, upload preprocessing, and ML model sync tasks.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsJobsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-850 dark:hover:text-white"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+
+            <div className="max-h-[300px] overflow-y-auto space-y-3 pr-1">
+              {systemJobs.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-450 dark:text-slate-550 italic">
+                  Pipeline is idle, nothing in the queue.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {/* Current Active Jobs */}
+                  {systemJobs.filter(j => j.status === 'running' || j.status === 'pending').length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400">Currently Active</span>
+                      {systemJobs.filter(j => j.status === 'running' || j.status === 'pending').map((job) => {
+                        return (
+                          <div 
+                            key={job.id}
+                            onClick={() => {
+                              setIsJobsModalOpen(false);
+                              if (job.job_type === 'upload' && job.payload?.camera_id) {
+                                navigate(`/cameras/${job.payload.camera_id}`);
+                              } else if (job.job_type === 'model_run') {
+                                navigate('/models');
+                              } else if (job.job_type === 'alerts') {
+                                navigate('/alerts');
+                              } else if (job.payload?.camera_id) {
+                                navigate(`/cameras/${job.payload.camera_id}`);
+                              } else {
+                                navigate('/cameras');
+                              }
+                            }}
+                            className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 dark:hover:bg-amber-500/15 cursor-pointer transition-colors duration-150 space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">{job.name}</span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                                {job.status}
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded overflow-hidden">
+                              <div 
+                                className="bg-amber-500 h-full rounded transition-all duration-300"
+                                style={{ width: `${job.progress}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-400">
+                              <span>Progress: {job.progress.toFixed(0)}%</span>
+                              <span>Started: {new Date(job.created_at).toLocaleTimeString()}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Recently Completed Jobs */}
+                  {systemJobs.filter(j => j.status !== 'running' && j.status !== 'pending').length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-850">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-455">Recent Activities</span>
+                      <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                        {systemJobs.filter(j => j.status !== 'running' && j.status !== 'pending').slice(0, 10).map((job) => {
+                          const isSuccess = job.status === 'completed';
+                          return (
+                            <div 
+                              key={job.id}
+                              onClick={() => {
+                                setIsJobsModalOpen(false);
+                                if (job.job_type === 'upload' && job.payload?.camera_id) {
+                                  navigate(`/cameras/${job.payload.camera_id}`);
+                                } else if (job.job_type === 'model_run') {
+                                  navigate('/models');
+                                } else if (job.job_type === 'alerts') {
+                                  navigate('/alerts');
+                                } else {
+                                  navigate('/cameras');
+                                }
+                              }}
+                              className="p-2 rounded bg-slate-55/60 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-800 cursor-pointer transition-colors duration-150 flex items-center justify-between text-xs"
+                            >
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-semibold text-slate-750 dark:text-slate-300 truncate">{job.name}</span>
+                                <span className="text-[9px] font-mono text-slate-400">Finished: {new Date(job.updated_at).toLocaleTimeString()}</span>
+                              </div>
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                isSuccess 
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                                  : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                              }`}>
+                                {job.status}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between items-center pt-3 border-t border-slate-100 dark:border-slate-850 text-[10px] text-slate-400">
+              <span>* Click on any task above to view status instantly.</span>
+              {systemJobs.filter(j => j.status === 'completed' || j.status === 'failed').length > 0 && (
+                <button
+                  onClick={async () => {
+                    await fetch(`${API_BASE}/api/v1/jobs/clear`, { method: 'POST' });
+                    fetchSystemJobs();
+                  }}
+                  className="text-rose-650 dark:text-rose-400 hover:underline font-bold"
+                >
+                  Clear Logs
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

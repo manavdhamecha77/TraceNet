@@ -210,6 +210,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 5.5 | Error handling pass (empty results, failed uploads, malformed queries) | Backend + Frontend | not started | |
 | 5.6 | `docs/detection-tracking-api.md` — detection/tracking API quick guide and model placement | Docs | done | Added a short operator guide for `best.pt`, the detection endpoints, and the frontend review flow. |
 | 5.7 | `docs/loitering-detection.md` — zone-selection and alert-review operator guide | Docs | done | Added a concise operator/developer guide covering upload opt-in, manual polygon selection, evidence review, API endpoints, and guardrails. |
+| 5.8 | Interactive Pipeline Status Pill & Task Queue Modal | Fullstack | done | Integrated `SystemJob` DB model, crud helper hooks, FastAPI status API, clickable header status pill, auto-updating animation, queue list modal, and instant no-animation route navigation. Verified via `compileall` and `npm run build`. |
 
 ---
 
