@@ -122,6 +122,16 @@ class HotTargetManager:
         self.db.commit()
         return {"status": "success", "message": f"Hot Target '{target_id}' status set to '{status}'."}
 
+    def delete_hot_target(self, target_id: str) -> Dict[str, Any]:
+        """Permanently delete a hot target profile."""
+        target = self.db.query(HotTarget).filter(HotTarget.id == target_id).first()
+        if not target:
+            return {"status": "error", "message": f"Hot Target '{target_id}' not found."}
+
+        self.db.delete(target)
+        self.db.commit()
+        return {"status": "success", "message": f"Hot Target '{target_id}' deleted."}
+
     def get_hot_target_journey(self, target_id: str) -> Dict[str, Any]:
         """Retrieve full multi-camera journey map for tagged hot target."""
         target = self.db.query(HotTarget).filter(HotTarget.id == target_id).first()

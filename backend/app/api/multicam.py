@@ -140,17 +140,34 @@ def get_hot_target_journey(
     return res
 
 
+@router.put("/targets/{target_id}/status")
+def update_hot_target_status(
+    target_id: str,
+    status: str = Query("resolved"),
+    db: Session = Depends(get_db)
+):
+    """
+    Update status of a hot target pursuit ('active' | 'resolved' | 'archived').
+    """
+    from app.analytics.hot_target import HotTargetManager
+    manager = HotTargetManager(db)
+    res = manager.resolve_hot_target(target_id, status=status)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=404, detail=res.get("message"))
+    return res
+
+
 @router.delete("/targets/{target_id}")
-def resolve_hot_target(
+def delete_hot_target(
     target_id: str,
     db: Session = Depends(get_db)
 ):
     """
-    Resolve or archive a hot target pursuit session.
+    Permanently delete a hot target profile.
     """
     from app.analytics.hot_target import HotTargetManager
     manager = HotTargetManager(db)
-    res = manager.resolve_hot_target(target_id)
+    res = manager.delete_hot_target(target_id)
     if res.get("status") == "error":
         raise HTTPException(status_code=404, detail=res.get("message"))
     return res
