@@ -253,121 +253,169 @@ export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
         </div>
       </div>
 
-      {/* REAL-TIME SUSPECT REAPPEARANCE ALERT WINDOW */}
-      {alerts.length > 0 && (
-        <div className="bg-rose-950/30 border border-rose-500/40 rounded-xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-300">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
-              <ShieldAlert className="h-4 w-4 animate-bounce text-rose-400" />
-              <span>🎯 REAL-TIME SUSPECT REAPPEARANCE ALERT FEED</span>
-              <span className="bg-rose-500/20 text-rose-300 text-[10px] px-2 py-0.5 rounded-full border border-rose-500/40 font-mono">
-                {alerts.filter((a) => !a.acknowledged).length} UNACKNOWLEDGED
-              </span>
+      {/* MAIN TWO-COLUMN PURSUIT & TRACKING WORKSPACE */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* LEFT COLUMN (5/12): TARGET LIST & ALERTS */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* REAL-TIME SUSPECT REAPPEARANCE ALERT WINDOW */}
+          {alerts.length > 0 && (
+            <div className="bg-rose-950/30 border border-rose-500/40 rounded-xl p-4 space-y-3 animate-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
+                  <ShieldAlert className="h-4 w-4 animate-bounce text-rose-400" />
+                  <span>🎯 REAPPEARANCE ALERT FEED</span>
+                  <span className="bg-rose-500/20 text-rose-300 text-[10px] px-2 py-0.5 rounded-full border border-rose-500/40 font-mono">
+                    {alerts.filter((a) => !a.acknowledged).length} NEW
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {alerts.map((alertItem) => (
+                  <div
+                    key={alertItem.id}
+                    className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 transition-all ${
+                      alertItem.acknowledged
+                        ? 'bg-slate-900/50 border-slate-800 text-slate-400 opacity-60'
+                        : 'bg-slate-900 border-rose-500/40 text-slate-200 shadow-md ring-1 ring-rose-500/20'
+                    }`}
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-rose-400 text-xs truncate">
+                          {alertItem.target_label || 'Tagged Suspect'}
+                        </span>
+                        <span className="font-mono text-[9px] bg-slate-800 text-slate-300 px-1 py-0.2 rounded">
+                          {alertItem.camera_id}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1 font-mono">
+                        <Clock className="h-3 w-3 text-slate-500" />
+                        <span>{new Date(alertItem.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {alertItem.video_id && (
+                        <button
+                          onClick={() => {
+                            onPlayVideoAtTime(
+                              { id: alertItem.video_id, camera_id: alertItem.camera_id },
+                              0,
+                              alertItem.tracklet_id
+                            )
+                          }}
+                          className="px-2 py-1 rounded bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 text-[10px] font-bold border border-teal-500/30 transition-colors flex items-center gap-1"
+                        >
+                          <Play className="h-3 w-3 fill-current" />
+                          <span>Stream</span>
+                        </button>
+                      )}
+
+                      {!alertItem.acknowledged && (
+                        <button
+                          onClick={() => handleAcknowledgeAlert(alertItem.id)}
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold border border-slate-700 transition-colors flex items-center gap-1"
+                        >
+                          <Check className="h-3 w-3 text-emerald-400" />
+                          <span>Ack</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* FILTER & SEARCH CONTROL BAR */}
+          <div className="flex flex-col gap-2 bg-slate-900/60 border border-slate-800 p-3 rounded-xl">
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 w-full">
+              <button
+                onClick={() => setStatusFilter('active')}
+                className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
+                  statusFilter === 'active'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Active ({activeCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter('resolved')}
+                className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
+                  statusFilter === 'resolved'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Resolved ({resolvedCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`flex-1 py-1.5 rounded-md text-xs font-bold transition-all ${
+                  statusFilter === 'all'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All ({targets.length})
+              </button>
+            </div>
+
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search suspect label or camera..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-rose-500/50"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN (7/12): LIVE EMBEDDED JOURNEY MAP SCRUBBER */}
+        <div className="lg:col-span-7 bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <span>🎯 Live Spatial Journey Map</span>
+                {selectedJourneyTarget ? (
+                  <span className="font-mono text-xs text-rose-400 font-bold bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/30">
+                    {selectedJourneyTarget.label}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-500 font-mono">Select a target on left to inspect DAG</span>
+                )}
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Multi-camera spatial-temporal trajectory map &amp; velocity vectors across city nodes.
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {alerts.map((alertItem) => (
-              <div
-                key={alertItem.id}
-                className={`p-3 rounded-lg border flex items-center justify-between gap-3 transition-all ${
-                  alertItem.acknowledged
-                    ? 'bg-slate-900/50 border-slate-800 text-slate-400 opacity-60'
-                    : 'bg-slate-900 border-rose-500/40 text-slate-200 shadow-md ring-1 ring-rose-500/20'
-                }`}
-              >
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-rose-400 text-xs truncate">
-                      {alertItem.target_label || 'Tagged Suspect'}
-                    </span>
-                    <span className="font-mono text-[10px] bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
-                      {alertItem.camera_id}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 flex items-center gap-2 font-mono">
-                    <Clock className="h-3 w-3 text-slate-500" />
-                    <span>{new Date(alertItem.timestamp).toLocaleTimeString()}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  {alertItem.video_id && (
-                    <button
-                      onClick={() => {
-                        onPlayVideoAtTime(
-                          { id: alertItem.video_id, camera_id: alertItem.camera_id },
-                          0,
-                          alertItem.tracklet_id
-                        )
-                      }}
-                      className="px-2 py-1 rounded bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 text-[10px] font-bold border border-teal-500/30 transition-colors flex items-center gap-1"
-                    >
-                      <Play className="h-3 w-3 fill-current" />
-                      <span>Stream</span>
-                    </button>
-                  )}
-
-                  {!alertItem.acknowledged && (
-                    <button
-                      onClick={() => handleAcknowledgeAlert(alertItem.id)}
-                      className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold border border-slate-700 transition-colors flex items-center gap-1"
-                    >
-                      <Check className="h-3 w-3 text-emerald-400" />
-                      <span>Ack</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* FILTER & SEARCH CONTROL BAR */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 p-3 rounded-xl">
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 w-full sm:w-auto">
-          <button
-            onClick={() => setStatusFilter('active')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              statusFilter === 'active'
-                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Active Pursuits ({activeCount})
-          </button>
-          <button
-            onClick={() => setStatusFilter('resolved')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              statusFilter === 'resolved'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Resolved ({resolvedCount})
-          </button>
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-              statusFilter === 'all'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            All Targets
-          </button>
-        </div>
-
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search targets or cameras..."
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-rose-500/50"
-          />
+          {loadingJourney ? (
+            <div className="py-24 text-center text-xs text-slate-500 animate-pulse">
+              Calculating multi-camera spatial graph trajectory...
+            </div>
+          ) : journeyData ? (
+            <JourneyMapScrubber
+              steps={journeyData.trajectory || []}
+              activeStep={activeJourneyStep}
+              onSelectStep={(s) => setActiveJourneyStep(s)}
+              totalDistanceMeters={journeyData.total_distance_meters || 0}
+              totalDurationSeconds={journeyData.total_duration_seconds || 0}
+            />
+          ) : (
+            <div className="py-20 text-center space-y-2">
+              <Navigation className="h-8 w-8 text-slate-700 mx-auto" />
+              <p className="text-xs text-slate-500">
+                Click <span className="text-rose-400 font-semibold font-mono">View Journey Map</span> on any suspect card on the left to illuminate their spatial trajectory.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
