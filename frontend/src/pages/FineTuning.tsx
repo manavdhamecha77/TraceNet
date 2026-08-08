@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import { useState, useEffect } from "react";
 
 interface TrainingJob {
   training_id: string;
@@ -11,6 +10,8 @@ interface TrainingJob {
   created_at: string;
   error?: string;
 }
+
+const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000';
 
 export default function FineTuning() {
   const [jobs, setJobs] = useState<TrainingJob[]>([]);
@@ -34,8 +35,11 @@ export default function FineTuning() {
 
   const loadTrainingHistory = async () => {
     try {
-      const response = await axios.get("/api/v1/finetuning/history");
-      setJobs(response.data);
+      const res = await fetch(`${API_BASE}/api/v1/finetuning/history`);
+      if (res.ok) {
+        const data = await res.json();
+        setJobs(data);
+      }
     } catch (err) {
       console.error("Failed to load training history:", err);
     }
@@ -47,22 +51,31 @@ export default function FineTuning() {
     setError(null);
 
     try {
-      const response = await axios.post("/api/v1/finetuning/start", {
-        camera_id: formData.camera_id || null,
-        learning_rate: formData.learning_rate,
-        num_epochs: formData.num_epochs,
-        batch_size: formData.batch_size,
-        days: formData.days,
+      const res = await fetch(`${API_BASE}/api/v1/finetuning/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          camera_id: formData.camera_id || null,
+          learning_rate: formData.learning_rate,
+          num_epochs: formData.num_epochs,
+          batch_size: formData.batch_size,
+          days: formData.days,
+        }),
       });
 
-      const jobId = response.data.training_id;
+      const resData = await res.json();
+      if (!res.ok) {
+        throw new Error(resData.detail || "Failed to start training");
+      }
+
+      const jobId = resData.training_id;
       setActiveJob(jobId);
       loadTrainingHistory();
 
       // Poll for status updates
       pollJobStatus(jobId);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to start training");
+      setError(err.message || "Failed to start training");
     } finally {
       setIsSubmitting(false);
     }
@@ -73,10 +86,13 @@ export default function FineTuning() {
       await new Promise((r) => setTimeout(r, 2000));
 
       try {
-        const response = await axios.get(`/api/v1/finetuning/status/${jobId}`);
-        if (["completed", "failed"].includes(response.data.status)) {
-          loadTrainingHistory();
-          break;
+        const res = await fetch(`${API_BASE}/api/v1/finetuning/status/${jobId}`);
+        if (res.ok) {
+          const statusData = await res.json();
+          if (["completed", "failed"].includes(statusData.status)) {
+            loadTrainingHistory();
+            break;
+          }
         }
       } catch (err) {
         console.error("Failed to poll status:", err);

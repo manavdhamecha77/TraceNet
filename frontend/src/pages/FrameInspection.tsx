@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import axios from "axios";
 
 interface FrameInfo {
   frame_number: number;
@@ -23,6 +22,8 @@ interface FrameInspectionData {
   detection_timestamp: string;
 }
 
+const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000';
+
 export default function FrameInspection() {
   const { alertId } = useParams<{ alertId: string }>();
   const [data, setData] = useState<FrameInspectionData | null>(null);
@@ -36,12 +37,14 @@ export default function FrameInspection() {
     const fetchFrameData = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(
-          `/api/v1/frame-inspection/alert/${alertId}`
-        );
-        setData(response.data);
-        if (response.data.detected_frames.length > 0) {
-          setSelectedFrame(response.data.detected_frames[0]);
+        const res = await fetch(`${API_BASE}/api/v1/frame-inspection/alert/${alertId}`);
+        if (!res.ok) {
+          throw new Error("Failed to load frame data");
+        }
+        const jsonData = await res.json();
+        setData(jsonData);
+        if (jsonData.detected_frames && jsonData.detected_frames.length > 0) {
+          setSelectedFrame(jsonData.detected_frames[0]);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load frame data");
