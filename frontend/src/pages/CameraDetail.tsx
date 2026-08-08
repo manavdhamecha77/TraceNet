@@ -1047,14 +1047,45 @@ export default function CameraDetail({
                                   </div>
                                 </div>
 
-                                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px] text-slate-400">
-                                  <span className="text-teal-500 dark:text-teal-400 font-semibold flex items-center gap-0.5">
-                                    Click to inspect <ExternalLink className="h-2.5 w-2.5 inline" />
-                                  </span>
-                                  <span className="font-mono text-slate-500 truncate max-w-[60px]" title={tracklet.tracklet_id}>
-                                    {tracklet.tracklet_id.substring(0, 6)}
-                                  </span>
-                                </div>
+                                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px]">
+                                   <button
+                                     onClick={(e) => {
+                                       e.stopPropagation()
+                                       onInspectTracklet(tracklet, detectionModal.video)
+                                     }}
+                                     className="text-teal-500 dark:text-teal-400 font-semibold hover:underline flex items-center gap-0.5"
+                                   >
+                                     Inspect <ExternalLink className="h-2.5 w-2.5 inline" />
+                                   </button>
+
+                                   <button
+                                     onClick={async (e) => {
+                                       e.stopPropagation()
+                                       try {
+                                         const res = await fetch(`${API_BASE}/api/v1/multicam/targets/tag`, {
+                                           method: 'POST',
+                                           headers: { 'Content-Type': 'application/json' },
+                                           body: JSON.stringify({
+                                             label: `Suspect ${tracklet.class_name || 'Target'} #${tracklet.tracker_id} (${camera_id})`,
+                                             origin_camera_id: camera_id || 'CAM_001',
+                                             origin_tracklet_id: tracklet.tracklet_id,
+                                             priority: 'HIGH'
+                                           })
+                                         })
+                                         if (res.ok) {
+                                           const data = await res.json()
+                                           alert(`🎯 Target Tagged for Hot Pursuit!\n${data.message || 'Target pinned for multi-camera pursuit.'}`)
+                                         }
+                                       } catch (err) {
+                                         console.error("Failed to tag target:", err)
+                                       }
+                                     }}
+                                     className="flex items-center gap-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1 py-0.5 rounded text-[8px] font-bold transition-all"
+                                     title="Tag as Hot Target for Multi-Camera Persistent Pursuit"
+                                   >
+                                     <span>🎯 Tag &amp; Pursue</span>
+                                   </button>
+                                 </div>
                               </div>
                             </div>
                           )
