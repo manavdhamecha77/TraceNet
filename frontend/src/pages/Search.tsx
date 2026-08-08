@@ -844,29 +844,58 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     </details>
                   </div>
 
-                  {/* Dynamic player action trigger */}
-                  <button
-                    onClick={() => {
-                      const mockVideoObj = {
-                        id: result.video_id,
-                        camera_id: result.camera_id,
-                        standardized_filename: result.video_standardized_filename,
-                        thumbnail_path: result.video_thumbnail_path || '',
-                        processing_status: 'complete'
-                      }
-                      onPlayVideoAtTime(
-                        mockVideoObj,
-                        result.timestamp_start_seconds,
-                        result.tracker_id || result.tracklet_id,
-                        result.best_bbox,
-                        result.class_name
-                      )
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 bg-teal-50 dark:bg-teal-900/30 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 py-1.5 rounded text-[11px] font-bold transition-all border border-teal-200 dark:border-teal-800"
-                  >
-                    <Play className="h-3.5 w-3.5 fill-current" />
-                    <span>Seek &amp; Highlight</span>
-                  </button>
+                  {/* Dynamic player & Hot-Target action triggers */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <button
+                      onClick={() => {
+                        const mockVideoObj = {
+                          id: result.video_id,
+                          camera_id: result.camera_id,
+                          standardized_filename: result.video_standardized_filename,
+                          thumbnail_path: result.video_thumbnail_path || '',
+                          processing_status: 'complete'
+                        }
+                        onPlayVideoAtTime(
+                          mockVideoObj,
+                          result.timestamp_start_seconds,
+                          result.tracker_id || result.tracklet_id,
+                          result.best_bbox,
+                          result.class_name
+                        )
+                      }}
+                      className="flex items-center justify-center gap-1 bg-teal-50 dark:bg-teal-900/30 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 py-1.5 rounded text-[10px] font-bold transition-all border border-teal-200 dark:border-teal-800"
+                    >
+                      <Play className="h-3 w-3 fill-current" />
+                      <span>Seek &amp; Stream</span>
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_BASE}/api/v1/multicam/targets/tag`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              label: `${result.class_name || 'Suspect'} #${result.tracker_id || 'Target'} (${result.camera_id})`,
+                              origin_camera_id: result.camera_id,
+                              origin_tracklet_id: result.tracklet_id,
+                              priority: 'HIGH'
+                            })
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            alert(`🎯 Hot Target Tagged!\n${data.message || 'Target pinned for multi-camera pursuit.'}`);
+                          }
+                        } catch (err) {
+                          console.error('Failed to tag hot target:', err);
+                        }
+                      }}
+                      className="flex items-center justify-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 py-1.5 rounded text-[10px] font-bold transition-all"
+                      title="Tag as Hot Target for Multi-Camera Persistent Pursuit"
+                    >
+                      <span>🎯 Tag Target</span>
+                    </button>
+                  </div>
 
                 </div>
               </div>

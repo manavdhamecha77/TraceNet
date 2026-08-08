@@ -26,7 +26,107 @@ class SentinelActivateRequest(BaseModel):
     speed_mode: str = "pedestrian"  # 'pedestrian' | 'vehicle' | 'auto'
 
 
+class TagTargetRequest(BaseModel):
+    label: str
+    origin_camera_id: str
+    object_type: str = "person"
+    origin_tracklet_id: Optional[str] = None
+    embedding_vector: Optional[List[float]] = None
+    priority: str = "HIGH"
+
+
 @router.post("/trajectory/reconstruct")
+def reconstruct_trajectory(
+    req: TrajectoryRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Reconstruct multi-camera spatial-temporal journey trajectory for a target tracklet or visual embedding.
+    """
+    engine = TrajectoryEngine(db)
+    result = engine.reconstruct_trajectory(
+        target_tracklet_id=req.tracklet_id,
+        query_embedding=req.query_embedding,
+        speed_mode=req.speed_mode,
+        top_k_candidates=req.top_k_candidates,
+        min_visual_similarity=req.min_visual_similarity
+    )
+
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result.get("message"))
+
+    return result
+
+
+@router.post("/targets/tag")
+def tag_hot_target(
+    req: TagTargetRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Tag a suspect or vehicle for cross-camera persistent pursuit.
+    """
+    from app.analytics.hot_target import HotTargetManager
+    manager = HotTargetManager(db)
+    res = manager.tag_hot_target(
+        label=req.label,
+        origin_camera_id=req.origin_camera_id,
+        object_type=req.object_type,
+        origin_tracklet_id=req.origin_tracklet_id,
+        embedding_vector=req.embedding_vector,
+        priority=req.priority
+    )
+    if res.get("status") == "error":
+        raise HTTPException(status_code=400, detail=res.get("message"))
+    return res
+
+
+@router.get("/targets")
+def list_hot_targets(
+    status: str = Query("active"),
+    db: Session = Depends(get_db)
+):
+    """
+    List active or all tagged hot targets.
+    """
+    from app.analytics.hot_target import HotTargetManager
+    manager = HotTargetManager(db)
+    return {"targets": manager.list_hot_targets(status=status)}
+
+
+@router.get("/targets/{target_id}/journey")
+def get_hot_target_journey(
+    target_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get full multi-camera journey map for a tagged hot target.
+    """
+    from app.analytics.hot_target import HotTargetManager
+    manager = HotTargetManager(db)
+    res = manager.get_hot_target_journey(target_id)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=404, detail=res.get("message"))
+    return res
+
+
+@router.delete("/targets/{target_id}")
+def resolve_hot_target(
+    target_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Resolve or archive a hot target pursuit session.
+    """
+    from app.analytics.hot_target import HotTargetManager
+    manager = HotTargetManager(db)
+    res = manager.resolve_hot_target(target_id)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=404, detail=res.get("message"))
+    return res
+
+
+@router.post("/sentinel/activate")
 def reconstruct_trajectory(
     req: TrajectoryRequest,
     db: Session = Depends(get_db)

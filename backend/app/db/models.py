@@ -412,3 +412,35 @@ class SentinelSession(Base):
             "matched_camera_id": self.matched_camera_id,
             "matched_tracklet_id": self.matched_tracklet_id
         }
+
+
+class HotTarget(Base):
+    __tablename__ = "hot_targets"
+
+    id = Column(String, primary_key=True, index=True)  # target-uuid
+    label = Column(String, nullable=False)              # e.g., 'Suspect Vehicle #VEC-09'
+    object_type = Column(String, default="person")      # 'person' | 'vehicle'
+    origin_tracklet_id = Column(String, ForeignKey("tracklets.id", ondelete="SET NULL"), nullable=True)
+    origin_camera_id = Column(String, ForeignKey("cameras.camera_id"), nullable=False)
+    embedding_vector = Column(Text, nullable=False)     # JSON array string (512-dim)
+    status = Column(String, default="active")          # 'active' | 'resolved' | 'archived'
+    priority = Column(String, default="HIGH")           # 'NORMAL' | 'HIGH' | 'CRITICAL'
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen_camera_id = Column(String, nullable=True)
+    last_seen_timestamp = Column(DateTime, nullable=True)
+    matches_count = Column(Integer, default=0)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "label": self.label,
+            "object_type": self.object_type,
+            "origin_tracklet_id": self.origin_tracklet_id,
+            "origin_camera_id": self.origin_camera_id,
+            "status": self.status,
+            "priority": self.priority,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_seen_camera_id": self.last_seen_camera_id,
+            "last_seen_timestamp": self.last_seen_timestamp.isoformat() if self.last_seen_timestamp else None,
+            "matches_count": self.matches_count
+        }
