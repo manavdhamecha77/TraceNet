@@ -73,83 +73,88 @@ export default function FrameInspection() {
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+    <div className="p-6 bg-slate-950 min-h-screen text-slate-100">
+      <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Frame-Level Inspection</h1>
-          <p className="text-gray-600 mt-2">
-            Alert #{data.alert_id} • {data.camera_id} • {data.assault_type}
+        <div className="border-b border-slate-800 pb-4">
+          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+            <span>Frame-Level Inspection</span>
+            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+              PHYSICAL ASSAULT ANALYTICS
+            </span>
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">
+            Alert #{data.alert_id} • Node {data.camera_id} • Event Type: <span className="text-rose-400 font-semibold">{data.assault_type}</span>
           </p>
         </div>
 
         {/* Alert Summary */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-4 gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Peak Confidence</p>
-              <p className="text-2xl font-bold text-blue-600">
+        <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 shadow-sm">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 uppercase font-mono">Peak Confidence</p>
+              <p className="text-2xl font-black text-cyan-400 mt-0.5">
                 {(data.peak_confidence * 100).toFixed(1)}%
               </p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Assault Type</p>
-              <p className="text-2xl font-bold text-gray-900">{data.assault_type}</p>
+            <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 uppercase font-mono">Assault Type</p>
+              <p className="text-2xl font-black text-rose-400 mt-0.5">{data.assault_type}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Detected Frames</p>
-              <p className="text-2xl font-bold text-green-600">
+            <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 uppercase font-mono">Detected Frames</p>
+              <p className="text-2xl font-black text-emerald-400 mt-0.5">
                 {data.detected_frames.length}
               </p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Video Duration</p>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 uppercase font-mono">Video Duration</p>
+              <p className="text-2xl font-black text-slate-200 mt-0.5">
                 {data.video_duration_seconds.toFixed(1)}s
               </p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Timeline */}
-          <div className="col-span-2">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-bold mb-4">Detection Timeline</h2>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+          <div className="md:col-span-2">
+            <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-4">
+              <h2 className="text-base font-bold text-slate-100">Detection Timeline</h2>
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                 {data.detected_frames.map((frame, idx) => (
                   <div
                     key={idx}
                     onClick={() => setSelectedFrame(frame)}
-                    className={`p-4 rounded cursor-pointer transition ${
+                    className={`p-3 rounded-lg cursor-pointer transition-all border ${
                       selectedFrame?.frame_number === frame.frame_number
-                        ? "bg-blue-50 border-2 border-blue-500"
-                        : "bg-gray-50 border border-gray-200 hover:bg-gray-100"
+                        ? "bg-cyan-500/10 border-cyan-500 text-cyan-200"
+                        : "bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-300"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-gray-900">
+                        <p className="font-semibold text-xs text-slate-200">
                           Frame {frame.frame_number}
                         </p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-[11px] text-slate-400 font-mono">
                           {frame.timestamp_seconds.toFixed(2)}s • {frame.assault_type}
                         </p>
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <p className="text-lg font-bold text-blue-600">
+                          <p className="text-sm font-bold text-cyan-400">
                             {(frame.confidence * 100).toFixed(1)}%
                           </p>
                           {frame.is_key_frame && (
-                            <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">
+                            <span className="text-[9px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.5 rounded font-mono">
                               Key Frame
                             </span>
                           )}
                         </div>
-                        <div className="w-24 h-2 bg-gray-200 rounded overflow-hidden">
+                        <div className="w-24 h-2 bg-slate-800 rounded overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-yellow-400 to-red-500"
+                            className="h-full bg-gradient-to-r from-amber-400 to-rose-500"
                             style={{ width: `${frame.confidence * 100}%` }}
                           />
                         </div>
@@ -162,63 +167,61 @@ export default function FrameInspection() {
           </div>
 
           {/* Frame Details */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold mb-4">Frame Details</h2>
+          <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-4">
+            <h2 className="text-base font-bold text-slate-100">Frame Details</h2>
             {selectedFrame ? (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600">Frame Number</p>
-                  <p className="text-xl font-semibold">{selectedFrame.frame_number}</p>
+              <div className="space-y-3 text-xs">
+                <div className="bg-slate-950/60 p-2.5 rounded border border-slate-800">
+                  <p className="text-slate-500 font-mono">Frame Number</p>
+                  <p className="text-lg font-bold text-slate-200">{selectedFrame.frame_number}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Timestamp</p>
-                  <p className="text-xl font-semibold">
+                <div className="bg-slate-950/60 p-2.5 rounded border border-slate-800">
+                  <p className="text-slate-500 font-mono">Timestamp</p>
+                  <p className="text-lg font-bold text-slate-200">
                     {selectedFrame.timestamp_seconds.toFixed(2)}s
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Assault Type</p>
-                  <p className="text-xl font-semibold">{selectedFrame.assault_type}</p>
+                <div className="bg-slate-950/60 p-2.5 rounded border border-slate-800">
+                  <p className="text-slate-500 font-mono">Assault Type</p>
+                  <p className="text-lg font-bold text-rose-400">{selectedFrame.assault_type}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Confidence Score</p>
-                  <div className="mt-2">
-                    <div className="w-full h-3 bg-gray-200 rounded overflow-hidden">
+                <div className="bg-slate-950/60 p-2.5 rounded border border-slate-800">
+                  <p className="text-slate-500 font-mono">Confidence Score</p>
+                  <div className="mt-1 space-y-1">
+                    <div className="w-full h-2.5 bg-slate-800 rounded overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-yellow-400 to-red-500"
+                        className="h-full bg-gradient-to-r from-amber-400 to-rose-500"
                         style={{ width: `${selectedFrame.confidence * 100}%` }}
                       />
                     </div>
-                    <p className="text-lg font-bold mt-2 text-blue-600">
+                    <p className="text-base font-bold text-cyan-400">
                       {(selectedFrame.confidence * 100).toFixed(1)}%
                     </p>
                   </div>
                 </div>
                 {selectedFrame.is_key_frame && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
-                    <p className="text-sm text-red-700 font-semibold">
-                      ⚠️ High confidence detection frame
-                    </p>
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded text-rose-300 text-xs">
+                    <p className="font-bold">⚠️ High Confidence Detection Frame</p>
                   </div>
                 )}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-8">Select a frame to view details</p>
+              <p className="text-slate-500 text-center py-8 text-xs">Select a frame to view details</p>
             )}
           </div>
         </div>
 
         {/* Statistics */}
-        <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Detection Statistics</h2>
+        <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5">
+          <h2 className="text-base font-bold text-slate-100 mb-3">Detection Statistics</h2>
           <div className="grid grid-cols-3 gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Frames Analyzed</p>
-              <p className="text-2xl font-bold">{data.total_frames_analyzed}</p>
+            <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 font-mono">Frames Analyzed</p>
+              <p className="text-xl font-bold text-slate-200">{data.total_frames_analyzed}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Average Confidence</p>
-              <p className="text-2xl font-bold">
+            <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 font-mono">Average Confidence</p>
+              <p className="text-xl font-bold text-cyan-400">
                 {data.detected_frames.length > 0
                   ? (
                       (data.detected_frames.reduce((sum, f) => sum + f.confidence, 0) /
@@ -229,9 +232,9 @@ export default function FrameInspection() {
                 %
               </p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Key Frames (&gt;60%)</p>
-              <p className="text-2xl font-bold">
+            <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+              <p className="text-xs text-slate-400 font-mono">Key Frames (&gt;60%)</p>
+              <p className="text-xl font-bold text-rose-400">
                 {data.detected_frames.filter((f) => f.is_key_frame).length}
               </p>
             </div>
