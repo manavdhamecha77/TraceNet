@@ -3,7 +3,7 @@ import {
   ShieldAlert, CheckCheck, Play,
   RefreshCw, Loader2, SlidersHorizontal,
   UserX, Target, ExternalLink, Save, RotateCcw, Trash2,
-  Bike, User, Zap, X, ChevronLeft, ChevronRight, Download, Camera, Eye
+  Bike, User, Zap, X, ChevronLeft, ChevronRight, Download, Camera, Eye, Info
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -484,73 +484,82 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
   return (
     <div className="space-y-6 pb-24 text-slate-800 dark:text-slate-100">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Outdoor Theft Analytics</h2>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400">
-              4 FPS Spatiotemporal Engine
-            </span>
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-4 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Outdoor Theft Analytics</h2>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400">
+                4 FPS Spatiotemporal Engine
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Detects vehicle-pedestrian proximity spikes, victim fall impact anomalies, and pursuit acceleration vectors.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Detects vehicle-pedestrian proximity spikes, victim fall impact anomalies, and pursuit acceleration vectors.
-          </p>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowSettings(p => !p)}
+              className={`flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-semibold transition-colors ${
+                showSettings
+                  ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Config</span>
+            </button>
+
+            <button
+              onClick={clearLogs}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear Logs</span>
+            </button>
+
+            <button
+              onClick={clearArtifacts}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+              title="Clear active alert records and reset evaluation logs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+              <span>Clear Artifacts</span>
+            </button>
+
+            <button
+              onClick={runAnalysis}
+              disabled={isRunning}
+              className="inline-flex items-center gap-2 h-8 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
+            >
+              {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+              {isRunning ? 'Analyzing...' : 'Run Theft Analysis'}
+            </button>
+
+            <button
+              onClick={loadAlerts}
+              className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Subtle camera opt-out / model OFF notification badge */}
         {_cameras.some(c => c.participate_in_alerts === false || (c as any).theft_model_id === 'OFF') && (
-          <div className="w-full text-[11px] text-slate-500 dark:text-slate-400 bg-amber-500/10 border border-amber-500/20 p-2 rounded-md flex items-center gap-1.5">
-            <span className="font-bold text-amber-600 dark:text-amber-400">Note:</span>
-            <span>Outdoor Theft analysis is OFF for opted-out cameras: ({_cameras.filter(c => c.participate_in_alerts === false || (c as any).theft_model_id === 'OFF').map(c => c.name || c.camera_id).join(', ')}).</span>
+          <div className="w-full text-[11px] text-slate-500 dark:text-slate-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-md">
+            <details className="w-full cursor-pointer select-none">
+              <summary className="font-semibold text-amber-700 dark:text-amber-400 outline-none flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5" />
+                Note: Outdoor Theft analysis is OFF for opted-out cameras (Click to see)
+              </summary>
+              <div className="mt-1.5 pl-5 text-[10px] leading-relaxed text-slate-600 dark:text-slate-400 border-l-2 border-amber-500/40">
+                {_cameras.filter(c => c.participate_in_alerts === false || (c as any).theft_model_id === 'OFF').map(c => c.name || c.camera_id).join(', ')}
+              </div>
+            </details>
           </div>
         )}
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setShowSettings(p => !p)}
-            className={`flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-semibold transition-colors ${
-              showSettings
-                ? 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Config</span>
-          </button>
-
-          <button
-            onClick={clearLogs}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Clear Logs</span>
-          </button>
-
-          <button
-            onClick={clearArtifacts}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
-            title="Clear active alert records and reset evaluation logs"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
-            <span>Clear Artifacts</span>
-          </button>
-
-          <button
-            onClick={runAnalysis}
-            disabled={isRunning}
-            className="inline-flex items-center gap-2 h-8 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
-          >
-            {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            {isRunning ? 'Analyzing...' : 'Run Theft Analysis'}
-          </button>
-
-          <button
-            onClick={loadAlerts}
-            className="flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
       </div>
 
       {/* Settings Drawer */}
@@ -743,12 +752,33 @@ function EvidenceViewerModal({
   alert: AlertEntry | null
   theftFrames: any[]
   onClose: () => void
-  onPlayVideoAtTime?: (videoId: string, timeSec: number) => void
+  onPlayVideoAtTime?: (
+    video: any,
+    timestamp: number,
+    trackerId?: number | string,
+    bestBbox?: number[],
+    className?: string,
+    tag?: string,
+    color?: string
+  ) => void
 }) {
   const [currentIdx, setCurrentIdx] = useState(0)
   const [highlightBoxes, setHighlightBoxes] = useState(true)
   const [imgDimensions, setImgDimensions] = useState({ width: 0, height: 0 })
   const imgRef = useRef<HTMLImageElement>(null)
+
+  // Keyboard Arrow Navigation (Left/Right)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        setCurrentIdx(prev => (prev + 1) % theftFrames.length)
+      } else if (e.key === 'ArrowLeft') {
+        setCurrentIdx(prev => (prev - 1 + theftFrames.length) % theftFrames.length)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [theftFrames.length])
 
   if (!alert || theftFrames.length === 0) return null
 
@@ -847,11 +877,18 @@ function EvidenceViewerModal({
               }}>
                 {currentFrame.detections.map((det: any, i: number) => {
                   if (!det.bbox) return null
-                  const [x1, y1, x2, y2] = det.bbox // normalized coords [0, 1]
-                  const left = x1 * imgDimensions.width
-                  const top = y1 * imgDimensions.height
-                  const width = (x2 - x1) * imgDimensions.width
-                  const height = (y2 - y1) * imgDimensions.height
+                  const [x1, y1, x2, y2] = det.bbox // coordinates in pixels relative to 1280x720 video size
+                  
+                  // Scale coordinates using video aspect ratio of 1280x720
+                  const nx1 = x1 / 1280
+                  const ny1 = y1 / 720
+                  const nx2 = x2 / 1280
+                  const ny2 = y2 / 720
+
+                  const left = nx1 * imgDimensions.width
+                  const top = ny1 * imgDimensions.height
+                  const width = (nx2 - nx1) * imgDimensions.width
+                  const height = (ny2 - ny1) * imgDimensions.height
 
                   const isSuspect = det.class_name === '[SUSPECT]'
                   const isVictim = det.class_name === '[VICTIM]'
@@ -892,12 +929,19 @@ function EvidenceViewerModal({
               <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Highlight Controls</span>
               <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-800 bg-slate-950/40">
                 <span className="text-xs text-slate-300 font-semibold">Highlight Detections</span>
-                <input
-                  type="checkbox"
-                  checked={highlightBoxes}
-                  onChange={e => setHighlightBoxes(e.target.checked)}
-                  className="rounded border-slate-800 text-rose-600 focus:ring-rose-500 h-4 w-4 bg-slate-900"
-                />
+                <button
+                  type="button"
+                  onClick={() => setHighlightBoxes(!highlightBoxes)}
+                  className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    highlightBoxes ? 'bg-rose-600' : 'bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                      highlightBoxes ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
 
@@ -941,10 +985,23 @@ function EvidenceViewerModal({
               {onPlayVideoAtTime && (
                 <button
                   onClick={() => {
-                    onPlayVideoAtTime(alert.video_id!, currentFrame.timestamp_seconds)
+                    const mockVideo = { id: alert.video_id, camera_id: alert.camera_id }
+                    const suspectDet = currentFrame.detections?.find((d: any) => d.class_name === '[SUSPECT]')
+                    const tid = suspectDet?.tracker_id
+                    const bbox = suspectDet?.bbox
+                    const cname = suspectDet ? 'theif' : undefined // tag matching mapping in App.tsx
+                    onPlayVideoAtTime(
+                      mockVideo,
+                      currentFrame.timestamp_seconds,
+                      tid,
+                      bbox,
+                      cname,
+                      'SUSPECT',
+                      '#EF4444' // bright red highlight for tracking suspect
+                    )
                     onClose()
                   }}
-                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 text-xs font-bold rounded-lg border border-rose-500/20 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg border border-transparent shadow-sm transition-colors animate-pulse"
                 >
                   <Play className="w-3.5 h-3.5" />
                   See Original Video

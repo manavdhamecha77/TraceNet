@@ -79,7 +79,7 @@ class AbandonedObjectAnalyzer:
         abandon_time_sec: float = 15.0,
         stationary_tolerance_px: int = 15,
         stationary_time_sec: float = 2.0,
-        owner_bind_dist_px: int = 80,
+        owner_bind_dist_px: int = 200,
         abandon_dist_px: int = 200,
         occlusion_grace_frames: int = 30,
         visitor_dist_px: int = 150,

@@ -41,7 +41,7 @@ class AlertResponse(BaseModel):
 class AbandonedAnalysisConfig(BaseModel):
     abandon_time_sec: float = 15.0
     visitor_dist_px: int = 150
-    owner_bind_dist_px: int = 80
+    owner_bind_dist_px: int = 200
     abandon_dist_px: int = 200
     stationary_tolerance_px: int = 15
     stationary_time_sec: float = 2.0

@@ -595,11 +595,10 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
   const [savingSettings, setSavingSettings] = useState(false)
   const logPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Analysis config state
   const [config, setConfig] = useState({
     abandon_time_sec: 15,
     visitor_dist_px: 150,
-    owner_bind_dist_px: 80,
+    owner_bind_dist_px: 200,
     abandon_dist_px: 200,
     stationary_tolerance_px: 15,
     stationary_time_sec: 2,
@@ -728,7 +727,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
     const defaults = {
       abandon_time_sec: 15,
       visitor_dist_px: 150,
-      owner_bind_dist_px: 80,
+      owner_bind_dist_px: 200,
       abandon_dist_px: 200,
       stationary_tolerance_px: 15,
       stationary_time_sec: 2,
