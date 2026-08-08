@@ -237,7 +237,7 @@ export default function CameraDetail({
   }, [cameraVideos.map((v) => `${v.processing_status}:${v.progress_percentage}`).join(','), camera_id])
 
   const formatDuration = (secs?: number) => {
-    if (secs === undefined) return '--:--'
+    if (!secs || secs <= 0) return '--:--'
     const minutes = Math.floor(secs / 60)
     const seconds = Math.floor(secs % 60)
     return `${minutes}:${seconds.toString().padStart(2, '0')}`

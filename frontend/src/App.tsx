@@ -392,7 +392,7 @@ function App() {
 
   // Helper formats
   const formatDuration = (secs?: number) => {
-    if (secs === undefined) return '--:--'
+    if (!secs || secs <= 0) return '--:--'
     const minutes = Math.floor(secs / 60)
     const seconds = Math.floor(secs % 60)
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
