@@ -18,6 +18,7 @@ import {
   Check,
   PanelLeftClose,
   PanelLeft,
+  Square,
 } from 'lucide-react'
 
 const API_BASE = 'http://localhost:8000'
@@ -362,6 +363,16 @@ export default function AICopilotOverlay({
 
   const chatEndRef   = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setLoading(false)
+    setErrorMsg('AI response generation stopped by user.')
+  }
 
   // Load config & sessions on open
   useEffect(() => {
@@ -652,6 +663,9 @@ const SLASH_COMMANDS = [
       setErrorMsg('')
 
       try {
+        const controller = new AbortController()
+        abortControllerRef.current = controller
+
         const apiMessages = updatedMessages.slice(0, -1).map((m) => ({
           role: m.role,
           content: m.content,
@@ -667,6 +681,7 @@ const SLASH_COMMANDS = [
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: activeSessionId, messages: apiMessages }),
+          signal: controller.signal,
         })
 
         if (!res.ok) {
@@ -691,8 +706,13 @@ const SLASH_COMMANDS = [
           },
         ])
       } catch (err: any) {
+        if (err.name === 'AbortError') {
+          setErrorMsg('Response generation stopped by user.')
+          return
+        }
         setErrorMsg(err.message || 'Copilot assistant failure.')
       } finally {
+        abortControllerRef.current = null
         setLoading(false)
       }
       return
@@ -716,6 +736,9 @@ const SLASH_COMMANDS = [
     setErrorMsg('')
 
     try {
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+
       const payload = {
         session_id: activeSessionId,
         messages: updatedMessages.map((m) => ({
@@ -729,6 +752,7 @@ const SLASH_COMMANDS = [
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       })
 
       if (!res.ok) {
@@ -753,6 +777,10 @@ const SLASH_COMMANDS = [
         },
       ])
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setErrorMsg('Response generation stopped by user.')
+        return
+      }
       setErrorMsg(err.message || 'Copilot assistant failure.')
       setMessages((prev) => [
         ...prev,
@@ -762,6 +790,7 @@ const SLASH_COMMANDS = [
         },
       ])
     } finally {
+      abortControllerRef.current = null
       setLoading(false)
     }
   }
@@ -1181,14 +1210,26 @@ const SLASH_COMMANDS = [
                 className="flex-1 bg-slate-950 border border-slate-700 focus:border-teal-500 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none transition-colors shadow-inner font-sans"
               />
 
-              <button
-                type="submit"
-                disabled={loading || (!inputPrompt.trim() && !referenceB64)}
-                className="px-5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-2 transition-colors shadow-sm"
-              >
-                <Send className="h-3.5 w-3.5" />
-                <span>Send</span>
-              </button>
+              {loading ? (
+                <button
+                  type="button"
+                  onClick={handleStopGeneration}
+                  className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-sm animate-pulse"
+                  title="Stop AI response generation"
+                >
+                  <Square className="h-3.5 w-3.5 fill-current" />
+                  <span>Stop</span>
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!inputPrompt.trim() && !referenceB64}
+                  className="px-5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-2 transition-colors shadow-sm"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  <span>Send</span>
+                </button>
+              )}
             </form>
           </div>
         </div>
