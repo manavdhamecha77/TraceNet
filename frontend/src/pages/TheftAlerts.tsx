@@ -230,13 +230,24 @@ function ChainSnatchingCard({
             </button>
           )}
           {alert.video_id && (
-            <Link
-              to={`/cameras/${alert.camera_id}/videos/${alert.video_id}`}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              View Video
-            </Link>
+            <>
+              <Link
+                to={`/multicam?tracklet_id=${encodeURIComponent(suspectTrkId || alert.tracklet_id)}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-colors shadow-xs"
+                title="Pursue suspect vehicle across all city cameras using Multi-Cam Re-ID"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Pursue in City (Multi-Cam)
+              </Link>
+
+              <Link
+                to={`/cameras/${alert.camera_id}/videos/${alert.video_id}`}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                View Video
+              </Link>
+            </>
           )}
         </div>
       </div>
@@ -369,8 +380,24 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
     setTimeout(() => setFeedbackMsg(null), 3000)
   }
 
-  const clearLogs = () => {
-    setCsAnalysisLog([])
+  const clearLogs = async () => {
+    try {
+      await fetch(`${API_BASE}/api/v1/alerts/clear-logs`, { method: 'POST' })
+      setCsAnalysisLog([])
+    } catch {
+      setCsAnalysisLog([])
+    }
+  }
+
+  const clearArtifacts = async () => {
+    if (!window.confirm('Are you sure you want to clear all active alert records and reset evaluation logs?')) return
+    try {
+      await fetch(`${API_BASE}/api/v1/alerts/clear-artifacts`, { method: 'POST' })
+      loadAlerts()
+      setCsAnalysisLog([])
+    } catch (e) {
+      console.error('Failed to clear artifacts:', e)
+    }
   }
 
   const handleTrackTracklet = async (
@@ -454,6 +481,15 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Clear Logs</span>
+          </button>
+
+          <button
+            onClick={clearArtifacts}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+            title="Clear active alert records and reset evaluation logs"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+            <span>Clear Artifacts</span>
           </button>
 
           <button

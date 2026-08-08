@@ -136,6 +136,9 @@ function App() {
   const [loiteringThreshold, setLoiteringThreshold] = useState(60)
   const [loiteringEditorVideoId, setLoiteringEditorVideoId] = useState<string | null>(null)
 
+  // Alerts persistent toggle state
+  const [isAlertsSubmenuOpen, setIsAlertsSubmenuOpen] = useState(true)
+
   // Dashboard metrics state
   const [metrics, setMetrics] = useState({
     totalCameras: 0,
@@ -850,21 +853,33 @@ function App() {
               {!isSidebarCollapsed && <span>Search & Rank</span>}
             </Link>
 
-            {/* Parent Alerts Item with Sub-sections */}
+            {/* Parent Alerts Item with Persistent Sub-sections */}
             <div className="space-y-0.5">
-              <Link
-                to="/alerts"
-                className={navLinkClass(location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts')}
+              <div
+                onClick={() => setIsAlertsSubmenuOpen(prev => !prev)}
+                className={`cursor-pointer ${navLinkClass(
+                  location.pathname.startsWith('/alerts') ||
+                  location.pathname === '/theft-alerts' ||
+                  location.pathname === '/assault-alerts' ||
+                  location.pathname === '/assault-detection'
+                )}`}
                 title={isSidebarCollapsed ? 'Alerts' : undefined}
               >
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
-                {!isSidebarCollapsed && <span className="flex-1">Alerts</span>}
-              </Link>
+                {!isSidebarCollapsed && (
+                  <div className="flex-1 flex items-center justify-between">
+                    <span>Alerts</span>
+                    <svg className={`h-3 w-3 transition-transform ${isAlertsSubmenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                )}
+              </div>
 
-              {/* Sub-sections when Alerts is active or hovered */}
-              {!isSidebarCollapsed && (location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts') && (
+              {/* Persistent Sub-sections when open */}
+              {!isSidebarCollapsed && isAlertsSubmenuOpen && (
                 <div className="ml-4 pl-2.5 border-l border-slate-200 dark:border-slate-800 space-y-1 my-1">
                   <Link
                     to="/alerts"
@@ -898,20 +913,20 @@ function App() {
                   >
                     <span>Outdoor Theft</span>
                   </Link>
+
+                  <Link
+                    to="/alerts/assault"
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
+                      location.pathname === '/alerts/assault' || location.pathname === '/assault-alerts' || location.pathname === '/assault-detection'
+                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span>Assault Detection</span>
+                  </Link>
                 </div>
               )}
             </div>
-
-            <Link
-              to="/assault-detection"
-              className={navLinkClass(location.pathname === '/assault-detection')}
-              title={isSidebarCollapsed ? 'Assault Detection' : undefined}
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 9v2m0 4v2m0-11a9 9 0 110 18 9 9 0 010-18z" />
-              </svg>
-              {!isSidebarCollapsed && <span>Assault Detection</span>}
-            </Link>
 
             <Link
               to="/models"
@@ -1067,6 +1082,8 @@ function App() {
             <Route path="/alerts/abandoned" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+            <Route path="/alerts/assault" element={<AssaultDetection cameras={cameras} />} />
+            <Route path="/assault-alerts" element={<AssaultDetection cameras={cameras} />} />
             <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
             <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
             <Route path="/finetuning" element={<FineTuning />} />

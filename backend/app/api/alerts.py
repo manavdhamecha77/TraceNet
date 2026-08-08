@@ -572,3 +572,32 @@ def _run_chain_snatching_analysis_background(video_ids: list, config_dict: dict)
                         entry["log_entries"] = [f"[ERROR] {str(e)}"]
     finally:
         db.close()
+
+
+# -------------------------------------------------------
+# Utility Endpoints: Clear Logs & Artifacts
+# -------------------------------------------------------
+
+@router.post("/alerts/clear-logs")
+def clear_alerts_logs():
+    """Clears in-memory evaluation logs for all alert runs."""
+    global _analysis_run_log, _chain_snatching_run_log
+    _analysis_run_log = []
+    _chain_snatching_run_log = []
+    return {"status": "success", "message": "Analysis logs cleared successfully."}
+
+
+@router.post("/alerts/clear-artifacts")
+def clear_alerts_artifacts(db: Session = Depends(get_db)):
+    """Clears generated alert database records and resets active alerts."""
+    try:
+        deleted = db.query(Alert).delete()
+        db.commit()
+        global _analysis_run_log, _chain_snatching_run_log
+        _analysis_run_log = []
+        _chain_snatching_run_log = []
+        return {"status": "success", "message": f"Cleared {deleted} alert records and reset evaluation logs."}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear alert artifacts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

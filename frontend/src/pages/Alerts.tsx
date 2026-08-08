@@ -821,6 +821,17 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
     setSummary(prev => prev ? { ...prev, unacknowledged_alerts: Math.max(0, prev.unacknowledged_alerts - 1) } : prev)
   }
 
+  const clearArtifacts = async () => {
+    if (!window.confirm('Are you sure you want to clear all active alert records and reset evaluation logs?')) return
+    try {
+      await fetch(`${API_BASE}/api/v1/alerts/clear-artifacts`, { method: 'POST' })
+      loadAlerts()
+      setAnalysisLog([])
+    } catch (e) {
+      console.error('Failed to clear artifacts:', e)
+    }
+  }
+
   const acked = alerts.filter(a => a.acknowledged).length
 
   return (
@@ -861,10 +872,20 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
           <button
             onClick={clearLogsAndAlerts}
             className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors"
-            title="Clear All Logs & Alerts"
+            title="Clear Evaluation Logs"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Clear Logs</span>
+          </button>
+
+          {/* Clear Artifacts Button */}
+          <button
+            onClick={clearArtifacts}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+            title="Clear active alert records and reset evaluation logs"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+            <span>Clear Artifacts</span>
           </button>
 
           {/* Run now */}
