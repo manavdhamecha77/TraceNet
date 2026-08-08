@@ -94,6 +94,36 @@ def list_hot_targets(
     return {"targets": manager.list_hot_targets(status=status)}
 
 
+@router.get("/targets/alerts")
+def list_target_alerts(db: Session = Depends(get_db)):
+    """List suspect reappearance alerts."""
+    from app.db.models import Alert
+    alerts = db.query(Alert).filter(Alert.alert_type == "suspect_reappearance").order_by(Alert.timestamp.desc()).limit(20).all()
+    res = []
+    for a in alerts:
+        d = a.to_dict()
+        try:
+            log_data = json.loads(a.analysis_log) if a.analysis_log else {}
+            d["target_label"] = log_data.get("label", "Tagged Suspect")
+            d["priority"] = log_data.get("priority", "HIGH")
+        except Exception:
+            pass
+        res.append(d)
+    return {"alerts": res}
+
+
+@router.post("/targets/alerts/{alert_id}/acknowledge")
+def acknowledge_target_alert(alert_id: int, db: Session = Depends(get_db)):
+    """Acknowledge a suspect reappearance alert."""
+    from app.db.models import Alert
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    alert.acknowledged = True
+    db.commit()
+    return {"status": "success", "message": f"Alert {alert_id} acknowledged"}
+
+
 @router.get("/targets/{target_id}/journey")
 def get_hot_target_journey(
     target_id: str,

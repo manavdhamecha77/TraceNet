@@ -26,7 +26,20 @@ class HotTargetManager:
         embedding_vector: Optional[List[float]] = None,
         priority: str = "HIGH"
     ) -> Dict[str, Any]:
-        """Tags a suspect or vehicle for cross-camera persistent pursuit."""
+        """Tags a suspect or vehicle for cross-camera persistent pursuit with deduplication checks."""
+        # 1. Deduplication Check A: Check if exact tracklet is already tagged & active
+        if origin_tracklet_id:
+            existing = self.db.query(HotTarget).filter(
+                HotTarget.origin_tracklet_id == origin_tracklet_id,
+                HotTarget.status == "active"
+            ).first()
+            if existing:
+                return {
+                    "status": "already_tagged",
+                    "message": f"Object '{existing.label}' ({existing.id}) is already tagged on {origin_camera_id} and actively under pursuit.",
+                    "hot_target": existing.to_dict()
+                }
+
         target_vec = embedding_vector
         trk = None
 
@@ -41,6 +54,28 @@ class HotTargetManager:
 
         if target_vec is None:
             return {"status": "error", "message": "Could not resolve feature vector for target tagging."}
+
+        # 2. Deduplication Check B: Check visual similarity on same camera (cosine similarity >= 0.92)
+        active_same_cam_targets = self.db.query(HotTarget).filter(
+            HotTarget.origin_camera_id == origin_camera_id,
+            HotTarget.status == "active"
+        ).all()
+
+        for active_target in active_same_cam_targets:
+            try:
+                active_vec = json.loads(active_target.embedding_vector)
+                dot_prod = sum(a * b for a, b in zip(target_vec, active_vec))
+                norm_a = sum(a * a for a in target_vec) ** 0.5
+                norm_b = sum(b * b for b in active_vec) ** 0.5
+                sim = dot_prod / (norm_a * norm_b + 1e-8)
+                if sim >= 0.92:
+                    return {
+                        "status": "already_tagged",
+                        "message": f"This object is visually identical ({sim*100:.1f}% match) to active target '{active_target.label}' on {origin_camera_id}.",
+                        "hot_target": active_target.to_dict()
+                    }
+            except Exception:
+                pass
 
         target_id = f"hot_target_{str(uuid.uuid4())[:8]}"
         hot_target = HotTarget(

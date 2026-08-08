@@ -1265,7 +1265,11 @@ export default function VideoDetail() {
                           });
                           if (res.ok) {
                             const data = await res.json();
-                            alert(`🎯 Target Tagged for Hot Pursuit!\n${data.message || 'Target pinned for multi-camera pursuit.'}`);
+                            if (data.status === 'already_tagged') {
+                              alert(`ℹ️ Object Already Tagged!\n${data.message}`);
+                            } else {
+                              alert(`🎯 Target Tagged for Hot Pursuit!\n${data.message || 'Target pinned for multi-camera pursuit.'}`);
+                            }
                           }
                         } catch (err) {
                           console.error("Failed to tag target:", err);
