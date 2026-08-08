@@ -127,12 +127,19 @@ def process_video_background(
         assigned_model_id = None
         
         camera_record = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
-        if camera_record and camera_record.model_id:
-            model_record = db.query(MLModel).filter(MLModel.id == camera_record.model_id).first()
-            if model_record and os.path.exists(model_record.file_path):
-                model_path = model_record.file_path
-                assigned_model_id = model_record.id
-                logger.info(f"Using assigned model '{model_record.name}' ({model_path}) for camera {camera_id}")
+        if camera_record:
+            active_model_id = None
+            for m_id in [camera_record.theft_model_id, camera_record.abandoned_model_id, camera_record.assault_model_id, camera_record.model_id]:
+                if m_id and m_id != "OFF":
+                    active_model_id = m_id
+                    break
+            
+            if active_model_id:
+                model_record = db.query(MLModel).filter(MLModel.id == active_model_id).first()
+                if model_record and os.path.exists(model_record.file_path):
+                    model_path = model_record.file_path
+                    assigned_model_id = model_record.id
+                    logger.info(f"Using active model '{model_record.name}' ({model_path}) for camera {camera_id}")
             else:
                 logger.warning("Assigned model record or file not found. Falling back to default detector.")
 

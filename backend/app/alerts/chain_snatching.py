@@ -156,6 +156,8 @@ class ChainSnatchingAnalyzer:
         chase_velocity_multiplier: float = 3.0,
         chase_vector_cosine_sim: float = 0.75,
         observation_window_frames: int = 4,
+        enable_kinematics: bool = False,
+        detection_threshold_frames: int = 4,
     ):
         self.proximity_threshold_px = proximity_threshold_px
         self.fall_aspect_ratio_trigger = fall_aspect_ratio_trigger
@@ -163,6 +165,58 @@ class ChainSnatchingAnalyzer:
         self.chase_velocity_multiplier = chase_velocity_multiplier
         self.chase_vector_cosine_sim = chase_vector_cosine_sim
         self.observation_window_frames = observation_window_frames
+        self.enable_kinematics = enable_kinematics
+        self.detection_threshold_frames = detection_threshold_frames
+
+    def _extract_theft_frames(self, video_id: str, frame_indices: set, db) -> dict:
+        """Extracts and saves specific frame images, returning a mapping of frame_idx -> relative_image_path."""
+        import cv2
+        from app.db.models import VideoAsset, CameraProfile
+        from app.preprocess.preprocessor import sanitize_filename
+        from app.config import get_data_path
+        
+        mapping = {}
+        if not frame_indices:
+            return mapping
+            
+        try:
+            video_record = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+            if not video_record:
+                return mapping
+                
+            camera_id = video_record.camera_id
+            camera = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+            camera_name = camera.name if camera else camera_id
+            camera_dir_name = f"{camera_id}_{sanitize_filename(camera_name)}"
+            camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
+            video_path = os.path.join(camera_dir, "original_assets", video_record.standardized_filename)
+            
+            if not os.path.exists(video_path):
+                return mapping
+                
+            # Create folder
+            theft_frames_dir = get_data_path(os.path.join("processed/detections", video_id, "theft_frames"))
+            os.makedirs(theft_frames_dir, exist_ok=True)
+            
+            cap = cv2.VideoCapture(video_path)
+            frame_idx = 0
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                if frame_idx in frame_indices:
+                    out_name = f"frame_{frame_idx}.jpg"
+                    out_p = os.path.join(theft_frames_dir, out_name)
+                    cv2.imwrite(out_p, frame)
+                    # Convert to relative path for frontend access
+                    rel_p = f"data/processed/detections/{video_id}/theft_frames/{out_name}"
+                    mapping[frame_idx] = rel_p
+                frame_idx += 1
+            cap.release()
+        except Exception as e:
+            logger.error(f"Failed to extract theft frames: {e}")
+            
+        return mapping
 
     def analyze_video(
         self,
@@ -172,13 +226,14 @@ class ChainSnatchingAnalyzer:
         progress_callback=None,
     ) -> dict:
         log_entries = []
+        from app.db.models import Alert
 
         # 1. Eligibility Check
         model_class_names_lower = {c.lower() for c in model_classes} if model_classes else set()
         has_person_class = any(any(k in c for k in PERSON_CLASS_KEYWORDS) for c in model_class_names_lower) or not model_classes
         has_vehicle_class = any(any(k in c for k in SUSPECT_VEHICLE_KEYWORDS) for c in model_class_names_lower) or not model_classes
 
-        if not (has_person_class and has_vehicle_class):
+        if self.enable_kinematics and not (has_person_class and has_vehicle_class):
             reason = (
                 f"Model lacks both Person and Vehicle classes for Chain Snatching analysis. "
                 f"Model classes: {sorted(model_class_names_lower)}."
@@ -193,7 +248,7 @@ class ChainSnatchingAnalyzer:
                 "evaluated_video_id": video_id,
             }
 
-        log_entries.append("[OK] Model contains Person and Vehicle tracking capabilities.")
+        log_entries.append(f"[OK] Model checks passed (enable_kinematics={self.enable_kinematics}).")
 
         # 2. Load detections.json
         detections_path = get_data_path(os.path.join("processed/detections", video_id, "detections.json"))
@@ -214,8 +269,198 @@ class ChainSnatchingAnalyzer:
         fps = float(det_data.get("fps", 4.0)) or 4.0
         frame_detections = det_data.get("frame_detections", [])
         tracklet_summaries = {t["tracker_id"]: t for t in det_data.get("tracklets", [])}
+        total_frames = len(frame_detections)
 
-        log_entries.append(f"[INFO] Replaying {len(frame_detections)} frames at {fps:.1f} FPS")
+        log_entries.append(f"[INFO] Replaying {total_frames} frames at {fps:.1f} FPS")
+
+        if not self.enable_kinematics:
+            # ───────────────────────────────────────────────────
+            # MODEL-ONLY DIRECT CLASS DETECTION & RUN TIMELINE RULE
+            # ───────────────────────────────────────────────────
+            log_entries.append(f"[INFO] Running Model-Only theft detection (Threshold={self.detection_threshold_frames} frames)")
+            consecutive_frames = 0
+            theft_triggers = []
+            theft_keywords = ["theft", "snatch", "stealing", "robbery", "violent"]
+            
+            current_streak_tracker_ids = set()
+            current_streak_frames = []
+
+            for idx, frame_data in enumerate(frame_detections):
+                if progress_callback and total_frames > 0:
+                    progress_callback(int((idx / total_frames) * 100))
+                    
+                frame_idx = frame_data["frame_index"]
+                timestamp_sec = frame_data["timestamp_seconds"]
+                detections = frame_data.get("detections", [])
+                
+                theft_detections = []
+                for det in detections:
+                    cname = (det.get("class_name") or "").lower()
+                    if any(k in cname for k in theft_keywords):
+                        theft_detections.append(det)
+                
+                if theft_detections:
+                    consecutive_frames += 1
+                    current_streak_frames.append(frame_data)
+                    for td in theft_detections:
+                        if td.get("tracker_id") is not None:
+                            current_streak_tracker_ids.add(td["tracker_id"])
+                else:
+                    if consecutive_frames >= self.detection_threshold_frames:
+                        theft_triggers.append({
+                            "tracker_ids": list(current_streak_tracker_ids),
+                            "frames": current_streak_frames.copy(),
+                            "consecutive_count": consecutive_frames
+                        })
+                    consecutive_frames = 0
+                    current_streak_tracker_ids = set()
+                    current_streak_frames = []
+                    
+            if consecutive_frames >= self.detection_threshold_frames:
+                theft_triggers.append({
+                    "tracker_ids": list(current_streak_tracker_ids),
+                    "frames": current_streak_frames.copy(),
+                    "consecutive_count": consecutive_frames
+                })
+
+            alerts_created = 0
+            for trigger in theft_triggers:
+                thief_trid = trigger["tracker_ids"][0] if trigger["tracker_ids"] else None
+                start_frame = trigger["frames"][0]["frame_index"]
+                timestamp_sec = trigger["frames"][0]["timestamp_seconds"]
+                
+                first_frame_dets = trigger["frames"][0].get("detections", [])
+                thief_bbox = None
+                if thief_trid is not None:
+                    for d in first_frame_dets:
+                        if d.get("tracker_id") == thief_trid:
+                            thief_bbox = d.get("bbox")
+                            break
+                
+                victim_trid = None
+                vehicle_trid = None
+                min_victim_dist = float("inf")
+                min_vehicle_dist = float("inf")
+                
+                if thief_bbox:
+                    tcx, tcy = _center(thief_bbox)
+                    for d in first_frame_dets:
+                        trid = d.get("tracker_id")
+                        if trid == thief_trid or trid is None:
+                            continue
+                        dbbox = d.get("bbox", [0, 0, 1, 1])
+                        dcx, dcy = _center(dbbox)
+                        dist = _dist((tcx, tcy), (dcx, dcy))
+                        
+                        if _is_person_detection(d):
+                            if dist < min_victim_dist:
+                                min_victim_dist = dist
+                                victim_trid = trid
+                        elif _is_vehicle_detection(d):
+                            if dist < min_vehicle_dist:
+                                min_vehicle_dist = dist
+                                vehicle_trid = trid
+
+                if thief_trid is None:
+                    for f in trigger["frames"]:
+                        for d in f.get("detections", []):
+                            if d.get("tracker_id") is not None:
+                                thief_trid = d["tracker_id"]
+                                break
+                        if thief_trid is not None:
+                            break
+
+                thief_tracklet_id = f"{video_id}_trk_{thief_trid}" if thief_trid is not None else None
+                victim_tracklet_id = f"{video_id}_trk_{victim_trid}" if victim_trid is not None else None
+                vehicle_tracklet_id = f"{video_id}_trk_{vehicle_trid}" if vehicle_trid is not None else None
+                
+                tracklet_to_use = thief_tracklet_id or victim_tracklet_id or f"{video_id}_trk_unknown"
+                existing = db.query(Alert).filter(
+                    Alert.video_id == video_id,
+                    Alert.alert_type == "chain_snatching",
+                    Alert.tracklet_id == tracklet_to_use
+                ).first()
+                if existing:
+                    continue
+                    
+                # Extract theft frames for evidence download
+                trigger_frame_idxs = {f["frame_index"] for f in trigger["frames"]}
+                frame_paths = self._extract_theft_frames(video_id, trigger_frame_idxs, db)
+                
+                theft_frames_metadata = []
+                for f in trigger["frames"]:
+                    fidx = f["frame_index"]
+                    if fidx in frame_paths:
+                        # Map detected labels to [SUSPECT] and [VICTIM]
+                        mapped_detections = []
+                        for d in f.get("detections", []):
+                            cname = (d.get("class_name") or "").lower()
+                            mapped_d = d.copy()
+                            if cname in ["theif", "thief", "suspect"]:
+                                mapped_d["class_name"] = "[SUSPECT]"
+                            elif cname in ["victim"]:
+                                mapped_d["class_name"] = "[VICTIM]"
+                            mapped_detections.append(mapped_d)
+                            
+                        theft_frames_metadata.append({
+                            "frame_index": fidx,
+                            "timestamp_seconds": f["timestamp_seconds"],
+                            "image_path": frame_paths[fidx],
+                            "detections": mapped_detections
+                        })
+                
+                visitor_tracklets = []
+                if thief_tracklet_id:
+                    visitor_tracklets.append(thief_tracklet_id)
+                if vehicle_tracklet_id:
+                    visitor_tracklets.append(vehicle_tracklet_id)
+                    
+                alert_payload = {
+                    "log_entries": [
+                        f"[MODEL_THEFT_ALERT] Triggered by ML model class detection matching keywords.",
+                        f"Consecutive frames: {trigger['consecutive_count']} (Threshold={self.detection_threshold_frames})",
+                        f"Start frame: {start_frame} (ts={timestamp_sec:.1f}s)",
+                        f"Thief tracklet: {thief_tracklet_id}",
+                        f"Victim tracklet: {victim_tracklet_id}",
+                        f"Vehicle tracklet: {vehicle_tracklet_id}"
+                    ],
+                    "theft_frames": theft_frames_metadata
+                }
+                
+                alert = Alert(
+                    alert_type="chain_snatching",
+                    tracklet_id=tracklet_to_use,
+                    camera_id="",
+                    video_id=video_id,
+                    object_tracklet_id=vehicle_tracklet_id,
+                    owner_tracklet_ids=json.dumps([victim_tracklet_id] if victim_tracklet_id else []),
+                    visitor_tracklet_ids=json.dumps(visitor_tracklets),
+                    abandon_duration_seconds=0.0,
+                    analysis_log=json.dumps(alert_payload),
+                )
+                db.add(alert)
+                db.flush()
+                alerts_created += 1
+                log_entries.append(
+                    f"[MODEL_THEFT_ALERT] Triggered alert at frame {start_frame} "
+                    f"with thief={thief_tracklet_id}, victim={victim_tracklet_id}, vehicle={vehicle_tracklet_id}"
+                )
+
+            db.commit()
+            if progress_callback:
+                progress_callback(100)
+            log_entries.append(f"[DONE] {alerts_created} model-only theft alert(s) created for video {video_id}")
+            return {
+                "eligible": True,
+                "skip_reason": None,
+                "alerts_created": alerts_created,
+                "log_entries": log_entries,
+                "evaluated_video_id": video_id,
+            }
+
+        # ───────────────────────────────────────────────────
+        # KINEMATIC-BASED SPATIOTEMPORAL LOGIC (OFF BY DEFAULT)
+        # ───────────────────────────────────────────────────
         log_entries.append(
             f"[INFO] Proximity Threshold={self.proximity_threshold_px}px, Fall Aspect Ratio Trigger={self.fall_aspect_ratio_trigger}"
         )
@@ -225,9 +470,6 @@ class ChainSnatchingAnalyzer:
         proximity_events: List[ProximityEvent] = []
         alerts_to_create = []
 
-        total_frames = len(frame_detections)
-
-        # 3. Frame-by-frame Kinematic Replay
         for idx, frame_data in enumerate(frame_detections):
             if progress_callback and total_frames > 0:
                 progress_callback(int((idx / total_frames) * 100))
@@ -248,7 +490,6 @@ class ChainSnatchingAnalyzer:
                 elif _is_vehicle_detection(det):
                     current_vehicles[trid] = det
 
-            # Update Person Registry
             for trid, det in current_persons.items():
                 bbox = det.get("bbox", [0, 0, 1, 1])
                 cx, cy = _center(bbox)
@@ -268,7 +509,6 @@ class ChainSnatchingAnalyzer:
                 p.center_history.append((frame_idx, (cx, cy)))
                 p.aspect_history.append((frame_idx, ar))
 
-                # Compute 2-frame velocity vector (Delta T = 500ms at 4 FPS)
                 if len(p.center_history) >= 3:
                     prev_f, prev_c = p.center_history[-3]
                     vx = cx - prev_c[0]
@@ -277,7 +517,6 @@ class ChainSnatchingAnalyzer:
                 else:
                     p.velocity_history.append((frame_idx, (0.0, 0.0)))
 
-            # Update Vehicle Registry
             for trid, det in current_vehicles.items():
                 bbox = det.get("bbox", [0, 0, 1, 1])
                 cx, cy = _center(bbox)
@@ -300,7 +539,6 @@ class ChainSnatchingAnalyzer:
                 else:
                     v.velocity_history.append((frame_idx, (0.0, 0.0)))
 
-            # 1. Partition Persons: Riders (on vehicle) vs Pedestrians (target victims)
             rider_pids = set()
             vehicle_riders: Dict[int, List[int]] = {}
 
@@ -315,7 +553,6 @@ class ChainSnatchingAnalyzer:
 
             pedestrian_pids = [pid for pid in current_persons if pid not in rider_pids]
 
-            # 2. Evaluate Proximity Spikes & Snatch Contact between Suspect Vehicle and Pedestrians
             for pid in pedestrian_pids:
                 pdet = current_persons[pid]
                 pbbox = pdet.get("bbox", [0, 0, 1, 1])
@@ -348,7 +585,6 @@ class ChainSnatchingAnalyzer:
                             f"(Rider={rider_id or 'unknown'}) dist={dist:.1f}px (NeckDist={neck_dist:.1f}px) at frame {frame_idx}"
                         )
 
-            # RULE B, RULE C & RULE D Evaluation
             recent_events = [
                 pe for pe in proximity_events
                 if frame_idx - pe.frame_idx <= self.observation_window_frames
@@ -364,7 +600,6 @@ class ChainSnatchingAnalyzer:
                 p_kin = person_registry[pid]
                 v_kin = vehicle_registry.get(vid)
 
-                # RULE B: Victim Fall Anomaly (Aspect ratio drop from > 1.1 to < trigger)
                 if len(p_kin.aspect_history) >= 2 and not p_kin.is_fallen:
                     recent_aspects = [ar for fi, ar in p_kin.aspect_history[-self.fall_frame_window - 1:]]
                     if len(recent_aspects) >= 2:
@@ -377,7 +612,6 @@ class ChainSnatchingAnalyzer:
                                 f"following proximity with Vehicle #{vid} at frame {frame_idx}"
                             )
 
-                # RULE C: Post-Impact Chase Vector (Velocity acceleration & vector alignment)
                 if v_kin and len(p_kin.velocity_history) >= 2 and len(v_kin.velocity_history) >= 2:
                     p_vx, p_vy = p_kin.velocity_history[-1][1]
                     v_vx, v_vy = v_kin.velocity_history[-1][1]
@@ -398,14 +632,12 @@ class ChainSnatchingAnalyzer:
                             f"aligned with Vehicle #{vid} (CosSim={cos_sim:.2f}) at frame {frame_idx}"
                         )
 
-                # RULE D: Upper-Body Neck Snatch Contact
                 if pevent.snatch_interaction:
                     p_kin.is_snatch_contact = True
                     log_entries.append(
                         f"[SNATCH_CONTACT] Suspect Rider/Vehicle #{vid} hand/front within neck zone of Target Pedestrian #{pid} at frame {frame_idx}"
                     )
 
-                # Trigger Alert Gate: Proximity + (Fall OR Chase OR Snatch Contact)
                 if (p_kin.is_fallen or p_kin.is_chasing or p_kin.is_snatch_contact) and not p_kin.alert_triggered:
                     p_kin.alert_triggered = True
                     log_entries.append(
@@ -414,10 +646,7 @@ class ChainSnatchingAnalyzer:
                     )
                     alerts_to_create.append((p_kin, v_kin, rider_id, timestamp_sec))
 
-        # 4. Write Alerts to SQLite Database
-        from app.db.models import Alert
         alerts_created = 0
-
         for p_kin, v_kin, rider_id, ts in alerts_to_create:
             try:
                 existing = db.query(Alert).filter(
@@ -429,22 +658,54 @@ class ChainSnatchingAnalyzer:
                 if existing:
                     continue
 
+                # Extract context frames around the trigger timestamp
+                trigger_frame_idx = int(ts * fps)
+                adjacent_idxs = set(range(max(0, trigger_frame_idx - 5), min(total_frames, trigger_frame_idx + 6)))
+                frame_paths = self._extract_theft_frames(video_id, adjacent_idxs, db)
+                
+                theft_frames_metadata = []
+                for fidx in sorted(adjacent_idxs):
+                    if fidx in frame_paths:
+                        fdata = next((f for f in frame_detections if f["frame_index"] == fidx), None)
+                        mapped_detections = []
+                        if fdata:
+                            for d in fdata.get("detections", []):
+                                cname = (d.get("class_name") or "").lower()
+                                mapped_d = d.copy()
+                                if cname in ["theif", "thief", "suspect"]:
+                                    mapped_d["class_name"] = "[SUSPECT]"
+                                elif cname in ["victim"]:
+                                    mapped_d["class_name"] = "[VICTIM]"
+                                mapped_detections.append(mapped_d)
+                                
+                        theft_frames_metadata.append({
+                            "frame_index": fidx,
+                            "timestamp_seconds": fidx / fps,
+                            "image_path": frame_paths[fidx],
+                            "detections": mapped_detections
+                        })
+
                 visitor_tracklets = []
                 if rider_id:
                     visitor_tracklets.append(f"{video_id}_trk_{rider_id}")
                 if v_kin:
                     visitor_tracklets.append(v_kin.tracklet_id)
 
+                alert_payload = {
+                    "log_entries": log_entries[-12:],
+                    "theft_frames": theft_frames_metadata
+                }
+
                 alert = Alert(
                     alert_type="chain_snatching",
-                    tracklet_id=p_kin.tracklet_id,  # Target Victim Pedestrian
-                    camera_id="",  # Updated by caller API handler
+                    tracklet_id=p_kin.tracklet_id,
+                    camera_id="",
                     video_id=video_id,
-                    object_tracklet_id=v_kin.tracklet_id if v_kin else None, # Suspect Vehicle
-                    owner_tracklet_ids=json.dumps([p_kin.tracklet_id]),     # VICTIM
-                    visitor_tracklet_ids=json.dumps(visitor_tracklets),      # SUSPECT RIDER / VEHICLE
+                    object_tracklet_id=v_kin.tracklet_id if v_kin else None,
+                    owner_tracklet_ids=json.dumps([p_kin.tracklet_id]),
+                    visitor_tracklet_ids=json.dumps(visitor_tracklets),
                     abandon_duration_seconds=0.0,
-                    analysis_log=json.dumps(log_entries[-12:]),
+                    analysis_log=json.dumps(alert_payload),
                 )
                 db.add(alert)
                 db.flush()

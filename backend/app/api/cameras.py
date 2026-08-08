@@ -252,7 +252,7 @@ def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
     import os
     import time
     from loguru import logger
-    from datetime import timezone
+    from datetime import datetime, timezone
     from app.db.session import SessionLocal
     from app.db.models import CameraProfile, VideoAsset, MLModel, ModelExecutionLog
     from app.detection.detector import DetectionService
@@ -281,8 +281,14 @@ def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
         # Resolve camera-assigned model path if it exists
         model_path = None
         assigned_model_id = None
-        if camera.model_id:
-            model_record = db.query(MLModel).filter(MLModel.id == camera.model_id).first()
+        active_model_id = None
+        for m_id in [camera.theft_model_id, camera.abandoned_model_id, camera.assault_model_id, camera.model_id]:
+            if m_id and m_id != "OFF":
+                active_model_id = m_id
+                break
+        
+        if active_model_id:
+            model_record = db.query(MLModel).filter(MLModel.id == active_model_id).first()
             if model_record and os.path.exists(model_record.file_path):
                 model_path = model_record.file_path
                 assigned_model_id = model_record.id

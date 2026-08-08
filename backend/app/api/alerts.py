@@ -55,6 +55,8 @@ class ChainSnatchingAnalysisConfig(BaseModel):
     chase_velocity_multiplier: float = 3.0
     chase_vector_cosine_sim: float = 0.75
     observation_window_frames: int = 4
+    enable_kinematics: bool = False
+    detection_threshold_frames: int = 4
 
 
 class TriggerAnalysisResponse(BaseModel):
@@ -526,13 +528,15 @@ def _run_chain_snatching_analysis_background(video_ids: list, config_dict: dict)
                     CameraProfile.camera_id == video.camera_id
                 ).first()
                 model_classes = []
-                if camera and camera.model_id:
-                    model = db.query(MLModel).filter(MLModel.id == camera.model_id).first()
-                    if model:
-                        try:
-                            model_classes = json.loads(model.classes) if model.classes else []
-                        except Exception:
-                            model_classes = []
+                if camera:
+                    active_model_id = camera.theft_model_id or camera.model_id
+                    if active_model_id and active_model_id != "OFF":
+                        model = db.query(MLModel).filter(MLModel.id == active_model_id).first()
+                        if model:
+                            try:
+                                model_classes = json.loads(model.classes) if model.classes else []
+                            except Exception:
+                                model_classes = []
 
                 def progress_cb(percent):
                     for entry in _chain_snatching_run_log:
