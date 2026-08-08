@@ -769,7 +769,7 @@ function App() {
     <div className="flex min-h-screen bg-slate-100 dark:bg-[#0B1324] text-slate-800 dark:text-slate-100 antialiased transition-colors duration-150">
       {/* ── SIDEBAR ─────────────────────────────────────────── */}
       <aside
-        className="flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0F172A] z-20 transition-all duration-200 shrink-0"
+        className="sticky top-0 h-screen flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0F172A] z-20 transition-all duration-200 shrink-0"
         style={{ width: isSidebarCollapsed ? 56 : 220 }}
       >
         <div className="flex flex-col gap-6">

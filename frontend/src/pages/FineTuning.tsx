@@ -14,7 +14,6 @@ interface TrainingJob {
 
 export default function FineTuning() {
   const [jobs, setJobs] = useState<TrainingJob[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeJob, setActiveJob] = useState<string | null>(null);
 

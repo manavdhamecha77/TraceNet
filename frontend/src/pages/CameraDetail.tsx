@@ -133,6 +133,19 @@ export default function CameraDetail({
   const [detectionFilterClass, setDetectionFilterClass] = useState<string>('all')
   const [detectionSortOrder, setDetectionSortOrder] = useState<'desc' | 'asc'>('desc')
   
+  // Model selection & Sync dropdown states
+  const [tempModel, setTempModel] = useState<any>(null)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (selectedCamera) {
+      const assigned = models?.find(m => m.id === selectedCamera.model_id)
+      setTempModel(assigned || { id: '', name: 'YOLOv8 Default' })
+    }
+  }, [selectedCamera, models])
+
   const pollTimerRef = useRef<any>(null)
 
   useEffect(() => {
@@ -140,8 +153,17 @@ export default function CameraDetail({
       setActiveVideoMenuId(null)
       setVideoMenuPos(null)
     }
+    const handleDropdownOutsideClick = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
     window.addEventListener('click', handleOutsideClick)
-    return () => window.removeEventListener('click', handleOutsideClick)
+    document.addEventListener('mousedown', handleDropdownOutsideClick)
+    return () => {
+      window.removeEventListener('click', handleOutsideClick)
+      document.removeEventListener('mousedown', handleDropdownOutsideClick)
+    }
   }, [])
 
   // Fetch Camera Details
@@ -380,18 +402,39 @@ export default function CameraDetail({
 
   const assignedModel = models?.find(m => m.id === selectedCamera?.model_id)
   const assignedModelName = assignedModel ? assignedModel.name : (selectedCamera?.model_id || 'YOLOv8 Default')
+  const tempModelName = tempModel ? tempModel.name : assignedModelName
 
   const handleSyncModel = async () => {
     if (!camera_id) return
-    if (!window.confirm(`Sync all video detections for camera '${selectedCamera?.name}' using model '${assignedModelName}'? This will re-run detection in the background.`)) {
+    const modelNameToSync = tempModelName
+    if (!window.confirm(`Sync all video detections for camera '${selectedCamera?.name}' using model '${modelNameToSync}'? This will re-run detection in the background.`)) {
       return
     }
     setSyncingModel(true)
     setSyncSuccessMsg('')
     try {
+      // 1. If tempModel.id is different from camera's current model_id, update camera first in the database
+      const currentCameraModelId = selectedCamera?.model_id || ''
+      const targetModelId = tempModel?.id || ''
+      if (targetModelId !== currentCameraModelId) {
+        const updateRes = await fetch(`${API_BASE}/api/v1/cameras/${camera_id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_id: targetModelId })
+        })
+        if (!updateRes.ok) {
+          alert("Failed to update camera's assigned model before sync.")
+          setSyncingModel(false)
+          return
+        }
+        // Refresh the selected camera details so the UI updates
+        await fetchCameraDetails()
+      }
+
+      // 2. Trigger detection sync
       const res = await fetch(`${API_BASE}/api/v1/cameras/${camera_id}/sync-detection`, { method: 'POST' })
       if (res.ok) {
-        setSyncSuccessMsg(`Detection sync initiated with model '${assignedModelName}'. Videos are re-indexing in background.`)
+        setSyncSuccessMsg(`Detection sync initiated with model '${modelNameToSync}'. Videos are re-indexing in background.`)
         setTimeout(() => setSyncSuccessMsg(''), 6000)
       } else {
         alert("Failed to trigger detection sync.")
@@ -425,15 +468,93 @@ export default function CameraDetail({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              disabled={syncingModel}
-              onClick={handleSyncModel}
-              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
-              title={`Sync video detections using ${assignedModelName}`}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 text-teal-600 dark:text-teal-400 ${syncingModel ? 'animate-spin' : ''}`} />
-              <span>{syncingModel ? 'Syncing...' : `Sync Detections (${assignedModelName})`}</span>
-            </button>
+            {/* Split Sync Button */}
+            <div className="relative flex items-stretch rounded-md shadow-sm">
+              <button
+                disabled={syncingModel}
+                onClick={handleSyncModel}
+                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 border-r-0 px-3 py-1.5 rounded-l-md text-xs font-bold transition-colors disabled:opacity-50"
+                title={`Sync video detections using ${tempModelName}`}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 text-teal-600 dark:text-teal-400 ${syncingModel ? 'animate-spin' : ''}`} />
+                <span>{syncingModel ? 'Syncing...' : `Sync Detections (${tempModelName})`}</span>
+              </button>
+              
+              <button
+                disabled={syncingModel}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowDropdown(prev => !prev)
+                }}
+                className="flex items-center justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-2 py-1.5 rounded-r-md transition-colors disabled:opacity-50 border-l border-slate-300 dark:border-slate-600"
+                title="Choose another model"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Models Dropdown */}
+              {showDropdown && (() => {
+                const defaultModelObj = { id: '', name: 'YOLOv8 Default' }
+                const allModelsList = [defaultModelObj, ...(models || [])]
+                const filteredModelsList = allModelsList.filter(m => 
+                  m.name.toLowerCase().includes(searchQuery.toLowerCase())
+                )
+
+                return (
+                  <div
+                    ref={dropdownRef}
+                    className="absolute right-0 mt-9 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md shadow-lg z-50 overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-2 border-b border-slate-100 dark:border-slate-805 bg-slate-50 dark:bg-slate-950">
+                      <input
+                        type="text"
+                        placeholder="Search models..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full text-xs px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md outline-none text-slate-800 dark:text-slate-100 focus:border-teal-500 transition-colors"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-y-auto py-1">
+                      {filteredModelsList.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-slate-450 dark:text-slate-500 text-center">
+                          No models found
+                        </div>
+                      ) : (
+                        filteredModelsList.map((m) => {
+                          const isSelected = tempModel?.id === m.id
+                          return (
+                            <button
+                              key={m.id || 'default'}
+                              type="button"
+                              onClick={() => {
+                                setTempModel(m)
+                                setShowDropdown(false)
+                              }}
+                              className={`w-full text-left px-3.5 py-2 text-xs transition-colors hover:bg-slate-100 dark:hover:bg-slate-850 flex items-center justify-between ${
+                                isSelected
+                                  ? 'bg-teal-50 dark:bg-teal-950/20 text-teal-700 dark:text-teal-400 font-bold'
+                                  : 'text-slate-700 dark:text-slate-200'
+                              }`}
+                            >
+                              <span className="truncate">{m.name}</span>
+                              {isSelected && (
+                                <svg className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
             <button
               onClick={onOpenUploadModal}
               className="flex items-center gap-2 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-750 text-white px-3.5 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm"
@@ -708,64 +829,65 @@ export default function CameraDetail({
             </button>
           </div>
 
-          <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-0">
-            <div className="p-4 space-y-3 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-700">
+          <div className="flex flex-col gap-0">
+            {/* Top stats block */}
+            <div className="p-4 bg-slate-50/50 dark:bg-slate-900/20 border-b border-slate-200 dark:border-slate-800">
               {detectionModal.loading ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 py-4 justify-center">
+                  <svg className="h-5 w-5 animate-spin text-teal-600 dark:text-teal-400" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  Inspecting detections...
+                  <span>Inspecting detections & coordinates...</span>
                 </div>
               ) : detectionModal.error ? (
-                <div className="rounded border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300 p-3 text-xs">
+                <div className="rounded border border-amber-250 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300 p-3 text-xs">
                   {detectionModal.error}
                 </div>
               ) : detectionModal.result ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3 text-[11px]">
-                    <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
-                      <div className="text-slate-400 uppercase tracking-wider font-bold">Frames</div>
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{detectionModal.result.frame_count}</div>
-                    </div>
-                    <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
-                      <div className="text-slate-400 uppercase tracking-wider font-bold">Tracklets</div>
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{detectionModal.result.tracklets.length}</div>
-                    </div>
-                    <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
-                      <div className="text-slate-400 uppercase tracking-wider font-bold">FPS</div>
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">{detectionModal.result.fps.toFixed(1)}</div>
-                    </div>
-                    <div className="rounded border border-slate-200 dark:border-slate-700 p-3">
-                      <div className="text-slate-400 uppercase tracking-wider font-bold">Object Types</div>
-                      <div className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                        {Array.from(new Set(detectionModal.result.tracklets.map((tracklet) => tracklet.object_type))).join(', ') || 'None'}
-                      </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Frames</div>
+                    <div className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{detectionModal.result.frame_count}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Tracklets</div>
+                    <div className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{detectionModal.result.tracklets.length}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Processed FPS</div>
+                    <div className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{detectionModal.result.fps.toFixed(1)}</div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Object Types</div>
+                    <div className="text-sm font-extrabold text-slate-700 dark:text-slate-300 mt-1 capitalize truncate" title={Array.from(new Set(detectionModal.result.tracklets.map((t) => t.object_type))).join(', ')}>
+                      {Array.from(new Set(detectionModal.result.tracklets.map((t) => t.object_type))).join(', ') || 'None'}
                     </div>
                   </div>
-                  <div className="rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-3 text-xs text-slate-600 dark:text-slate-300 space-y-1.5">
-                    <div className="flex justify-between gap-4">
-                      <span>Model:</span>
-                      <span className="font-mono text-slate-800 dark:text-slate-100 truncate">{detectionModal.result.model_path}</span>
+                  
+                  {/* Model Details & Artifact info (takes 2 columns) */}
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs sm:col-span-2 lg:col-span-2 flex flex-col justify-center gap-1">
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Model & Artifact Files</div>
+                    <div className="text-[10px] text-slate-600 dark:text-slate-350 truncate">
+                      <span className="font-semibold text-teal-600 dark:text-teal-400">Model:</span> <span className="font-mono">{detectionModal.result.model_path}</span>
                     </div>
-                    <div className="flex justify-between gap-4">
-                      <span>Artifact:</span>
-                      <span className="font-mono text-slate-800 dark:text-slate-100 truncate">{detectionModal.result.artifact_path}</span>
+                    <div className="text-[10px] text-slate-600 dark:text-slate-350 truncate">
+                      <span className="font-semibold text-teal-600 dark:text-teal-400">Index:</span> <span className="font-mono">{detectionModal.result.artifact_path}</span>
                     </div>
                   </div>
-                </>
+                </div>
               ) : null}
             </div>
 
-            <div className="p-4 space-y-4 max-h-[480px] overflow-y-auto bg-slate-50 dark:bg-slate-900/40 flex flex-col">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
-                <div>
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tracklet Reviewer</h4>
-                </div>
-                
-                {/* Dynamic Filters Row */}
-                {detectionModal.result && (
+            {/* Bottom Gallery Grid */}
+            <div className="p-4 space-y-4 bg-slate-50 dark:bg-slate-900/40">
+              {detectionModal.result && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-700">
+                  <div>
+                    <h4 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tracklet Gallery & Index Scrubber</h4>
+                  </div>
+                  
+                  {/* Dynamic Filters Row */}
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Object Type Switcher */}
                     <div className="flex rounded bg-slate-200 dark:bg-slate-800 p-0.5 text-[9px] font-semibold">
@@ -833,117 +955,119 @@ export default function CameraDetail({
                       </span>
                     </button>
                   </div>
-                )}
-              </div>
-
-              {/* Detections Grid */}
-              {detectionModal.result && detectionModal.result.tracklets.length > 0 ? (
-                (() => {
-                  const filtered = detectionModal.result.tracklets
-                    .filter((t) => {
-                      const typeMatch = detectionFilterType === 'all' || t.object_type === detectionFilterType
-                      const classMatch =
-                        detectionFilterClass === 'all' || t.class_name.toLowerCase() === detectionFilterClass.toLowerCase()
-                      return typeMatch && classMatch
-                    })
-                    .sort((a, b) => {
-                      return detectionSortOrder === 'desc'
-                        ? b.mean_confidence - a.mean_confidence
-                        : a.mean_confidence - b.mean_confidence
-                    })
-
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-xs text-slate-500 dark:text-slate-400">
-                        No tracklets match the selected filters.
-                      </div>
-                    )
-                  }
-
-                  return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {filtered.map((tracklet) => {
-                        const cropUrl = getProcessedAssetUrl(tracklet.best_crop_path)
-                        const conf = tracklet.mean_confidence * 100
-                        const confColor =
-                          conf >= 80
-                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
-                            : conf >= 60
-                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
-                            : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
-
-                        return (
-                          <div
-                            key={tracklet.tracklet_id}
-                            onClick={() => onInspectTracklet(tracklet, detectionModal.video)}
-                            className="group flex flex-col rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 hover:border-teal-400 dark:hover:border-teal-500 hover:-translate-y-0.5 cursor-pointer ring-0 hover:ring-2 hover:ring-teal-400/30 active:scale-[0.98]"
-                          >
-                            {/* Card Crop Header */}
-                            <div className="relative w-full h-24 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
-                              {cropUrl ? (
-                                <img
-                                  src={cropUrl}
-                                  alt={tracklet.tracklet_id}
-                                  className="w-full h-full object-contain bg-slate-200/50 dark:bg-slate-800/50 transition-transform duration-300 group-hover:scale-102"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-400">
-                                  No Crop
-                                </div>
-                              )}
-                              {/* Confidence Badge overlay */}
-                              <div className="absolute top-1.5 right-1.5">
-                                <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold ${confColor}`}>
-                                  {conf.toFixed(0)}%
-                                </span>
-                              </div>
-                              {/* Tracker ID overlay */}
-                              <div className="absolute bottom-1.5 left-1.5">
-                                <span className="inline-flex rounded bg-slate-900/70 backdrop-blur-sm px-1 py-0.5 text-[8px] font-mono text-white">
-                                  ID: {tracklet.tracker_id}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Card Info Details */}
-                            <div className="p-2 space-y-1 flex-1 flex flex-col justify-between">
-                              <div className="space-y-0.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide truncate">
-                                    {tracklet.class_name}
-                                  </span>
-                                  <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 uppercase shrink-0">
-                                    {tracklet.object_type}
-                                  </span>
-                                </div>
-                                <div className="text-[9px] text-slate-500 dark:text-slate-400">
-                                  Frames:{' '}
-                                  <span className="font-mono text-slate-700 dark:text-slate-300">
-                                    {tracklet.frame_start} - {tracklet.frame_end}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px] text-slate-400">
-                                <span className="text-teal-500 dark:text-teal-400 font-semibold flex items-center gap-0.5">
-                                  Click to inspect <ExternalLink className="h-2.5 w-2.5 inline" />
-                                </span>
-                                <span className="font-mono text-slate-500 truncate max-w-[60px]" title={tracklet.tracklet_id}>
-                                  {tracklet.tracklet_id.substring(0, 6)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()
-              ) : (
-                <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-xs text-slate-500 dark:text-slate-400">
-                  Open a completed video and click Detections to review tracklets.
                 </div>
               )}
+
+              {/* Detections Gallery Grid - FULL WIDTH */}
+              <div className="max-h-[500px] overflow-y-auto pr-1">
+                {detectionModal.result && detectionModal.result.tracklets.length > 0 ? (
+                  (() => {
+                    const filtered = detectionModal.result.tracklets
+                      .filter((t) => {
+                        const typeMatch = detectionFilterType === 'all' || t.object_type === detectionFilterType
+                        const classMatch =
+                          detectionFilterClass === 'all' || t.class_name.toLowerCase() === detectionFilterClass.toLowerCase()
+                        return typeMatch && classMatch
+                      })
+                      .sort((a, b) => {
+                        return detectionSortOrder === 'desc'
+                          ? b.mean_confidence - a.mean_confidence
+                          : a.mean_confidence - b.mean_confidence
+                      })
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                          No tracklets match the selected filters.
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 py-2">
+                        {filtered.map((tracklet) => {
+                          const cropUrl = getProcessedAssetUrl(tracklet.best_crop_path)
+                          const conf = tracklet.mean_confidence * 100
+                          const confColor =
+                            conf >= 80
+                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                              : conf >= 60
+                              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
+                              : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
+
+                          return (
+                            <div
+                              key={tracklet.tracklet_id}
+                              onClick={() => onInspectTracklet(tracklet, detectionModal.video)}
+                              className="group flex flex-col rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 hover:border-teal-400 dark:hover:border-teal-500 hover:-translate-y-0.5 cursor-pointer ring-0 hover:ring-2 hover:ring-teal-400/30 active:scale-[0.98]"
+                            >
+                              {/* Card Crop Header */}
+                              <div className="relative w-full h-24 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
+                                {cropUrl ? (
+                                  <img
+                                    src={cropUrl}
+                                    alt={tracklet.tracklet_id}
+                                    className="w-full h-full object-contain bg-slate-200/50 dark:bg-slate-800/50 transition-transform duration-300 group-hover:scale-102"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-400">
+                                    No Crop
+                                  </div>
+                                )}
+                                {/* Confidence Badge overlay */}
+                                <div className="absolute top-1.5 right-1.5">
+                                  <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold ${confColor}`}>
+                                    {conf.toFixed(0)}%
+                                  </span>
+                                </div>
+                                {/* Tracker ID overlay */}
+                                <div className="absolute bottom-1.5 left-1.5">
+                                  <span className="inline-flex rounded bg-slate-900/70 backdrop-blur-sm px-1 py-0.5 text-[8px] font-mono text-white">
+                                    ID: {tracklet.tracker_id}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Card Info Details */}
+                              <div className="p-2 space-y-1 flex-1 flex flex-col justify-between">
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[10px] font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide truncate">
+                                      {tracklet.class_name}
+                                    </span>
+                                    <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 uppercase shrink-0">
+                                      {tracklet.object_type}
+                                    </span>
+                                  </div>
+                                  <div className="text-[9px] text-slate-500 dark:text-slate-400">
+                                    Frames:{' '}
+                                    <span className="font-mono text-slate-700 dark:text-slate-300">
+                                      {tracklet.frame_start} - {tracklet.frame_end}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px] text-slate-400">
+                                  <span className="text-teal-500 dark:text-teal-400 font-semibold flex items-center gap-0.5">
+                                    Click to inspect <ExternalLink className="h-2.5 w-2.5 inline" />
+                                  </span>
+                                  <span className="font-mono text-slate-500 truncate max-w-[60px]" title={tracklet.tracklet_id}>
+                                    {tracklet.tracklet_id.substring(0, 6)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()
+                ) : (
+                  <div className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 text-xs text-slate-500 dark:text-slate-400">
+                    Open a completed video and click Detections to review tracklets.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

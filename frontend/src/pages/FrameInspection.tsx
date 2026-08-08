@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 
@@ -227,7 +227,7 @@ export default function FrameInspection() {
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Key Frames (>60%)</p>
+              <p className="text-sm text-gray-600">Key Frames (&gt;60%)</p>
               <p className="text-2xl font-bold">
                 {data.detected_frames.filter((f) => f.is_key_frame).length}
               </p>
