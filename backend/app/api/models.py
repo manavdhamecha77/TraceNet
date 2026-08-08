@@ -26,6 +26,8 @@ class ModelResponse(BaseModel):
     file_path: str
     model_type: str
     classes: List[str]
+    category: str = "general"
+    is_default: bool = False
     last_used_timestamp: Optional[str]
     created_at: str
 
@@ -55,6 +57,8 @@ def list_models(db: Session = Depends(get_db)):
 async def upload_and_register_model(
     name: str = Form(...),
     model_type: str = Form(...),  # YOLOv8, YOLOv11, YOLOv12, RT-DETR, GroundingDino, etc.
+    category: Optional[str] = Form("general"), # 'general' | 'theft' | 'abandoned' | 'assault'
+    is_default: Optional[bool] = Form(False),
     manual_classes: Optional[str] = Form(None),  # Comma-separated fallback
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -96,6 +100,11 @@ async def upload_and_register_model(
     if not class_list and manual_classes:
         class_list = [c.strip() for c in manual_classes.split(",") if c.strip()]
 
+    # Handle default flag
+    target_cat = category or "general"
+    if is_default:
+        db.query(MLModel).filter(MLModel.category == target_cat).update({"is_default": False})
+
     try:
         ml_model = MLModel(
             id=model_id,
@@ -103,6 +112,8 @@ async def upload_and_register_model(
             file_path=target_path,
             model_type=model_type,
             classes=json.dumps(class_list),
+            category=target_cat,
+            is_default=bool(is_default),
             last_used_timestamp=None
         )
         db.add(ml_model)
@@ -118,6 +129,19 @@ async def upload_and_register_model(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to register model in database: {str(e)}"
         )
+
+
+@router.put("/models/{model_id}/set-default")
+def set_default_model(model_id: str, db: Session = Depends(get_db)):
+    """Marks a specific model as the system default for its category."""
+    model = db.query(MLModel).filter(MLModel.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found.")
+    cat = model.category or "general"
+    db.query(MLModel).filter(MLModel.category == cat).update({"is_default": False})
+    model.is_default = True
+    db.commit()
+    return model.to_dict()
 
 @router.delete("/models/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_model(model_id: str, db: Session = Depends(get_db)):

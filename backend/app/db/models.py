@@ -14,6 +14,8 @@ class MLModel(Base):
     file_path = Column(String, nullable=False)
     model_type = Column(String, nullable=False)  # 'YOLOv8' | 'YOLOv11' | 'YOLOv12' | 'RT-DETR' | 'GroundingDino'
     classes = Column(Text, default="[]")  # JSON string of class names
+    category = Column(String, default="general")  # 'general' | 'theft' | 'abandoned' | 'assault'
+    is_default = Column(Boolean, default=False)
     last_used_timestamp = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -31,6 +33,8 @@ class MLModel(Base):
             "file_path": self.file_path,
             "model_type": self.model_type,
             "classes": cls_list,
+            "category": self.category or "general",
+            "is_default": bool(self.is_default),
             "last_used_timestamp": self.last_used_timestamp.isoformat() if self.last_used_timestamp else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
@@ -50,6 +54,9 @@ class CameraProfile(Base):
     altitude = Column(Float, nullable=True)
     participate_in_alerts = Column(Boolean, default=True)
     model_id = Column(String, ForeignKey("models.id"), nullable=True)
+    theft_model_id = Column(String, ForeignKey("models.id"), nullable=True)
+    abandoned_model_id = Column(String, ForeignKey("models.id"), nullable=True)
+    assault_model_id = Column(String, ForeignKey("models.id"), nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
     assigned_model = relationship("MLModel", back_populates="cameras")
@@ -71,6 +78,9 @@ class CameraProfile(Base):
             "altitude": self.altitude,
             "participate_in_alerts": self.participate_in_alerts,
             "model_id": self.model_id,
+            "theft_model_id": self.theft_model_id,
+            "abandoned_model_id": self.abandoned_model_id,
+            "assault_model_id": self.assault_model_id,
             "video_count": len(self.videos) if self.videos else 0
         }
 

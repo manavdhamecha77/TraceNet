@@ -462,6 +462,14 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
           </p>
         </div>
 
+        {/* Subtle camera opt-out / model OFF notification badge */}
+        {_cameras.some(c => c.participate_in_alerts === false || (c as any).theft_model_id === 'OFF') && (
+          <div className="w-full text-[11px] text-slate-500 dark:text-slate-400 bg-amber-500/10 border border-amber-500/20 p-2 rounded-md flex items-center gap-1.5">
+            <span className="font-bold text-amber-600 dark:text-amber-400">Note:</span>
+            <span>Outdoor Theft analysis is OFF for opted-out cameras: ({_cameras.filter(c => c.participate_in_alerts === false || (c as any).theft_model_id === 'OFF').map(c => c.name || c.camera_id).join(', ')}).</span>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => setShowSettings(p => !p)}

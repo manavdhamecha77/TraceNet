@@ -30,6 +30,9 @@ class CameraUpdate(BaseModel):
     status: Optional[str] = Field(None, example="active")
     altitude: Optional[float] = Field(None, example=45.2)
     model_id: Optional[str] = Field(None, example="yolov8-person")
+    theft_model_id: Optional[str] = Field(None, example="yolov8-theft")
+    abandoned_model_id: Optional[str] = Field(None, example="yolov8-luggage")
+    assault_model_id: Optional[str] = Field(None, example="yolov8-fight")
     participate_in_alerts: Optional[bool] = None
 
 class CameraResponse(BaseModel):
@@ -43,6 +46,9 @@ class CameraResponse(BaseModel):
     status: str
     altitude: Optional[float]
     model_id: Optional[str]
+    theft_model_id: Optional[str]
+    abandoned_model_id: Optional[str]
+    assault_model_id: Optional[str]
     participate_in_alerts: Optional[bool]
     video_count: int
 
@@ -196,6 +202,12 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
             camera.altitude = payload.altitude
         if payload.model_id is not None:
             camera.model_id = payload.model_id
+        if payload.theft_model_id is not None:
+            camera.theft_model_id = payload.theft_model_id
+        if payload.abandoned_model_id is not None:
+            camera.abandoned_model_id = payload.abandoned_model_id
+        if payload.assault_model_id is not None:
+            camera.assault_model_id = payload.assault_model_id
         if payload.participate_in_alerts is not None:
             camera.participate_in_alerts = payload.participate_in_alerts
         

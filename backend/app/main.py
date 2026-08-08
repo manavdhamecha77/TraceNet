@@ -67,6 +67,37 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'participate_in_alerts' column to cameras.")
 
+                if "theft_model_id" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN theft_model_id VARCHAR REFERENCES models(id)")
+                    conn.commit()
+                    print("Schema Migration: Added 'theft_model_id' column to cameras.")
+
+                if "abandoned_model_id" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN abandoned_model_id VARCHAR REFERENCES models(id)")
+                    conn.commit()
+                    print("Schema Migration: Added 'abandoned_model_id' column to cameras.")
+
+                if "assault_model_id" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN assault_model_id VARCHAR REFERENCES models(id)")
+                    conn.commit()
+                    print("Schema Migration: Added 'assault_model_id' column to cameras.")
+
+            # Check if models table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='models'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(models)")
+                m_cols = [c[1] for c in cursor.fetchall()]
+
+                if "category" not in m_cols:
+                    cursor.execute("ALTER TABLE models ADD COLUMN category VARCHAR DEFAULT 'general'")
+                    conn.commit()
+                    print("Schema Migration: Added 'category' column to models.")
+
+                if "is_default" not in m_cols:
+                    cursor.execute("ALTER TABLE models ADD COLUMN is_default BOOLEAN DEFAULT 0")
+                    conn.commit()
+                    print("Schema Migration: Added 'is_default' column to models.")
+
             # Check if videos table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
             if cursor.fetchone():

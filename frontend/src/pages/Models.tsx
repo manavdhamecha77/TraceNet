@@ -6,6 +6,8 @@ interface MLModel {
   file_path: string
   model_type: string
   classes: string[]
+  category?: string
+  is_default?: boolean
   last_used_timestamp: string | null
   created_at: string
 }
@@ -38,12 +40,25 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
   // Form State
   const [name, setName] = useState('')
   const [modelType, setModelType] = useState('') // YOLOv8, YOLOv11, YOLOv12, RT-DETR, GroundingDino
+  const [category, setCategory] = useState('general')
+  const [isDefault, setIsDefault] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [manualClasses, setManualClasses] = useState('')
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState(false)
   const [registeredClasses, setRegisteredClasses] = useState<string[]>([])
+
+  const handleSetDefault = async (modelId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/models/${modelId}/set-default`, { method: 'PUT' })
+      if (res.ok) {
+        onRefreshModels()
+      }
+    } catch (err) {
+      console.error('Failed to set default model:', err)
+    }
+  }
 
   // Fetch model serving logs
   const fetchLogs = async (modelId: string) => {
@@ -93,6 +108,8 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
     const formData = new FormData()
     formData.append('name', name.trim())
     formData.append('model_type', modelType)
+    formData.append('category', category)
+    formData.append('is_default', isDefault ? 'true' : 'false')
     formData.append('file', file)
     if (manualClasses.trim()) {
       formData.append('manual_classes', manualClasses.trim())
@@ -226,12 +243,12 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
         <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-left">
           <thead className="bg-slate-50 dark:bg-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">
             <tr>
-              <th className="px-3 py-2.5">Model Name</th>
-              <th className="px-3 py-2.5">Type</th>
+              <th className="px-3 py-2.5">Model Name & Role</th>
+              <th className="px-3 py-2.5">Architecture</th>
               <th className="px-3 py-2.5">Weights File Path</th>
               <th className="px-3 py-2.5">Detectable Classes</th>
               <th className="px-3 py-2.5">Last Used</th>
-              <th className="px-3 py-2.5 text-right w-[180px]">Actions</th>
+              <th className="px-3 py-2.5 text-right w-[240px]">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
@@ -247,9 +264,19 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                 return (
                   <React.Fragment key={model.id}>
                     <tr className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                      {/* Name */}
+                      {/* Name & Role */}
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">{model.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{model.name}</span>
+                          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            {model.category || 'general'}
+                          </span>
+                          {model.is_default && (
+                            <span className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                              ★ DEFAULT
+                            </span>
+                          )}
+                        </div>
                       </td>
                       {/* Type */}
                       <td className="px-3 py-2.5 whitespace-nowrap">
@@ -258,11 +285,11 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                         </span>
                       </td>
                       {/* File Path */}
-                      <td className="px-3 py-2.5 whitespace-nowrap text-xs font-mono text-slate-500 dark:text-slate-450 truncate max-w-[200px]" title={model.file_path}>
+                      <td className="px-3 py-2.5 whitespace-nowrap text-xs font-mono text-slate-500 dark:text-slate-450 truncate max-w-[180px]" title={model.file_path}>
                         {model.file_path}
                       </td>
                       {/* Classes */}
-                      <td className="px-3 py-2.5 max-w-[250px]">
+                      <td className="px-3 py-2.5 max-w-[220px]">
                         <div className="flex flex-wrap gap-1 max-h-[44px] overflow-y-auto">
                           {model.classes.length > 0 ? (
                             model.classes.map((cls, idx) => (
@@ -282,6 +309,18 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                       {/* Actions */}
                       <td className="px-3 py-2.5 whitespace-nowrap text-right">
                         <div className="inline-flex items-center gap-1.5 justify-end">
+                          <button
+                            onClick={() => handleSetDefault(model.id)}
+                            className={`inline-flex items-center gap-1 border px-2 py-1 rounded text-[10px] font-bold transition-all ${
+                              model.is_default
+                                ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                                : 'bg-transparent border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                            title="Set as Default System Model for its category"
+                          >
+                            {model.is_default ? '★ Default' : 'Set Default'}
+                          </button>
+
                           <button
                             onClick={() => toggleLogs(model.id)}
                             className={`inline-flex items-center gap-1 border px-2 py-1 rounded text-[10px] font-bold transition-all ${
@@ -427,6 +466,35 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                   <option value="RT-DETR">RT-DETR (Real-time Transformer)</option>
                   <option value="GroundingDino">Grounding DINO v2 (Open-vocab)</option>
                 </select>
+              </div>
+
+              {/* ALERT CATEGORY ROLE */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Target Engine / Role</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-850 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                >
+                  <option value="general">General / Primary Object Detector</option>
+                  <option value="theft">Outdoor Theft Detector</option>
+                  <option value="abandoned">Abandoned Object Detector</option>
+                  <option value="assault">Assault Detector</option>
+                </select>
+              </div>
+
+              {/* DEFAULT SYSTEM MODEL CHECKBOX */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="isDefaultModel"
+                  checked={isDefault}
+                  onChange={(e) => setIsDefault(e.target.checked)}
+                  className="rounded text-teal-600 focus:ring-teal-500 h-4 w-4"
+                />
+                <label htmlFor="isDefaultModel" className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                  Set as Default System Model for this category
+                </label>
               </div>
 
               {/* 2. FILE UPLOAD (Only enabled if type selected) */}
