@@ -1021,11 +1021,6 @@ const SLASH_COMMANDS = [
                                       <span className="text-xs font-bold text-slate-100 truncate">
                                         {item.class_name || item.object_type} #{item.tracker_id}
                                       </span>
-                                      {item.score !== undefined && (
-                                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md border border-emerald-500/20 shrink-0">
-                                          {(item.score * 100).toFixed(1)}%
-                                        </span>
-                                      )}
                                     </div>
 
                                     <div className="text-[10px] text-slate-400 flex items-center gap-1 truncate">
