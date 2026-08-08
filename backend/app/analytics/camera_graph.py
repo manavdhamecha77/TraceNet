@@ -139,3 +139,68 @@ class CameraSpatialGraph:
         # Sort by distance
         neighbors.sort(key=lambda x: x["distance_meters"])
         return neighbors
+
+    def calculate_delay_probability(
+        self,
+        delta_t: float,
+        dist_m: float,
+        speed_mode: str = "pedestrian",
+        dwell_grace_seconds: float = 900.0
+    ) -> float:
+        """
+        Asymmetric Log-Normal / Skewed Delay Probability Model.
+        - Hard Reject (0.0): Impossible speed (V_obs > V_max) or zero/negative time delta.
+        - Peak Likelihood (1.0): Travel time within optimal physical window [t_min, t_ideal].
+        - Skewed Decay: Smooth exponential decay beyond t_ideal up to dwell_grace_seconds.
+        """
+        if delta_t <= 0:
+            return 0.0
+
+        if dist_m <= 0:
+            dist_m = 50.0
+
+        bounds = SPEED_BOUNDS.get(speed_mode, SPEED_BOUNDS["pedestrian"])
+        v_max = bounds["v_max"]
+        v_ideal = bounds["v_ideal"]
+
+        t_min = dist_m / (v_max * 1.2)  # Shortest possible transit time with 20% margin
+        t_ideal = dist_m / v_ideal       # Expected nominal transit time
+
+        # Hard reject if faster than physical speed limit (teleportation)
+        if delta_t < t_min:
+            return 0.0
+
+        # Maximum probability inside optimal velocity corridor
+        if t_min <= delta_t <= t_ideal:
+            return 1.0
+
+        # Asymmetric skewed decay beyond ideal travel time (incorporating dwell grace window)
+        excess_time = delta_t - t_ideal
+        tau = max(t_ideal * 1.5, dwell_grace_seconds)
+        decay_score = math.exp(-excess_time / tau)
+
+        return max(0.05, min(1.0, decay_score))
+
+    def get_spatial_topology_score(self, cam_id_a: str, cam_id_b: str) -> float:
+        """Returns topology score based on adjacency graph distance."""
+        if cam_id_a == cam_id_b:
+            return 1.0
+
+        origin = self.cameras.get(cam_id_a)
+        if origin and origin.adjacency:
+            try:
+                adj_ids = json.loads(origin.adjacency)
+                if cam_id_b in adj_ids:
+                    return 0.95
+            except Exception:
+                pass
+
+        dist_m = self.get_distance(cam_id_a, cam_id_b)
+        if dist_m <= 500.0:
+            return 0.85
+        elif dist_m <= 1500.0:
+            return 0.65
+        elif dist_m <= 3000.0:
+            return 0.45
+        else:
+            return 0.25
