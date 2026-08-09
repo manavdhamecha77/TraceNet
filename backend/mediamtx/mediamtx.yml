@@ -1,0 +1,17 @@
+# MediaMTX Configuration for DRISHTI Realtime WebRTC Streaming
+
+authMethod: http
+authHTTPAddress: http://localhost:8000/api/v1/stream/mediamtx-auth
+authHTTPExclude:
+  - action: api
+  - action: metrics
+
+# Enable WebRTC CORS for browser cross-origin requests from frontend (localhost:5173)
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: no
+webrtcAllowOrigin: '*'
+
+paths:
+  all:
+    source: publisher

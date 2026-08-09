@@ -20,6 +20,7 @@ from app.api.webhooks import router as webhooks_router
 from app.api.frame_inspection import router as frame_inspection_router
 from app.api.finetuning import router as finetuning_router
 from app.api.system_jobs import router as system_jobs_router
+from app.api.streaming import router as streaming_router
 from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
@@ -34,7 +35,7 @@ os.makedirs(get_data_path("processed/detections"), exist_ok=True)
 os.makedirs(get_data_path("models"), exist_ok=True)
 os.makedirs(get_data_path("finetuned_models"), exist_ok=True)
 os.makedirs(get_data_path("audit_logs"), exist_ok=True)
-
+os.makedirs(get_data_path("streams"), exist_ok=True)
 # Run schema migrations for SQLite dynamically to prevent OperationalError
 def run_startup_migrations():
     db_path = get_data_path("drishti.db")
@@ -82,6 +83,31 @@ def run_startup_migrations():
                     cursor.execute("ALTER TABLE cameras ADD COLUMN assault_model_id VARCHAR REFERENCES models(id)")
                     conn.commit()
                     print("Schema Migration: Added 'assault_model_id' column to cameras.")
+
+                if "is_streaming" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN is_streaming BOOLEAN DEFAULT 0")
+                    conn.commit()
+                    print("Schema Migration: Added 'is_streaming' column to cameras.")
+
+                if "stream_key" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN stream_key VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_key' column to cameras.")
+
+                if "stream_auth_token" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN stream_auth_token VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_auth_token' column to cameras.")
+
+                if "stream_token_expires_at" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN stream_token_expires_at DATETIME")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_token_expires_at' column to cameras.")
+
+                if "stream_started_at" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN stream_started_at DATETIME")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_started_at' column to cameras.")
 
             # Check if models table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='models'")
@@ -186,6 +212,62 @@ def run_startup_migrations():
                 """)
                 conn.commit()
                 print("Schema Migration: Created 'webhooks' table.")
+
+            # Check if live_stream_sessions table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='live_stream_sessions'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE live_stream_sessions (
+                        id VARCHAR PRIMARY KEY,
+                        camera_id VARCHAR NOT NULL REFERENCES cameras(camera_id),
+                        status VARCHAR DEFAULT 'active',
+                        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        ended_at DATETIME,
+                        total_duration_sec FLOAT,
+                        chunks_recorded INTEGER DEFAULT 0,
+                        alerts_generated INTEGER DEFAULT 0,
+                        inference_model_id VARCHAR,
+                        stream_config TEXT DEFAULT '{}'
+                    )
+                """)
+                conn.commit()
+                print("Schema Migration: Created 'live_stream_sessions' table.")
+
+            # Check if stream_chunks table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stream_chunks'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE stream_chunks (
+                        id VARCHAR PRIMARY KEY,
+                        session_id VARCHAR NOT NULL REFERENCES live_stream_sessions(id),
+                        camera_id VARCHAR NOT NULL,
+                        chunk_index INTEGER DEFAULT 0,
+                        file_path VARCHAR NOT NULL,
+                        start_time DATETIME,
+                        end_time DATETIME,
+                        duration_sec FLOAT,
+                        file_size_bytes INTEGER,
+                        imported_as_video_id VARCHAR
+                    )
+                """)
+                conn.commit()
+                print("Schema Migration: Created 'stream_chunks' table.")
+
+            # Check if live_alerts table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='live_alerts'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE live_alerts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        alert_type VARCHAR NOT NULL,
+                        camera_id VARCHAR NOT NULL,
+                        session_id VARCHAR NOT NULL REFERENCES live_stream_sessions(id),
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        acknowledged BOOLEAN DEFAULT 0
+                    )
+                """)
+                conn.commit()
+                print("Schema Migration: Created 'live_alerts' table.")
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -253,6 +335,7 @@ app.include_router(frame_inspection_router, prefix=settings.api_prefix)
 app.include_router(finetuning_router, prefix=settings.api_prefix)
 app.include_router(assistant_router, prefix=settings.api_prefix)
 app.include_router(system_jobs_router, prefix=settings.api_prefix)
+app.include_router(streaming_router, prefix=settings.api_prefix)
 # app.include_router(multicam_router, prefix=settings.api_prefix)
 
 
