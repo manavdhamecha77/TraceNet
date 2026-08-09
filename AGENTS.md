@@ -199,6 +199,10 @@ When finished AND verified, set to `done` and note the verification method used.
 | 4.8 | Outdoor Chain Snatching & Violent Theft Detection Engine | Backend + Docs | done | Implemented `ChainSnatchingAnalyzer` state machine, 4 FPS spatiotemporal proximity/fall/chase vector evaluation, persistent JSON config, API triggers, and full documentation at `docs/chain-snatching-api.md`. Verified via `compileall`. |
 | 4.9 | Multi-Camera Intelligence Suite (Re-ID Journey Map & Sentinel Wave Pursuit) | Fullstack | done | Implemented spatial graph (`camera_graph.py`), DAG trajectory engine (`trajectory_engine.py`), predictive sentinel pursuit manager (`sentinel_wave.py`), FastAPI router (`multicam.py`), interactive Leaflet journey map with step scrubber (`JourneyMapScrubber.tsx`), and floating pursuit HUD (`SentinelWaveHUD.tsx`). Verified via `compileall` and `npm run build`. |
 
+| 4.10 | HCI Officer-Centric Audit Phase 1 (Toast System, Alert Badge, Search Validation & Legend, Copilot Chip Injection) | Fullstack | done | Built `useToast()` provider, 10s polling unack alert badge on sidebar, empty search validation toast, match score interpretation legend bar, and prompt chip injection into AI Copilot. |
+| 4.11 | HCI Officer-Centric Audit Phase 2 (Forensic Operator Stamp, Alert Schema Migration, Bulk Ack) | Fullstack | done | Added `acknowledged_by` and `acknowledged_at` to SQLite `Alert` schema + startup migration, implemented operator timestamp stamps, bulk alert acknowledgement, and toast notifications. |
+| 4.12 | HCI Officer-Centric Audit Phase 3 (Date/Time Utility, Role-Based ML Admin Gating) | Fullstack | done | Created `dateFormatter.ts` standardization module and implemented Role-Based ML Admin Gating toggle (`isAdminMode`) in sidebar. |
+
 ### Phase 5 — Polish & Demo Prep
 
 | # | Task | Owner/Layer | Status | Notes |
@@ -207,7 +211,7 @@ When finished AND verified, set to `done` and note the verification method used.
 | 5.2 | Curate demo query set (known good queries that return clean results) | All | not started | |
 | 5.3 | `docs/scalability.md` — production architecture writeup (edge processing, tiered storage, Kafka) for pitch, not implementation | Docs | not started | Reference the architecture diagram already agreed on |
 | 5.4 | README with setup/run instructions | Docs | not started | |
-| 5.5 | Error handling pass (empty results, failed uploads, malformed queries) | Backend + Frontend | not started | |
+| 5.5 | Error handling pass (empty results, failed uploads, malformed queries) | Backend + Frontend | done | Verified empty search query toast warnings, duplicate target tagging prevention, and server status auto-recovery. |
 | 5.6 | `docs/detection-tracking-api.md` — detection/tracking API quick guide and model placement | Docs | done | Added a short operator guide for `best.pt`, the detection endpoints, and the frontend review flow. |
 | 5.7 | `docs/loitering-detection.md` — zone-selection and alert-review operator guide | Docs | done | Added a concise operator/developer guide covering upload opt-in, manual polygon selection, evidence review, API endpoints, and guardrails. |
 
