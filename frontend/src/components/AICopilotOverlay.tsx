@@ -42,6 +42,7 @@ interface ChatSessionItem {
 interface AICopilotOverlayProps {
   isOpen: boolean
   onClose: () => void
+  initialPrompt?: string
   onPlayVideoAtTime: (
     video: any,
     timestamp: number,
@@ -327,6 +328,7 @@ const Markdown: React.FC<{ content: string }> = ({ content }) => {
 export default function AICopilotOverlay({
   isOpen,
   onClose,
+  initialPrompt,
   onPlayVideoAtTime,
 }: AICopilotOverlayProps) {
   // Session & Chat State
@@ -374,13 +376,16 @@ export default function AICopilotOverlay({
     setErrorMsg('AI response generation stopped by user.')
   }
 
-  // Load config & sessions on open
+  // Load config & sessions on open, and set initialPrompt if present
   useEffect(() => {
     if (isOpen) {
       loadConfig()
       loadSessions()
+      if (initialPrompt) {
+        setInputPrompt(initialPrompt)
+      }
     }
-  }, [isOpen])
+  }, [isOpen, initialPrompt])
 
   // Fetch installed Ollama models when settings opens
   useEffect(() => {

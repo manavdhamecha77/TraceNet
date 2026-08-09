@@ -91,7 +91,10 @@ interface SearchProps {
   ) => void  // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
+import { useToast } from '../components/Toast'
+
 export default function Search({ onPlayVideoAtTime }: SearchProps) {
+  const toast = useToast()
   // Filters & State
   const [query, setQuery]                     = useState('')
   const [selectedCameras, setSelectedCameras] = useState<string[]>([])
@@ -183,7 +186,10 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!query.trim()) return
+    if (!query.trim()) {
+      toast.warning('Empty Search Query', 'Please enter a natural-language description (e.g. "person in red jacket") or upload a photo.')
+      return
+    }
 
     setSearching(true)
     setSearchError('')
@@ -734,6 +740,29 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                 <Download className="h-3.5 w-3.5" />
                 {isExporting ? 'Exporting...' : 'Export Results Set'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* SCORE INTERPRETATION GUIDANCE BAR */}
+        {visibleResults.length > 0 && (
+          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-slate-300 font-semibold">
+              <span>Match Score Guidance:</span>
+            </div>
+            <div className="flex items-center gap-4 text-[11px] font-mono">
+              <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                &gt;80% High Match (Reliable Target)
+              </span>
+              <span className="flex items-center gap-1.5 text-amber-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                50–80% Moderate Match
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-400">
+                <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                &lt;50% Tenuous Candidate
+              </span>
             </div>
           </div>
         )}

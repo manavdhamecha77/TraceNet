@@ -170,7 +170,7 @@ export default function Dashboard({ metrics }: DashboardProps) {
             <button
               key={idx}
               onClick={() => {
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+                window.dispatchEvent(new CustomEvent('tracenet:open-copilot', { detail: { prompt: p.text } }))
               }}
               className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 text-[11px] font-medium transition-all flex items-center gap-1.5 hover:border-cyan-500/50 hover:text-cyan-300"
             >
