@@ -16,6 +16,7 @@ interface Camera {
   altitude?: number
   model_id?: string | null
   video_count: number
+  is_streaming?: boolean
 }
 
 interface CamerasProps {
@@ -442,7 +443,15 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
 
                   {/* NAME / ID */}
                   <td className="px-3 py-2.5 whitespace-nowrap">
-                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">{cam.name}</div>
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      {cam.name}
+                      {cam.is_streaming && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-1.5 py-0.5 rounded">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                          LIVE
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] font-mono text-teal-700 dark:text-teal-400 mt-0.5">{cam.camera_id}</div>
                   </td>
 

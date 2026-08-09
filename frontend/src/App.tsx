@@ -18,6 +18,8 @@ import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
+import LiveConnect from './pages/LiveConnect'
+import LiveCameraView from './pages/LiveCameraView'
 import {
   ExternalLink,
   Download,
@@ -27,6 +29,7 @@ import {
   RefreshCw,
   Sun,
   Moon,
+  Video,
 } from 'lucide-react'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
@@ -863,16 +866,23 @@ function App() {
               {!isSidebarCollapsed && <span>Dashboard</span>}
             </Link>
 
-            <Link
-              to="/cameras"
-              className={navLinkClass(location.pathname.startsWith('/cameras'))}
-              title={isSidebarCollapsed ? 'Cameras' : undefined}
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              {!isSidebarCollapsed && <span>Cameras</span>}
-            </Link>
+              <Link
+                to="/cameras"
+                className={navLinkClass(location.pathname.startsWith('/cameras') && !location.pathname.includes('/live'))}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                {!isSidebarCollapsed && <span>Cameras</span>}
+              </Link>
+
+              <Link
+                to="/live-connect"
+                className={navLinkClass(location.pathname.startsWith('/live-connect') || location.pathname.includes('/live'))}
+              >
+                <Video className="w-4 h-4" />
+                {!isSidebarCollapsed && <span>Live Connect</span>}
+              </Link>
 
             <Link
               to="/multicam"
@@ -1149,6 +1159,8 @@ function App() {
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/multicam" element={<MultiCameraTracking />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
+            <Route path="/live-connect" element={<LiveConnect />} />
+            <Route path="/cameras/:camera_id/live" element={<LiveCameraView />} />
           </Routes>
 
         </div>
