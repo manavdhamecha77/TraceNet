@@ -99,17 +99,6 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'object_tracklet_id' column to alerts.")
 
-            # Check if tracklets table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tracklets'")
-            if cursor.fetchone():
-                cursor.execute("PRAGMA table_info(tracklets)")
-                columns = [c[1] for c in cursor.fetchall()]
-
-                if "attributes" not in columns:
-                    cursor.execute("ALTER TABLE tracklets ADD COLUMN attributes TEXT")
-                    conn.commit()
-                    print("Schema Migration: Added 'attributes' column to tracklets.")
-
                 if "owner_tracklet_ids" not in columns:
                     cursor.execute("ALTER TABLE alerts ADD COLUMN owner_tracklet_ids TEXT DEFAULT '[]'")
                     conn.commit()
@@ -134,6 +123,17 @@ def run_startup_migrations():
                     cursor.execute("ALTER TABLE alerts ADD COLUMN analysis_log TEXT")
                     conn.commit()
                     print("Schema Migration: Added 'analysis_log' column to alerts.")
+
+            # Check if tracklets table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tracklets'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(tracklets)")
+                columns = [c[1] for c in cursor.fetchall()]
+
+                if "attributes" not in columns:
+                    cursor.execute("ALTER TABLE tracklets ADD COLUMN attributes TEXT")
+                    conn.commit()
+                    print("Schema Migration: Added 'attributes' column to tracklets.")
 
             # Check if webhooks table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='webhooks'")
