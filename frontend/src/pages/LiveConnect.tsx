@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Video, Copy, Play, Square, Settings } from 'lucide-react'
+import { Video, Copy, Play, Square, Settings, RefreshCw } from 'lucide-react'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
 
@@ -14,7 +14,7 @@ export default function LiveConnect() {
   
   // Step 1 State
   const [cameras, setCameras] = useState<Camera[]>([])
-  const [selectedCameraId, setSelectedCameraId] = useState('')
+  const [selectedCameraId, setSelectedCameraId] = useState('CAM_001')
   const [enablePose, setEnablePose] = useState(false)
   const [maxChunkDuration, setMaxChunkDuration] = useState(300)
   const [inferenceFps, setInferenceFps] = useState(4)
@@ -35,15 +35,20 @@ export default function LiveConnect() {
   const durationTimerRef = useRef<any>(null)
   const statsTimerRef = useRef<any>(null)
 
-  useEffect(() => {
+  const fetchCameras = () => {
     fetch(`${API_BASE}/api/v1/cameras`)
       .then(res => res.ok ? res.json() : [])
       .then(data => {
-        setCameras(data)
-        if (data.length > 0) setSelectedCameraId(data[0].camera_id)
+        if (Array.isArray(data) && data.length > 0) {
+          setCameras(data)
+          setSelectedCameraId(prev => prev || data[0].camera_id)
+        }
       })
-      .catch(console.error)
-      
+      .catch(err => console.error('Failed to fetch cameras:', err))
+  }
+
+  useEffect(() => {
+    fetchCameras()
     return () => {
       cleanupStream()
     }
@@ -109,7 +114,12 @@ export default function LiveConnect() {
         localVideoRef.current.play()
       }
 
-      const pc = new RTCPeerConnection()
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      })
       pcRef.current = pc
       
       stream.getTracks().forEach(track => pc.addTrack(track, stream))
@@ -139,7 +149,9 @@ export default function LiveConnect() {
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       
-      const whipUrl = streamInfo.whip_url.startsWith('http') ? streamInfo.whip_url : `http://localhost:8889${streamInfo.whip_url}`
+      const whipUrl = streamInfo.whip_url
+        .replace('localhost', window.location.hostname)
+        .replace('127.0.0.1', window.location.hostname)
       const whipRes = await fetch(whipUrl, {
         method: 'POST',
         headers: {
@@ -215,15 +227,36 @@ export default function LiveConnect() {
           
           <div className="p-5 space-y-6">
             <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Target Camera Node</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  Target Camera Node
+                </label>
+                <button 
+                  type="button" 
+                  onClick={fetchCameras}
+                  className="text-xs text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3 h-3" /> Refresh
+                </button>
+              </div>
               <select 
                 value={selectedCameraId}
                 onChange={e => setSelectedCameraId(e.target.value)}
-                className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:border-teal-500 outline-none"
+                className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-base md:text-sm text-slate-800 dark:text-slate-100 focus:border-teal-500 outline-none cursor-pointer"
               >
-                {cameras.map(c => (
-                  <option key={c.camera_id} value={c.camera_id}>{c.name} ({c.camera_id})</option>
-                ))}
+                {cameras.length > 0 ? (
+                  cameras.map(c => (
+                    <option key={c.camera_id} value={c.camera_id}>
+                      {c.name} ({c.camera_id})
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="CAM_001">CAM_001 (Camera 01)</option>
+                    <option value="CAM_002">CAM_002 (Camera 02)</option>
+                    <option value="CAM_003">CAM_003 (Camera 03)</option>
+                  </>
+                )}
               </select>
             </div>
 

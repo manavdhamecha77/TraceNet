@@ -96,7 +96,12 @@ export default function LiveCameraView() {
 
   const initWhep = async (streamKey: string) => {
     try {
-      const pc = new RTCPeerConnection()
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      })
       pcRef.current = pc
       pc.addTransceiver('video', { direction: 'recvonly' })
       
@@ -109,7 +114,7 @@ export default function LiveCameraView() {
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       
-      const whepUrl = `http://localhost:8889/${streamKey}/whep`
+      const whepUrl = `http://${window.location.hostname}:8889/${streamKey}/whep`
       const res = await fetch(whepUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/sdp' },
