@@ -124,6 +124,16 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'analysis_log' column to alerts.")
 
+                if "acknowledged_by" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN acknowledged_by VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'acknowledged_by' column to alerts.")
+
+                if "acknowledged_at" not in columns:
+                    cursor.execute("ALTER TABLE alerts ADD COLUMN acknowledged_at DATETIME")
+                    conn.commit()
+                    print("Schema Migration: Added 'acknowledged_at' column to alerts.")
+
             # Check if tracklets table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tracklets'")
             if cursor.fetchone():

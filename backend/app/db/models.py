@@ -261,6 +261,8 @@ class Alert(Base):
     analysis_log = Column(Text, nullable=True)                  # JSON string with analysis notes
     timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     acknowledged = Column(Boolean, default=False)
+    acknowledged_by = Column(String, nullable=True)
+    acknowledged_at = Column(DateTime, nullable=True)
 
     tracklet = relationship("Tracklet")
 
@@ -288,6 +290,8 @@ class Alert(Base):
             "analysis_log": self.analysis_log,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "acknowledged": self.acknowledged,
+            "acknowledged_by": self.acknowledged_by,
+            "acknowledged_at": self.acknowledged_at.isoformat() if self.acknowledged_at else None,
         }
 
 
