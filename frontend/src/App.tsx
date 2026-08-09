@@ -217,6 +217,7 @@ function App() {
 
   const [unackAlertCount, setUnackAlertCount] = useState<number>(0)
   const [copilotInitialPrompt, setCopilotInitialPrompt] = useState<string>('')
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(false)
 
   useEffect(() => {
     const handleCustomCopilotOpen = (e: any) => {
@@ -901,46 +902,73 @@ function App() {
             </Link>
           </nav>
 
-          {/* Technical Admin Section (Collapsed by default) */}
+          {/* Technical Admin Section (Gated for Police Officers) */}
           <div className="pt-4 px-2 border-t border-slate-800 space-y-1">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2.5 py-1">
-              {!isSidebarCollapsed ? '⚙️ System & Model Admin' : '⚙️'}
+            <div className="flex items-center justify-between px-2.5 py-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                {!isSidebarCollapsed ? '⚙️ System Admin' : '⚙️'}
+              </span>
+              {!isSidebarCollapsed && (
+                <button
+                  onClick={() => setIsAdminMode(!isAdminMode)}
+                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                    isAdminMode
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                  }`}
+                >
+                  {isAdminMode ? 'UNLOCKED' : 'LOCKED'}
+                </button>
+              )}
             </div>
-            <div className="space-y-0.5">
-              <Link
-                to="/models"
-                className={navLinkClass(location.pathname.startsWith('/models'))}
-                title={isSidebarCollapsed ? 'YOLO Detector Models' : undefined}
-              >
-                <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-                {!isSidebarCollapsed && <span className="text-xs text-slate-400">Detector Models</span>}
-              </Link>
 
-              <Link
-                to="/embedding-models"
-                className={navLinkClass(location.pathname.startsWith('/embedding-models'))}
-                title={isSidebarCollapsed ? 'CLIP Embeddings' : undefined}
-              >
-                <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
-                </svg>
-                {!isSidebarCollapsed && <span className="text-xs text-slate-400">Embedding Config</span>}
-              </Link>
+            {isAdminMode ? (
+              <div className="space-y-0.5 animate-in fade-in">
+                <Link
+                  to="/models"
+                  className={navLinkClass(location.pathname.startsWith('/models'))}
+                  title={isSidebarCollapsed ? 'YOLO Detector Models' : undefined}
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                  </svg>
+                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">Detector Models</span>}
+                </Link>
 
-              <Link
-                to="/finetuning"
-                className={navLinkClass(location.pathname === '/finetuning')}
-                title={isSidebarCollapsed ? 'YOLO Retraining' : undefined}
-              >
-                <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                {!isSidebarCollapsed && <span className="text-xs text-slate-400">YOLO Fine-Tuning</span>}
-              </Link>
-            </div>
+                <Link
+                  to="/embedding-models"
+                  className={navLinkClass(location.pathname.startsWith('/embedding-models'))}
+                  title={isSidebarCollapsed ? 'CLIP Embeddings' : undefined}
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
+                  </svg>
+                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">Embedding Config</span>}
+                </Link>
+
+                <Link
+                  to="/finetuning"
+                  className={navLinkClass(location.pathname === '/finetuning')}
+                  title={isSidebarCollapsed ? 'YOLO Retraining' : undefined}
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">YOLO Fine-Tuning</span>}
+                </Link>
+              </div>
+            ) : (
+              !isSidebarCollapsed && (
+                <button
+                  onClick={() => setIsAdminMode(true)}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[11px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-2"
+                >
+                  <span className="text-[10px]">🔒</span>
+                  <span>Click to Unlock ML Controls</span>
+                </button>
+              )
+            )}
           </div>
         </div>
 
