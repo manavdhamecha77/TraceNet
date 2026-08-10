@@ -3,10 +3,11 @@ import {
   ShieldAlert, CheckCheck, Play,
   RefreshCw, Loader2, SlidersHorizontal,
   UserX, Target, ExternalLink, Save, RotateCcw, Trash2,
-  Bike, User, Zap, X, ChevronLeft, ChevronRight, Download, Camera, Eye, Info
+  Bike, User, Zap, X, ChevronLeft, ChevronRight, Download, Camera as CameraIcon, Eye, Info
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { AlertEntry, AnalysisLogEntry, Camera, TRACKLET_THUMB } from '../types/alerts'
+import type { AlertEntry, AnalysisLogEntry, Camera } from '../types/alerts'
+import { TRACKLET_THUMB } from '../types/alerts'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -807,7 +808,7 @@ function EvidenceViewerModal({
         <div className="p-4 border-b border-slate-850 flex justify-between items-center bg-slate-950/30">
           <div>
             <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              <Camera className="w-4 h-4 text-rose-500" />
+              <CameraIcon className="w-4 h-4 text-rose-500" />
               Theft Evidence Gallery — {alert.camera_id}
             </h2>
             <p className="text-[11px] text-slate-500 mt-0.5 font-mono">

@@ -4,7 +4,6 @@ import Dashboard from './pages/Dashboard'
 import Cameras from './pages/Cameras'
 import CameraDetail from './pages/CameraDetail'
 import Search from './pages/Search'
-import Landing from './pages/Landing'
 import Models from './pages/Models'
 import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
@@ -157,8 +156,7 @@ function App() {
   const [loiteringThreshold, setLoiteringThreshold] = useState(60)
   const [loiteringEditorVideoId, setLoiteringEditorVideoId] = useState<string | null>(null)
 
-  // Alerts persistent toggle state
-  const [isAlertsSubmenuOpen, setIsAlertsSubmenuOpen] = useState(true)
+// Alerts persistent toggle state
 
   // Dashboard metrics state
   const [metrics, setMetrics] = useState({
@@ -946,7 +944,6 @@ function App() {
               {!isSidebarCollapsed && <span>Search &amp; Investigate</span>}
             </Link>
 
-<<<<<<< HEAD
             <Link
               to="/targets"
               className={navLinkClass(location.pathname.startsWith('/targets') || location.pathname.startsWith('/hot-targets') || location.pathname === '/multicam')}
@@ -1006,6 +1003,9 @@ function App() {
                   <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                   </svg>
+                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">Detector Models</span>}
+                </Link>
+
                 <Link
                   to="/embedding-models"
                   className={navLinkClass(location.pathname.startsWith('/embedding-models'))}

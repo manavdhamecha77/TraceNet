@@ -7,11 +7,23 @@ import {
 import { Link } from 'react-router-dom'
 import { useToast } from '../components/Toast'
 import { formatDisplayDate } from '../utils/dateFormatter'
-import { AlertEntry, Camera, TRACKLET_THUMB } from '../types/alerts'
+import type { AlertEntry, Camera } from '../types/alerts'
+import { TRACKLET_THUMB } from '../types/alerts'
 
 const API_BASE = 'http://localhost:8000'
 
-
+interface AlertsDashboardProps {
+  cameras?: Camera[]
+  onPlayVideoAtTime?: (
+    video: any,
+    timestamp: number,
+    trackerId?: number | string,
+    bestBbox?: number[],
+    className?: string,
+    tag?: string,
+    color?: string
+  ) => void
+}
 
 function TrackletThumb({ trackletId, label }: { trackletId: string; label: string }) {
   const [err, setErr] = useState(false)
@@ -310,7 +322,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
               className="h-8 px-2.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold"
             >
               <option value="">All Camera Nodes</option>
-              {cameras.map(c => (
+              {cameras.map((c: Camera) => (
                 <option key={c.camera_id} value={c.camera_id}>{c.name} ({c.camera_id})</option>
               ))}
             </select>

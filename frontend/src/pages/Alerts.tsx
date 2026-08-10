@@ -8,7 +8,7 @@ import {
   Trash2, RotateCcw, Target
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { AlertEntry, AnalysisLogEntry, Camera } from '../types/alerts'
+import type { AlertEntry, AnalysisLogEntry, Camera } from '../types/alerts'
 
 const API_BASE = 'http://localhost:8000'
 
