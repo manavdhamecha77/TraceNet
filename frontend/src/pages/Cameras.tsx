@@ -135,6 +135,10 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
   const [editStatus, setEditStatus] = useState('active')
   const [editAltitude, setEditAltitude] = useState('')
   const [editModelId, setEditModelId] = useState('')
+  const [editTheftModelId, setEditTheftModelId] = useState('')
+  const [editAbandonedModelId, setEditAbandonedModelId] = useState('')
+  const [editAssaultModelId, setEditAssaultModelId] = useState('')
+  const [editParticipateAlerts, setEditParticipateAlerts] = useState(true)
   const [syncDetections, setSyncDetections] = useState(false)
   const [editFormError, setEditFormError] = useState('')
   const editMapContainerRef = useRef<HTMLDivElement>(null)
@@ -301,6 +305,10 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
     setEditStatus(cam.status)
     setEditAltitude(cam.altitude?.toString() ?? '')
     setEditModelId(cam.model_id ?? '')
+    setEditTheftModelId((cam as any).theft_model_id ?? '')
+    setEditAbandonedModelId((cam as any).abandoned_model_id ?? '')
+    setEditAssaultModelId((cam as any).assault_model_id ?? '')
+    setEditParticipateAlerts((cam as any).participate_in_alerts ?? true)
     setSyncDetections(false)
     setEditFormError('')
     setActiveMenuId(null)
@@ -319,6 +327,10 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
       status: editStatus,
       altitude: editAltitude ? parseFloat(editAltitude) : null,
       model_id: editModelId || null,
+      theft_model_id: editTheftModelId || null,
+      abandoned_model_id: editAbandonedModelId || null,
+      assault_model_id: editAssaultModelId || null,
+      participate_in_alerts: editParticipateAlerts,
     }
     try {
       const r = await fetch(`${API_BASE}/api/v1/cameras/${editCamera.camera_id}`, {
@@ -757,14 +769,14 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
                     </select>
                   </Field>
 
-                  <Field label="Assigned ML Model *">
+                  <Field label="Primary ML Model *">
                     <select
                       value={editModelId}
                       onChange={e => setEditModelId(e.target.value)}
                       className={inputCls}
                       required
                     >
-                      <option value="">-- Select Model --</option>
+                      <option value="">-- Select Primary Model --</option>
                       {models.map(m => (
                         <option key={m.id} value={m.id}>
                           {m.name} ({m.model_type})
@@ -772,6 +784,68 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
                       ))}
                     </select>
                   </Field>
+
+                  <Field label="Outdoor Theft ML Model">
+                    <select
+                      value={editTheftModelId}
+                      onChange={e => setEditTheftModelId(e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="">-- System Default Theft Model --</option>
+                      <option value="OFF">OFF / Disabled for this camera</option>
+                      {models.filter(m => !m.category || m.category === 'theft' || m.category === 'general').map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.category || 'general'})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Abandoned Object ML Model">
+                    <select
+                      value={editAbandonedModelId}
+                      onChange={e => setEditAbandonedModelId(e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="">-- System Default Abandoned Model --</option>
+                      <option value="OFF">OFF / Disabled for this camera</option>
+                      {models.filter(m => !m.category || m.category === 'abandoned' || m.category === 'general').map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.category || 'general'})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Assault Detection ML Model">
+                    <select
+                      value={editAssaultModelId}
+                      onChange={e => setEditAssaultModelId(e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="">-- System Default Assault Model --</option>
+                      <option value="OFF">OFF / Disabled for this camera</option>
+                      {models.filter(m => !m.category || m.category === 'assault' || m.category === 'general').map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.category || 'general'})
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <div className="pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editParticipateAlerts}
+                        onChange={e => setEditParticipateAlerts(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                      />
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                        Opt-in to Automated Alert Engine Evaluation
+                      </span>
+                    </label>
+                  </div>
 
                   {editCamera.model_id !== editModelId && (
                     <label className="flex items-start gap-2 pt-1.5 cursor-pointer rounded p-1.5 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-900/40">

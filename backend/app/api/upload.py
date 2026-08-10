@@ -56,14 +56,26 @@ def process_video_background(
     logger.info(f"Background processing started for video asset {asset_id}")
     db = SessionLocal()
     try:
+        from app.db.crud import create_system_job, update_system_job_progress, complete_system_job
+        job = create_system_job(
+            db=db,
+            name=f"Ingesting Video: {original_filename}",
+            job_type="upload",
+            status="running",
+            payload={"video_id": asset_id, "camera_id": camera_id}
+        )
+        job_id = job.id
+
         # 1. Update status to 'transcoding'
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
             video.processing_status = "transcoding"
             video.progress_percentage = 15
             db.commit()
+            update_system_job_progress(db, job_id, progress=15.0, status="running")
         else:
             logger.error(f"Asset {asset_id} not found in database.")
+            complete_system_job(db, job_id, status="failed")
             return
 
         # 2. Parse start_time
@@ -97,6 +109,7 @@ def process_video_background(
             video.processing_status = "preprocessed"
             video.progress_percentage = 40
             db.commit()
+            update_system_job_progress(db, job_id, progress=40.0, status="running")
             logger.info(f"Asset {asset_id} transcoding completed. Standardized video viewable.")
 
         # 4. Run detection + tracking on the standardized video output
@@ -105,6 +118,7 @@ def process_video_background(
             video.processing_status = "indexing"
             video.progress_percentage = 60
             db.commit()
+            update_system_job_progress(db, job_id, progress=60.0, status="running")
 
         detection_output_dir = get_data_path(os.path.join("processed/detections", asset_id))
         
@@ -113,12 +127,19 @@ def process_video_background(
         assigned_model_id = None
         
         camera_record = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
-        if camera_record and camera_record.model_id:
-            model_record = db.query(MLModel).filter(MLModel.id == camera_record.model_id).first()
-            if model_record and os.path.exists(model_record.file_path):
-                model_path = model_record.file_path
-                assigned_model_id = model_record.id
-                logger.info(f"Using assigned model '{model_record.name}' ({model_path}) for camera {camera_id}")
+        if camera_record:
+            active_model_id = None
+            for m_id in [camera_record.theft_model_id, camera_record.abandoned_model_id, camera_record.assault_model_id, camera_record.model_id]:
+                if m_id and m_id != "OFF":
+                    active_model_id = m_id
+                    break
+            
+            if active_model_id:
+                model_record = db.query(MLModel).filter(MLModel.id == active_model_id).first()
+                if model_record and os.path.exists(model_record.file_path):
+                    model_path = model_record.file_path
+                    assigned_model_id = model_record.id
+                    logger.info(f"Using active model '{model_record.name}' ({model_path}) for camera {camera_id}")
             else:
                 logger.warning("Assigned model record or file not found. Falling back to default detector.")
 
@@ -138,6 +159,7 @@ def process_video_background(
         if video:
             video.progress_percentage = 85
             db.commit()
+            update_system_job_progress(db, job_id, progress=85.0, status="running")
 
         embedding_service = TrackletEmbeddingService()
         embedding_result = embedding_service.embed_detection_artifact(
@@ -146,6 +168,10 @@ def process_video_background(
 
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
+            video.processing_status = "indexing"
+            video.progress_percentage = 90
+            db.commit()
+            update_system_job_progress(db, job_id, progress=90.0, status="running")
             video.processing_status = "indexing"
             video.progress_percentage = 90
             db.commit()
@@ -192,6 +218,7 @@ def process_video_background(
             zone = db.query(LoiteringZone).filter(LoiteringZone.video_id == asset_id, LoiteringZone.enabled == True).first()
             if zone:
                 LoiteringAnalyzer().analyze(asset_id, zone, db)
+            complete_system_job(db, job_id, status="completed")
             logger.info(
                 f"Asset {asset_id} ingestion pipeline completed successfully "
                 f"with {len(detection_result.tracklets)} tracklets, indexed to Qdrant."
@@ -205,6 +232,8 @@ def process_video_background(
             video.processing_status = "failed"
             video.progress_percentage = 0
             db.commit()
+        if 'job_id' in locals():
+            complete_system_job(db, job_id, status="failed")
     finally:
         db.close()
 

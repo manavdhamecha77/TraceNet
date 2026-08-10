@@ -14,10 +14,12 @@ class MLModel(Base):
     file_path = Column(String, nullable=False)
     model_type = Column(String, nullable=False)  # 'YOLOv8' | 'YOLOv11' | 'YOLOv12' | 'RT-DETR' | 'GroundingDino'
     classes = Column(Text, default="[]")  # JSON string of class names
+    category = Column(String, default="general")  # 'general' | 'theft' | 'abandoned' | 'assault'
+    is_default = Column(Boolean, default=False)
     last_used_timestamp = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    cameras = relationship("CameraProfile", back_populates="assigned_model")
+    cameras = relationship("CameraProfile", foreign_keys="[CameraProfile.model_id]", back_populates="assigned_model")
     logs = relationship("ModelExecutionLog", back_populates="model", cascade="all, delete-orphan")
 
     def to_dict(self):
@@ -31,6 +33,8 @@ class MLModel(Base):
             "file_path": self.file_path,
             "model_type": self.model_type,
             "classes": cls_list,
+            "category": self.category or "general",
+            "is_default": bool(self.is_default),
             "last_used_timestamp": self.last_used_timestamp.isoformat() if self.last_used_timestamp else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
@@ -50,9 +54,12 @@ class CameraProfile(Base):
     altitude = Column(Float, nullable=True)
     participate_in_alerts = Column(Boolean, default=True)
     model_id = Column(String, ForeignKey("models.id"), nullable=True)
+    theft_model_id = Column(String, ForeignKey("models.id"), nullable=True)
+    abandoned_model_id = Column(String, ForeignKey("models.id"), nullable=True)
+    assault_model_id = Column(String, ForeignKey("models.id"), nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
-    assigned_model = relationship("MLModel", back_populates="cameras")
+    assigned_model = relationship("MLModel", foreign_keys=[model_id], back_populates="cameras")
 
     def to_dict(self):
         try:
@@ -71,6 +78,9 @@ class CameraProfile(Base):
             "altitude": self.altitude,
             "participate_in_alerts": self.participate_in_alerts,
             "model_id": self.model_id,
+            "theft_model_id": self.theft_model_id,
+            "abandoned_model_id": self.abandoned_model_id,
+            "assault_model_id": self.assault_model_id,
             "video_count": len(self.videos) if self.videos else 0
         }
 
@@ -447,4 +457,33 @@ class HotTarget(Base):
             "last_seen_camera_id": self.last_seen_camera_id,
             "last_seen_timestamp": self.last_seen_timestamp.isoformat() if self.last_seen_timestamp else None,
             "matches_count": self.matches_count
+        }
+
+
+class SystemJob(Base):
+    __tablename__ = "system_jobs"
+
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    job_type = Column(String, nullable=False)  # 'reindex' | 'vectordb' | 'upload' | 'model_run' | 'alerts' | 'other'
+    status = Column(String, default="pending")  # 'pending' | 'running' | 'completed' | 'failed'
+    progress = Column(Float, default=0.0)
+    payload = Column(Text, default="{}")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        try:
+            extra = json.loads(self.payload) if self.payload else {}
+        except Exception:
+            extra = {}
+        return {
+            "id": self.id,
+            "name": self.name,
+            "job_type": self.job_type,
+            "status": self.status,
+            "progress": self.progress,
+            "payload": extra,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

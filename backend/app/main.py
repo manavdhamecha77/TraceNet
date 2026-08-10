@@ -19,6 +19,7 @@ from app.api.processing import router as processing_router
 from app.api.webhooks import router as webhooks_router
 from app.api.frame_inspection import router as frame_inspection_router
 from app.api.finetuning import router as finetuning_router
+from app.api.system_jobs import router as system_jobs_router
 from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
@@ -66,6 +67,37 @@ def run_startup_migrations():
                     cursor.execute("ALTER TABLE cameras ADD COLUMN participate_in_alerts BOOLEAN DEFAULT 1")
                     conn.commit()
                     print("Schema Migration: Added 'participate_in_alerts' column to cameras.")
+
+                if "theft_model_id" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN theft_model_id VARCHAR REFERENCES models(id)")
+                    conn.commit()
+                    print("Schema Migration: Added 'theft_model_id' column to cameras.")
+
+                if "abandoned_model_id" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN abandoned_model_id VARCHAR REFERENCES models(id)")
+                    conn.commit()
+                    print("Schema Migration: Added 'abandoned_model_id' column to cameras.")
+
+                if "assault_model_id" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN assault_model_id VARCHAR REFERENCES models(id)")
+                    conn.commit()
+                    print("Schema Migration: Added 'assault_model_id' column to cameras.")
+
+            # Check if models table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='models'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(models)")
+                m_cols = [c[1] for c in cursor.fetchall()]
+
+                if "category" not in m_cols:
+                    cursor.execute("ALTER TABLE models ADD COLUMN category VARCHAR DEFAULT 'general'")
+                    conn.commit()
+                    print("Schema Migration: Added 'category' column to models.")
+
+                if "is_default" not in m_cols:
+                    cursor.execute("ALTER TABLE models ADD COLUMN is_default BOOLEAN DEFAULT 0")
+                    conn.commit()
+                    print("Schema Migration: Added 'is_default' column to models.")
 
             # Check if videos table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
@@ -231,6 +263,7 @@ app.include_router(frame_inspection_router, prefix=settings.api_prefix)
 app.include_router(finetuning_router, prefix=settings.api_prefix)
 app.include_router(assistant_router, prefix=settings.api_prefix)
 app.include_router(multicam_router)
+app.include_router(system_jobs_router, prefix=settings.api_prefix)
 
 
 @app.get("/", include_in_schema=False)

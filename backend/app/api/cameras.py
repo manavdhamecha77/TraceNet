@@ -30,6 +30,9 @@ class CameraUpdate(BaseModel):
     status: Optional[str] = Field(None, example="active")
     altitude: Optional[float] = Field(None, example=45.2)
     model_id: Optional[str] = Field(None, example="yolov8-person")
+    theft_model_id: Optional[str] = Field(None, example="yolov8-theft")
+    abandoned_model_id: Optional[str] = Field(None, example="yolov8-luggage")
+    assault_model_id: Optional[str] = Field(None, example="yolov8-fight")
     participate_in_alerts: Optional[bool] = None
 
 class CameraResponse(BaseModel):
@@ -43,6 +46,9 @@ class CameraResponse(BaseModel):
     status: str
     altitude: Optional[float]
     model_id: Optional[str]
+    theft_model_id: Optional[str]
+    abandoned_model_id: Optional[str]
+    assault_model_id: Optional[str]
     participate_in_alerts: Optional[bool]
     video_count: int
 
@@ -196,6 +202,12 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
             camera.altitude = payload.altitude
         if payload.model_id is not None:
             camera.model_id = payload.model_id
+        if payload.theft_model_id is not None:
+            camera.theft_model_id = payload.theft_model_id
+        if payload.abandoned_model_id is not None:
+            camera.abandoned_model_id = payload.abandoned_model_id
+        if payload.assault_model_id is not None:
+            camera.assault_model_id = payload.assault_model_id
         if payload.participate_in_alerts is not None:
             camera.participate_in_alerts = payload.participate_in_alerts
         
@@ -240,7 +252,7 @@ def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
     import os
     import time
     from loguru import logger
-    from datetime import timezone
+    from datetime import datetime, timezone
     from app.db.session import SessionLocal
     from app.db.models import CameraProfile, VideoAsset, MLModel, ModelExecutionLog
     from app.detection.detector import DetectionService
@@ -256,21 +268,39 @@ def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
             logger.error(f"Sync: Camera {camera_id} not found.")
             return
 
+        from app.db.crud import create_system_job, update_system_job_progress, complete_system_job
+        job = create_system_job(
+            db=db,
+            name=f"Syncing {len(video_ids)} Videos for {camera.name or camera_id}",
+            job_type="model_run",
+            status="running",
+            payload={"camera_id": camera_id, "video_ids": video_ids}
+        )
+        job_id = job.id
+
         # Resolve camera-assigned model path if it exists
         model_path = None
         assigned_model_id = None
-        if camera.model_id:
-            model_record = db.query(MLModel).filter(MLModel.id == camera.model_id).first()
+        active_model_id = None
+        for m_id in [camera.theft_model_id, camera.abandoned_model_id, camera.assault_model_id, camera.model_id]:
+            if m_id and m_id != "OFF":
+                active_model_id = m_id
+                break
+        
+        if active_model_id:
+            model_record = db.query(MLModel).filter(MLModel.id == active_model_id).first()
             if model_record and os.path.exists(model_record.file_path):
                 model_path = model_record.file_path
                 assigned_model_id = model_record.id
 
         logger.info(f"Sync: Starting detection re-run for {len(video_ids)} videos on camera {camera_id} using model {assigned_model_id}")
 
-        for video_id in video_ids:
+        for idx, video_id in enumerate(video_ids):
             video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
             if not video or video.is_bin:
                 continue
+
+            update_system_job_progress(db, job_id, progress=(idx / len(video_ids)) * 100, status="running")
 
             # 1. Update status to 'indexing' / progress to show syncing
             video.processing_status = "indexing"
@@ -354,8 +384,11 @@ def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
             db.commit()
             logger.info(f"Sync: Video {video_id} re-detection and index complete.")
 
+        complete_system_job(db, job_id, status="completed")
     except Exception as err:
         logger.error(f"Sync: Detection sync background run failed: {err}")
+        if 'job_id' in locals():
+            complete_system_job(db, job_id, status="failed")
     finally:
         db.close()
 

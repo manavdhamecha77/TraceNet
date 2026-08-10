@@ -41,7 +41,7 @@ class AlertResponse(BaseModel):
 class AbandonedAnalysisConfig(BaseModel):
     abandon_time_sec: float = 15.0
     visitor_dist_px: int = 150
-    owner_bind_dist_px: int = 80
+    owner_bind_dist_px: int = 200
     abandon_dist_px: int = 200
     stationary_tolerance_px: int = 15
     stationary_time_sec: float = 2.0
@@ -55,6 +55,8 @@ class ChainSnatchingAnalysisConfig(BaseModel):
     chase_velocity_multiplier: float = 3.0
     chase_vector_cosine_sim: float = 0.75
     observation_window_frames: int = 4
+    enable_kinematics: bool = False
+    detection_threshold_frames: int = 4
 
 
 class TriggerAnalysisResponse(BaseModel):
@@ -534,13 +536,15 @@ def _run_chain_snatching_analysis_background(video_ids: list, config_dict: dict)
                     CameraProfile.camera_id == video.camera_id
                 ).first()
                 model_classes = []
-                if camera and camera.model_id:
-                    model = db.query(MLModel).filter(MLModel.id == camera.model_id).first()
-                    if model:
-                        try:
-                            model_classes = json.loads(model.classes) if model.classes else []
-                        except Exception:
-                            model_classes = []
+                if camera:
+                    active_model_id = camera.theft_model_id or camera.model_id
+                    if active_model_id and active_model_id != "OFF":
+                        model = db.query(MLModel).filter(MLModel.id == active_model_id).first()
+                        if model:
+                            try:
+                                model_classes = json.loads(model.classes) if model.classes else []
+                            except Exception:
+                                model_classes = []
 
                 def progress_cb(percent):
                     for entry in _chain_snatching_run_log:
@@ -580,3 +584,32 @@ def _run_chain_snatching_analysis_background(video_ids: list, config_dict: dict)
                         entry["log_entries"] = [f"[ERROR] {str(e)}"]
     finally:
         db.close()
+
+
+# -------------------------------------------------------
+# Utility Endpoints: Clear Logs & Artifacts
+# -------------------------------------------------------
+
+@router.post("/alerts/clear-logs")
+def clear_alerts_logs():
+    """Clears in-memory evaluation logs for all alert runs."""
+    global _analysis_run_log, _chain_snatching_run_log
+    _analysis_run_log = []
+    _chain_snatching_run_log = []
+    return {"status": "success", "message": "Analysis logs cleared successfully."}
+
+
+@router.post("/alerts/clear-artifacts")
+def clear_alerts_artifacts(db: Session = Depends(get_db)):
+    """Clears generated alert database records and resets active alerts."""
+    try:
+        deleted = db.query(Alert).delete()
+        db.commit()
+        global _analysis_run_log, _chain_snatching_run_log
+        _analysis_run_log = []
+        _chain_snatching_run_log = []
+        return {"status": "success", "message": f"Cleared {deleted} alert records and reset evaluation logs."}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear alert artifacts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
