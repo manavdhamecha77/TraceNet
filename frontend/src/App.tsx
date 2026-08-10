@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Cameras from './pages/Cameras'
 import CameraDetail from './pages/CameraDetail'
@@ -19,6 +19,7 @@ import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
+import { useToast } from './components/Toast'
 import {
   ExternalLink,
   Download,
@@ -77,6 +78,7 @@ const extractTrackerId = (val: any): string | null => {
 }
 
 function App() {
+  const toast = useToast()
   const location = useLocation()
 
   // Theme & Layout state
@@ -213,6 +215,8 @@ function App() {
       }
     }
     fetchMetrics()
+    const metricsTimer = setInterval(fetchMetrics, 10000)
+    return () => clearInterval(metricsTimer)
   }, [location.pathname])
 
   const [unackAlertCount, setUnackAlertCount] = useState<number>(0)
@@ -752,6 +756,29 @@ function App() {
     }
   }, [playerView, selectedVideoToPlay])
 
+  // Keyboard controls for video modal (Space = Play/Pause, Arrows = Seek)
+  useEffect(() => {
+    if (!selectedVideoToPlay) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName
+      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT') return
+      const video = videoRef.current
+      if (!video) return
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (video.paused) video.play(); else video.pause();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        video.currentTime = Math.max(0, video.currentTime - 5)
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        video.currentTime = Math.min(video.duration || 0, video.currentTime + 5)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedVideoToPlay])
+
   // Reset player state when closing
   const closePlayer = () => {
     setSelectedVideoToPlay(null)
@@ -1068,7 +1095,7 @@ function App() {
         >
           
           <Routes>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard metrics={metrics} />} />
             <Route
               path="/cameras"
@@ -1101,14 +1128,12 @@ function App() {
             <Route path="/alerts" element={<AlertsDashboard cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/alerts/abandoned" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
-            <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
             <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
             <Route path="/finetuning" element={<FineTuning />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/multicam" element={<MultiCameraTracking />} />
             <Route path="/targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
-            <Route path="/hot-targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
           </Routes>
 
@@ -1607,7 +1632,7 @@ function App() {
                               document.body.removeChild(a)
                               setTimeout(() => URL.revokeObjectURL(objectUrl), 10000)
                             } catch (_) {
-                              alert('Download failed. Check backend connectivity.')
+                              toast.error('Download Error', 'Download failed. Check backend connectivity.')
                             }
                           }}
                           className="w-full text-center rounded bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 text-[10px] font-bold transition-colors flex items-center justify-center gap-1.5"

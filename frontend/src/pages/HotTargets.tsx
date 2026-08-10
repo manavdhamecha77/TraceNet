@@ -11,9 +11,11 @@ import {
   Search,
   AlertTriangle,
   Radio,
-  Check
+  Check,
+  Map
 } from 'lucide-react'
 import { JourneyMapScrubber } from '../components/JourneyMapScrubber'
+import { Link } from 'react-router-dom'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -201,6 +203,13 @@ export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            to="/multicam"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold transition-colors shadow-sm"
+          >
+            <Map className="h-4 w-4" />
+            <span>Open Spatial Journey Map</span>
+          </Link>
           <button
             onClick={() => {
               fetchHotTargets()

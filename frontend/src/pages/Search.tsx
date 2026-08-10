@@ -92,6 +92,7 @@ interface SearchProps {
 }
 
 import { useToast } from '../components/Toast'
+import { formatDisplayDate } from '../utils/dateFormatter'
 
 export default function Search({ onPlayVideoAtTime }: SearchProps) {
   const toast = useToast()
@@ -326,7 +327,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       document.body.removeChild(a)
       URL.revokeObjectURL(objectUrl)
     } catch (_) {
-      alert('Integrity hashing failed.')
+      toast.error('Export Error', 'Integrity hashing failed.')
     } finally {
       setIsExporting(false)
     }
@@ -378,18 +379,18 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           </span>
           <button
             onClick={async () => {
-              if (!window.confirm('Re-index all completed videos into Qdrant?')) return
               try {
+                toast.info('Re-indexing Started', 'Re-indexing all completed videos into Qdrant index...')
                 const res = await fetch(`${API_BASE}/api/v1/reindex-all`, { method: 'POST' })
                 if (res.ok) {
                   const data = await res.json()
-                  alert(`Successfully re-indexed ${data.indexed_videos} videos (${data.total_tracklets} tracklets)!`)
+                  toast.success('Re-index Complete', `Successfully indexed ${data.indexed_videos} videos (${data.total_tracklets} tracklets).`)
                   loadMetadata()
                 } else {
-                  alert('Re-indexing failed.')
+                  toast.error('Re-index Failed', 'Backend returned an error during vector re-indexing.')
                 }
               } catch (_) {
-                alert('Network error during re-indexing.')
+                toast.error('Network Error', 'Failed to reach backend during re-indexing.')
               }
             }}
             className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded font-bold cursor-pointer transition-all flex items-center gap-1.5"
@@ -829,7 +830,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     </div>
 
                     <div className="text-[10px] text-slate-650 dark:text-slate-350 space-y-0.5 font-sans">
-                      <div>Timeline: <strong className="text-slate-800 dark:text-slate-100">{new Date(result.video_start_time).toLocaleString()}</strong></div>
+                      <div>Timeline: <strong className="text-slate-800 dark:text-slate-100">{formatDisplayDate(result.video_start_time)}</strong></div>
                       <div className="flex justify-between items-center">
                         <span>Start: <strong className="text-slate-800 dark:text-slate-100">{result.timestamp_start_seconds.toFixed(2)}s</strong></span>
                         <span className="font-bold text-teal-700 dark:text-teal-400 flex items-center gap-0.5">
@@ -914,9 +915,9 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                           if (res.ok) {
                             const data = await res.json();
                             if (data.status === 'already_tagged') {
-                              alert(`ℹ️ Object Already Tagged!\n${data.message}`);
+                              toast.info('Already Tagged', data.message || 'Target is already registered.');
                             } else {
-                              alert(`🎯 Hot Target Tagged!\n${data.message || 'Target pinned for multi-camera pursuit.'}`);
+                              toast.success('Hot Target Tagged', data.message || 'Target pinned for multi-camera pursuit.');
                             }
                           }
                         } catch (err) {
@@ -965,7 +966,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {searchLogs.slice(0, 10).map((log) => (
                 <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">{new Date(log.timestamp).toLocaleString()}</td>
+                  <td className="py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">{formatDisplayDate(log.timestamp, true)}</td>
                   <td className="py-2.5 font-bold text-slate-800 dark:text-slate-100 italic">&ldquo;{log.query_text}&rdquo;</td>
                   <td className="py-2.5 font-mono text-[10px]">
                     {log.camera_filter && log.camera_filter.length > 0 ? log.camera_filter.join(', ') : 'Citywide'}

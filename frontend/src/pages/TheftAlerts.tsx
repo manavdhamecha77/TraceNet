@@ -6,42 +6,11 @@ import {
   Bike, User, Zap
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { AlertEntry, AnalysisLogEntry, Camera, TRACKLET_THUMB } from '../types/alerts'
 
 const API_BASE = 'http://localhost:8000'
 
-interface AlertEntry {
-  id: number
-  alert_type: string
-  camera_id: string
-  video_id?: string
-  tracklet_id: string
-  object_tracklet_id?: string
-  owner_tracklet_ids: string[]
-  visitor_tracklet_ids: string[]
-  reid_match_tracklet_id?: string
-  abandon_duration_seconds?: number
-  analysis_log?: string
-  timestamp: string
-  acknowledged: boolean
-}
 
-interface AnalysisLogEntry {
-  video_id: string
-  video_name: string
-  camera_name: string
-  eligible: boolean
-  skip_reason?: string
-  alerts_created: number
-  log_entries: string[]
-  status: 'pending' | 'running' | 'complete' | 'skipped' | 'error'
-  progress_percentage?: number
-}
-
-interface Camera {
-  camera_id: string
-  name: string
-  participate_in_alerts?: boolean
-}
 
 interface TheftAlertsProps {
   cameras?: Camera[]
@@ -56,8 +25,7 @@ interface TheftAlertsProps {
   ) => void
 }
 
-const TRACKLET_THUMB = (trackletId: string) =>
-  `${API_BASE}/data/processed/detections/${trackletId.split('_trk_')[0]}/crops/${trackletId}.jpg`
+
 
 function TrackletThumb({ trackletId, label }: { trackletId: string; label: string }) {
   const [err, setErr] = useState(false)

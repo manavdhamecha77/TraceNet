@@ -58,6 +58,32 @@ class VectorIndexService:
             logger.error(f"Failed to retrieve vector for point_id {point_id}: {e}")
         return None
 
+    def search_similar(
+        self,
+        query_vector: list[float],
+        top_k: int = 50,
+        score_threshold: float = 0.20
+    ) -> list[dict]:
+        """Search Qdrant for similar vectors and return [{point_id, score, payload}]."""
+        try:
+            res = self.client.query_points(
+                collection_name=COLLECTION_NAME,
+                query=query_vector,
+                limit=top_k,
+                score_threshold=score_threshold
+            )
+            return [
+                {
+                    "point_id": pt.id,
+                    "score": float(pt.score),
+                    "payload": pt.payload or {}
+                }
+                for pt in res.points
+            ]
+        except Exception as e:
+            logger.error(f"Failed to query Qdrant points: {e}")
+            return []
+
     def _ensure_collection(self) -> None:
         """Create or validate the collection with Cosine similarity matching the target dimension."""
         try:

@@ -18,6 +18,7 @@ import {
   Eye,
   Crosshair,
 } from 'lucide-react'
+import { useToast } from '../components/Toast'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
 
@@ -111,6 +112,7 @@ const extractTrackerId = (val: any): string | null => {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function VideoDetail() {
+  const toast = useToast()
   const { camera_id, video_id } = useParams<{ camera_id: string; video_id: string }>()
 
   // Data
@@ -1266,9 +1268,9 @@ export default function VideoDetail() {
                           if (res.ok) {
                             const data = await res.json();
                             if (data.status === 'already_tagged') {
-                              alert(`ℹ️ Object Already Tagged!\n${data.message}`);
+                              toast.info('Already Tagged', data.message || 'Target is already registered.')
                             } else {
-                              alert(`🎯 Target Tagged for Hot Pursuit!\n${data.message || 'Target pinned for multi-camera pursuit.'}`);
+                              toast.success('Hot Target Tagged', data.message || 'Target pinned for multi-camera pursuit.')
                             }
                           }
                         } catch (err) {

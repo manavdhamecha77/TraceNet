@@ -3,6 +3,8 @@ import { Navigation, Radar, Play, RefreshCw } from 'lucide-react'
 import { JourneyMapScrubber, type JourneyStep } from '../components/JourneyMapScrubber'
 import { SentinelWaveHUD, type SentinelSession } from '../components/SentinelWaveHUD'
 
+import { useToast } from '../components/Toast'
+
 const API_BASE = 'http://localhost:8000'
 
 declare global {
@@ -10,6 +12,7 @@ declare global {
 }
 
 export const MultiCameraTracking: React.FC = () => {
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState<'journey' | 'sentinel'>('journey')
   const [speedMode, setSpeedMode] = useState<'pedestrian' | 'vehicle'>('pedestrian')
   const [trackletIdInput, setTrackletIdInput] = useState<string>('')
@@ -193,13 +196,14 @@ export const MultiCameraTracking: React.FC = () => {
         setTotalDistance(data.total_distance_meters || 0)
         setTotalDuration(data.total_duration_seconds || 0)
         setActiveStepNo(1)
+        toast.success('Trajectory Reconstructed', `Mapped ${(data.journey_steps || []).length} camera hops across nodes.`)
       } else {
         const err = await res.json()
-        alert(err.detail || 'Trajectory reconstruction failed.')
+        toast.error('Reconstruction Error', err.detail || 'Trajectory reconstruction failed.')
       }
     } catch (e) {
       console.error(e)
-      alert('Error triggering trajectory reconstruction.')
+      toast.error('Network Error', 'Error triggering trajectory reconstruction.')
     } finally {
       setLoading(false)
     }
@@ -230,13 +234,14 @@ export const MultiCameraTracking: React.FC = () => {
           status: 'active',
           created_at: new Date().toISOString()
         })
+        toast.success('Sentinel Pursuit Active', `Monitoring ${data.downstream_nodes?.length || 0} downstream camera nodes.`)
       } else {
         const err = await res.json()
-        alert(err.detail || 'Sentinel pursuit activation failed.')
+        toast.error('Sentinel Activation Failed', err.detail || 'Sentinel pursuit activation failed.')
       }
     } catch (e) {
       console.error(e)
-      alert('Error activating sentinel pursuit.')
+      toast.error('Network Error', 'Error activating sentinel pursuit.')
     } finally {
       setLoading(false)
     }

@@ -6,48 +6,12 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useToast } from '../components/Toast'
+import { formatDisplayDate } from '../utils/dateFormatter'
+import { AlertEntry, Camera, TRACKLET_THUMB } from '../types/alerts'
 
 const API_BASE = 'http://localhost:8000'
 
-interface AlertEntry {
-  id: number
-  alert_type: string
-  camera_id: string
-  video_id?: string
-  tracklet_id: string
-  object_tracklet_id?: string
-  owner_tracklet_ids: string[]
-  visitor_tracklet_ids: string[]
-  reid_match_tracklet_id?: string
-  abandon_duration_seconds?: number
-  analysis_log?: string
-  timestamp: string
-  acknowledged: boolean
-  acknowledged_by?: string
-  acknowledged_at?: string
-}
 
-interface Camera {
-  camera_id: string
-  name: string
-  participate_in_alerts?: boolean
-}
-
-interface AlertsDashboardProps {
-  cameras?: Camera[]
-  onPlayVideoAtTime?: (
-    video: any,
-    timestamp: number,
-    trackerId?: number | string,
-    bestBbox?: number[],
-    className?: string,
-    tag?: string,
-    color?: string
-  ) => void
-}
-
-const TRACKLET_THUMB = (trackletId: string) =>
-  `${API_BASE}/data/processed/detections/${trackletId.split('_trk_')[0]}/crops/${trackletId}.jpg`
 
 function TrackletThumb({ trackletId, label }: { trackletId: string; label: string }) {
   const [err, setErr] = useState(false)
@@ -252,7 +216,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
       </div>
 
       {/* Dedicated Execution Banners */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Link
           to="/alerts/abandoned"
           className="p-4 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-900 hover:border-amber-500/60 transition-all group flex items-center justify-between"
@@ -284,6 +248,24 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
             </p>
           </div>
           <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold shrink-0 group-hover:bg-rose-700 transition-colors ml-4">
+            <span>Open Page</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </div>
+        </Link>
+
+        <Link
+          to="/assault-detection"
+          className="p-4 rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-50/80 to-white dark:from-violet-950/20 dark:to-slate-900 hover:border-violet-500/60 transition-all group flex items-center justify-between"
+        >
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4" /> Dedicated Page: Assault Detection
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Run frame-level inspection, view confidence spikes, and review detected physical assaults.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-bold shrink-0 group-hover:bg-violet-700 transition-colors ml-4">
             <span>Open Page</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
           </div>
@@ -429,13 +411,13 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                           {alert.acknowledged ? 'Acknowledged' : isTheft ? 'Outdoor Theft & Snatching' : isUnattended ? 'Unattended Luggage' : 'Abandoned Object'}
                         </span>
 
-                        <span className="text-xs text-slate-500">
-                          {alert.camera_id} · {new Date(alert.timestamp).toLocaleString()}
+                        <span className="text-xs text-slate-500 font-mono">
+                          {alert.camera_id} · {formatDisplayDate(alert.timestamp)}
                         </span>
 
                         {alert.acknowledged && alert.acknowledged_by && (
                           <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded">
-                            Verified by: {alert.acknowledged_by} {alert.acknowledged_at ? `at ${new Date(alert.acknowledged_at).toLocaleTimeString()}` : ''}
+                            Verified by: {alert.acknowledged_by} {alert.acknowledged_at ? `at ${formatDisplayDate(alert.acknowledged_at, true)}` : ''}
                           </span>
                         )}
                       </div>
