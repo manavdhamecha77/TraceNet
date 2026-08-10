@@ -333,7 +333,7 @@ app.add_middleware(
 app.mount("/data", StaticFiles(directory=get_data_path("")), name="data")
 
 # Serve the standalone edge camera client (decoupled device pairing app)
-_camera_client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../camera_client"))
+_camera_client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../camera_client"))
 if os.path.isdir(_camera_client_dir):
     app.mount("/camera-app", StaticFiles(directory=_camera_client_dir, html=True), name="camera_client")
 
