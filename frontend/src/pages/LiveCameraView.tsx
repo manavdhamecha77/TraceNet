@@ -4,7 +4,7 @@ import { ArrowLeft, Square, Activity, AlertTriangle, Info } from 'lucide-react'
 import ReactECharts from 'echarts-for-react'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
-const WS_BASE = typeof window !== 'undefined' ? `ws://${window.location.hostname}:8000` : 'ws://localhost:8000'
+const WS_BASE = typeof window !== 'undefined' ? `ws://${window.location.hostname}:8000/api/v1/stream` : 'ws://localhost:8000/api/v1/stream'
 
 const CLASS_COLORS: Record<string, string> = {
   person: '#22d3ee', vehicle: '#f97316', car: '#f97316',
@@ -32,6 +32,7 @@ export default function LiveCameraView() {
   const [viewTab, setViewTab] = useState<'annotated' | 'raw'>('annotated')
   const [duration, setDuration] = useState(0)
   
+  const [latestDetections, setLatestDetections] = useState<any>(null)
   const [telemetryHistory, setTelemetryHistory] = useState({
     fps: [] as number[],
     inference: [] as number[],
@@ -60,10 +61,11 @@ export default function LiveCameraView() {
       .then(r => r.json())
       .then(data => {
         setStreamStatus(data)
-        if (data.is_streaming) {
-          const startedAt = new Date(data.started_at).getTime()
+        if (data.is_streaming || data.status === 'streaming') {
+          const startedAt = data.started_at ? new Date(data.started_at).getTime() : Date.now()
+          if (durationTimerRef.current) clearInterval(durationTimerRef.current)
           durationTimerRef.current = setInterval(() => {
-            setDuration(Math.floor((Date.now() - startedAt) / 1000))
+            setDuration(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)))
           }, 1000)
         }
       })
@@ -131,13 +133,19 @@ export default function LiveCameraView() {
   }
 
   const initWebSocket = () => {
-    const ws = new WebSocket(`${WS_BASE}/ws/stream/${camera_id}`)
+    const url = `${WS_BASE}/ws/stream/${camera_id}`
+    console.log('[WebSocket] Connecting to:', url)
+    const ws = new WebSocket(url)
     wsRef.current = ws
+    
+    ws.onopen = () => console.log('[WebSocket] Connected cleanly to backend telemetry endpoint')
+    ws.onerror = (err) => console.error('[WebSocket] Error:', err)
     
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
         latestDetectionsRef.current = data
+        setLatestDetections(data)
         
         setTelemetryHistory(prev => {
           const keep = 60
@@ -155,6 +163,14 @@ export default function LiveCameraView() {
           })
         }
       } catch (err) {}
+    }
+    
+    ws.onclose = () => {
+      setTimeout(() => {
+        if (wsRef.current === ws) {
+          initWebSocket()
+        }
+      }, 3000)
     }
     
     startRenderLoop()
@@ -359,21 +375,27 @@ export default function LiveCameraView() {
           <div className="grid grid-cols-3 gap-2 shrink-0">
             <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-md p-2">
               <div className="text-[10px] font-bold text-slate-500 uppercase">Inference</div>
-              <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">{latestDetectionsRef.current?.inference_ms || 0}ms</div>
+              <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
+                {latestDetections?.inference_ms ? latestDetections.inference_ms.toFixed(1) : 0}ms
+              </div>
               <div className="h-6 mt-1">
                 <ReactECharts option={createSparklineOption(telemetryHistory.inference, '#0f766e', '')} style={{ height: '100%', width: '100%' }} />
               </div>
             </div>
             <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-md p-2">
               <div className="text-[10px] font-bold text-slate-500 uppercase">Pipeline FPS</div>
-              <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">{latestDetectionsRef.current?.fps || 0}</div>
+              <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
+                {latestDetections?.fps ? latestDetections.fps.toFixed(1) : 0}
+              </div>
               <div className="h-6 mt-1">
                 <ReactECharts option={createSparklineOption(telemetryHistory.fps, '#3b82f6', '')} style={{ height: '100%', width: '100%' }} />
               </div>
             </div>
             <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-md p-2">
               <div className="text-[10px] font-bold text-slate-500 uppercase">E2E Latency</div>
-              <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">{latestDetectionsRef.current?.e2e_latency_ms || 0}ms</div>
+              <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
+                {latestDetections?.e2e_latency_ms ? latestDetections.e2e_latency_ms.toFixed(1) : 0}ms
+              </div>
               <div className="h-6 mt-1">
                 <ReactECharts option={createSparklineOption(telemetryHistory.latency, '#f59e0b', '')} style={{ height: '100%', width: '100%' }} />
               </div>

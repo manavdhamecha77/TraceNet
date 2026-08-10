@@ -39,8 +39,8 @@ def stop_stream(camera_id: str, db: Session = Depends(get_db)):
     return {"message": "Stream stopped"}
 
 @router.get("/status/{camera_id}")
-def get_stream_status(camera_id: str):
-    return manager.get_status(camera_id)
+def get_stream_status(camera_id: str, db: Session = Depends(get_db)):
+    return manager.get_status(camera_id, db)
 
 @router.get("/sessions")
 def list_sessions(db: Session = Depends(get_db)):
@@ -96,11 +96,14 @@ def mediamtx_start():
     return {"message": "MediaMTX started"}
 
 @router.websocket("/ws/stream/{camera_id}")
+@router.websocket("/ws/{camera_id}")
 async def stream_websocket(websocket: WebSocket, camera_id: str):
     await websocket.accept()
     manager.register_ws_client(camera_id, websocket)
+    logger.info(f"[WebSocket] Client connected for camera '{camera_id}'")
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.unregister_ws_client(camera_id, websocket)
+        logger.info(f"[WebSocket] Client disconnected for camera '{camera_id}'")

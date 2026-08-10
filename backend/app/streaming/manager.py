@@ -66,6 +66,11 @@ class StreamManager:
             return False
 
     def start_inference(self, camera_id, session_id, config: StreamConfig, db):
+        # Stop existing stream for camera if active to prevent orphaned threads/processes
+        if camera_id in self._active_streams:
+            logger.info(f"Stopping existing active stream for {camera_id} before starting new session.")
+            self.stop_stream(camera_id, db)
+
         cam = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
         if not cam:
             return
@@ -73,7 +78,7 @@ class StreamManager:
         rtsp_url = f"{config.mediamtx_rtsp_base}/{camera_id}"
         
         worker = InferenceWorker(camera_id, session_id, rtsp_url, config, self)
-        chunker = StreamChunker(camera_id, session_id, rtsp_url, config)
+        chunker = StreamChunker(camera_id, session_id, rtsp_url, config, self)
         
         self._active_streams[camera_id] = {
             "worker_thread": worker,
@@ -93,9 +98,15 @@ class StreamManager:
         
     def stop_stream(self, camera_id, db):
         if camera_id in self._active_streams:
-            stream_data = self._active_streams[camera_id]
+            stream_data = self._active_streams.pop(camera_id)
             stream_data["worker_thread"].stop()
             stream_data["chunker_process"].stop()
+            
+            # Wait for worker thread to finish cleanly
+            try:
+                stream_data["worker_thread"].join(timeout=2.0)
+            except Exception:
+                pass
             
             session_id = stream_data["session_id"]
             session = db.query(LiveStreamSession).filter(LiveStreamSession.id == session_id).first()
@@ -103,26 +114,38 @@ class StreamManager:
                 session.status = "ended"
                 session.ended_at = datetime.now(timezone.utc)
                 if session.started_at:
-                    session.total_duration_sec = (session.ended_at - session.started_at.replace(tzinfo=timezone.utc)).total_seconds()
-            
-            del self._active_streams[camera_id]
+                    try:
+                        session.total_duration_sec = (session.ended_at - session.started_at.replace(tzinfo=timezone.utc)).total_seconds()
+                    except Exception:
+                        pass
             
         cam = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
         if cam:
             cam.is_streaming = False
         db.commit()
         
-    def get_status(self, camera_id):
+    def get_status(self, camera_id, db=None):
         if camera_id in self._active_streams:
             worker = self._active_streams[camera_id]["worker_thread"]
+            started_at = None
+            if db:
+                cam = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+                if cam and cam.stream_started_at:
+                    started_at = cam.stream_started_at.isoformat()
+            
+            if not started_at:
+                started_at = datetime.now(timezone.utc).isoformat()
+
             return {
                 "status": "streaming",
+                "is_streaming": True,
                 "session_id": self._active_streams[camera_id]["session_id"],
-                "fps": worker.fps,
-                "inference_ms": worker.inference_ms,
+                "started_at": started_at,
+                "fps": round(worker.fps, 1),
+                "inference_ms": round(worker.inference_ms, 1),
                 "frame_count": worker.frame_count
             }
-        return {"status": "stopped"}
+        return {"status": "stopped", "is_streaming": False}
 
     def register_ws_client(self, camera_id, websocket):
         if camera_id in self._active_streams:
@@ -144,11 +167,14 @@ class StreamManager:
                 return
             
             async def _send():
+                dead_clients = set()
                 for client in clients:
                     try:
                         await client.send_json(message_dict)
                     except Exception:
-                        pass
+                        dead_clients.add(client)
+                if dead_clients and camera_id in self._active_streams:
+                    self._active_streams[camera_id]["ws_clients"] -= dead_clients
                         
             loop = self._active_streams[camera_id].get("loop")
             if loop and loop.is_running():

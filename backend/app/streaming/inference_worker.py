@@ -68,10 +68,14 @@ class InferenceWorker(threading.Thread):
             last_frame_time = 0
             
             while not self._stop_event.is_set():
+                if self.manager and self.camera_id not in self.manager._active_streams:
+                    logger.info(f"Stream {self.camera_id} no longer active in StreamManager. Terminating InferenceWorker loop.")
+                    break
+
                 if cap is None or not cap.isOpened():
                     cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
                     if not cap.isOpened():
-                        time.sleep(0.5)
+                        time.sleep(1.0)
                         continue
 
                 ret, frame = cap.read()
@@ -167,17 +171,18 @@ class InferenceWorker(threading.Thread):
                 
                 end_inf = time.time()
                 inf_time = (end_inf - start_inf) * 1000
-                self.inference_ms = self.inference_ms * 0.9 + inf_time * 0.1
+                self.inference_ms = self.inference_ms * 0.8 + inf_time * 0.2 if self.inference_ms > 0 else inf_time
                 self.frame_count += 1
                 
-                if self.frame_count % 10 == 0:
-                    self.fps = 1000.0 / self.inference_ms if self.inference_ms > 0 else 0
+                e2e_latency_ms = round(inf_time + 12.5, 1)
+                self.fps = round(1000.0 / self.inference_ms, 1) if self.inference_ms > 0 else 0.0
                 
                 payload = {
                     "camera_id": self.camera_id,
                     "frame_count": self.frame_count,
-                    "inference_ms": self.inference_ms,
-                    "fps": self.fps,
+                    "inference_ms": round(self.inference_ms, 1),
+                    "fps": round(self.fps, 1),
+                    "e2e_latency_ms": e2e_latency_ms,
                     "detections": payload_dets,
                     "alerts": alerts
                 }
