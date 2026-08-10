@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { ShieldAlert, Activity, CheckCircle2, AlertTriangle, Eye, RefreshCw, Filter } from 'lucide-react'
+import { useToast } from '../components/Toast'
+import { formatDisplayDate } from '../utils/dateFormatter'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -31,6 +34,7 @@ interface AssaultDetectionProps {
 }
 
 export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps) {
+  const toast = useToast()
   const [alerts, setAlerts] = useState<AssaultAlert[]>([])
   const [stats, setStats] = useState<DetectionStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -47,7 +51,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
       const alertRes = await fetch(`${API_BASE}/api/v1/assault-detection/alerts${params}`)
       if (alertRes.ok) {
         const data = await alertRes.json()
-        setAlerts(data.alerts)
+        setAlerts(data.alerts || [])
       }
 
       // Fetch statistics
@@ -83,12 +87,15 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
         method: 'PUT',
       })
       if (res.ok) {
+        toast.success('Alert Acknowledged', `Physical Assault Incident #${alertId} updated.`)
         setAlerts(prev =>
           prev.map(a => a.id === alertId ? { ...a, acknowledged: true } : a)
         )
+      } else {
+        toast.error('Error', 'Failed to acknowledge alert.')
       }
     } catch (err) {
-      console.error('Failed to acknowledge:', err)
+      toast.error('Network Error', 'Failed to reach server.')
     } finally {
       setAcknowledging(null)
     }
@@ -100,37 +107,57 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-200 text-slate-800 dark:text-slate-100">
       {/* HEADER */}
-      <div>
-        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Assault Detection</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Monitor violent incidents detected by VideoMAE deep learning model (UCF-Crime trained).
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <span>Physical Assault Analytics</span>
+            <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400">
+              VideoMAE Neural Pipeline
+            </span>
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Real-time deep learning temporal violence classifier (UCF-Crime trained) detecting violent alterations and physical assault incidents.
+          </p>
+        </div>
+
+        <button
+          onClick={loadAssaultData}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh Pipeline
+        </button>
       </div>
 
       {/* MODEL STATUS */}
       {modelStatus && (
-        <div className={`rounded-lg border p-4 ${
+        <div className={`rounded-xl border p-4 backdrop-blur-sm ${
           modelStatus.model_loaded
-            ? 'border-emerald-500/20 bg-emerald-50 dark:bg-emerald-950/20'
-            : 'border-amber-500/20 bg-amber-50 dark:bg-amber-950/20'
+            ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20'
+            : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20'
         }`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className={`font-semibold text-sm ${
-                modelStatus.model_loaded
-                  ? 'text-emerald-700 dark:text-emerald-400'
-                  : 'text-amber-700 dark:text-amber-400'
-              }`}>
-                {modelStatus.model_loaded ? '✅ Model Ready' : '⚠️ Model Not Loaded'}
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                {modelStatus.model_name} | Device: {modelStatus.device}
-              </p>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${modelStatus.model_loaded ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                <Activity className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className={`font-bold text-xs uppercase tracking-wider ${
+                  modelStatus.model_loaded
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : 'text-amber-700 dark:text-amber-400'
+                }`}>
+                  {modelStatus.model_loaded ? 'VideoMAE Engine Operational' : 'Model Standby Mode'}
+                </h3>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                  Checkpoint: <span className="font-mono text-slate-300">{modelStatus.model_name}</span> | Execution Device: <span className="font-mono text-cyan-400">{modelStatus.device}</span>
+                </p>
+              </div>
             </div>
-            <span className="text-[11px] bg-slate-200 dark:bg-slate-700 px-2.5 py-1 rounded font-mono">
-              Threshold: {modelStatus.confidence_threshold}
+            <span className="text-[11px] bg-slate-900 border border-slate-800 px-3 py-1 rounded-lg font-mono text-cyan-400 font-bold">
+              Confidence Gate: {modelStatus.confidence_threshold}
             </span>
           </div>
         </div>
@@ -138,183 +165,148 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
 
       {/* STATISTICS CARDS */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-1">
-            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Videos Analyzed
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-1 shadow-xs">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Feeds Evaluated
             </div>
-            <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+            <div className="text-2xl font-black text-slate-900 dark:text-slate-100 font-mono">
               {stats.total_videos_analyzed}
             </div>
           </div>
 
-          <div className="rounded-lg border border-rose-500/20 bg-rose-50 dark:bg-rose-950/20 p-4 space-y-1">
-            <div className="text-[11px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
-              Assaults Detected
+          <div className="rounded-xl border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20 p-4 space-y-1 shadow-xs">
+            <div className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Assaults Detected</span>
+              <ShieldAlert className="w-4 h-4 text-rose-500" />
             </div>
-            <div className="text-2xl font-bold text-rose-800 dark:text-rose-300">
+            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 font-mono">
               {stats.assaults_detected}
             </div>
           </div>
 
-          <div className="rounded-lg border border-orange-500/20 bg-orange-50 dark:bg-orange-950/20 p-4 space-y-1">
-            <div className="text-[11px] font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider">
-              High Confidence
+          <div className="rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 p-4 space-y-1 shadow-xs">
+            <div className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center justify-between">
+              <span>High Confidence</span>
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
             </div>
-            <div className="text-2xl font-bold text-orange-800 dark:text-orange-300">
+            <div className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
               {stats.high_confidence_assaults}
             </div>
           </div>
 
-          <div className="rounded-lg border border-teal-500/20 bg-teal-50 dark:bg-teal-950/20 p-4 space-y-1">
-            <div className="text-[11px] font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">
-              Avg Confidence
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-50/50 dark:bg-cyan-950/20 p-4 space-y-1 shadow-xs">
+            <div className="text-xs font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wider">
+              Avg Score
             </div>
-            <div className="text-2xl font-bold text-teal-800 dark:text-teal-300">
-              {(stats.average_confidence * 100).toFixed(0)}%
+            <div className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-mono">
+              {(stats.average_confidence * 100).toFixed(1)}%
             </div>
           </div>
         </div>
       )}
 
-      {/* ASSAULT TYPE BREAKDOWN */}
-      {stats && Object.keys(stats.assault_types).length > 0 && (
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-3">
-            Assault Types Detected
-          </h3>
-          <div className="space-y-2">
-            {Object.entries(stats.assault_types).map(([type, count]) => (
-              <div key={type} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded">
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {type}
-                </span>
-                <span className="text-sm font-bold text-rose-600 dark:text-rose-400">
-                  {count} incident{count !== 1 ? 's' : ''}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* FILTER */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-          Filter by Camera
+      {/* FILTER BAR */}
+      <div className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <Filter className="w-4 h-4 text-slate-500" />
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">
+          Filter Node:
         </label>
         <select
           value={selectedCamera}
           onChange={(e) => setSelectedCamera(e.target.value)}
-          className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-rose-600"
+          className="h-8 px-3 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold max-w-xs w-full"
         >
-          <option value="">All Cameras</option>
+          <option value="">All Camera Nodes</option>
           {cameras.map(cam => (
             <option key={cam.camera_id} value={cam.camera_id}>
-              {cam.name}
+              {cam.name} ({cam.camera_id})
             </option>
           ))}
         </select>
       </div>
 
       {/* ALERTS TABLE */}
-      <div className="border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800">
-        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-          Assault Alerts — {loading ? 'Loading...' : `${alerts.length} Alert${alerts.length !== 1 ? 's' : ''}`}
+      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+        <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
+          <span>Physical Assault Alert Feed</span>
+          <span className="font-mono text-cyan-400">{alerts.length} Incidents Logged</span>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-slate-500 dark:text-slate-400">
-            <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            Loading assault data...
+          <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
+            <RefreshCw className="h-5 w-5 animate-spin text-rose-500" />
+            <span>Loading Assault Analytics...</span>
           </div>
         ) : alerts.length === 0 ? (
-          <div className="p-12 text-center text-xs text-slate-400 dark:text-slate-600">
-            No assault alerts detected
+          <div className="p-16 text-center text-xs text-slate-400">
+            No physical assault incidents detected matching current filters.
           </div>
         ) : (
-          <table className="w-full divide-y divide-slate-100 dark:divide-slate-800 text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">
-              <tr>
-                <th className="px-4 py-3">Camera</th>
-                <th className="px-4 py-3">Video ID</th>
-                <th className="px-4 py-3">Timestamp</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {alerts.map(alert => (
-                <tr key={alert.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">
-                    {getCameraName(alert.camera_id)}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">
-                    {alert.video_id.substring(0, 12)}...
-                  </td>
-                  <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
-                    {new Date(alert.timestamp).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    {alert.acknowledged ? (
-                      <div className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                        Acknowledged
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 text-[10px] font-bold text-rose-700 dark:text-rose-400">
-                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        </svg>
-                        Unacknowledged
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right space-x-2 flex justify-end">
-                    <Link
-                      to={`/frame-inspection/${alert.id}`}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-1.5"
-                    >
-                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      Inspect Frames
-                    </Link>
-                    {!alert.acknowledged && (
-                      <button
-                        onClick={() => handleAcknowledge(alert.id)}
-                        disabled={acknowledging === alert.id}
-                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-[10px] font-bold transition-colors inline-flex items-center gap-1.5"
-                      >
-                        {acknowledging === alert.id ? (
-                          <>
-                            <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            Acknowledging...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            Acknowledge
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full divide-y divide-slate-100 dark:divide-slate-800 text-left text-xs">
+              <thead className="bg-slate-50 dark:bg-slate-950/60 text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                <tr>
+                  <th className="px-4 py-3">Camera Node</th>
+                  <th className="px-4 py-3">Video Segment</th>
+                  <th className="px-4 py-3">Timeline</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {alerts.map(alert => (
+                  <tr key={alert.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-100">
+                      {getCameraName(alert.camera_id)}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                      {alert.video_id.substring(0, 12)}...
+                    </td>
+                    <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-400">
+                      {formatDisplayDate(alert.timestamp)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {alert.acknowledged ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Acknowledged
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 border border-rose-500/30 px-2.5 py-0.5 text-[10px] font-bold text-rose-700 dark:text-rose-400 animate-pulse">
+                          <ShieldAlert className="h-3 w-3" />
+                          Unacknowledged
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right space-x-2">
+                      <Link
+                        to={`/frame-inspection/${alert.id}`}
+                        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-slate-950 rounded-lg text-[11px] font-bold transition-all inline-flex items-center gap-1 shadow-md shadow-cyan-500/10"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Inspect Frames
+                      </Link>
+                      {!alert.acknowledged && (
+                        <button
+                          onClick={() => handleAcknowledge(alert.id)}
+                          disabled={acknowledging === alert.id}
+                          className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg text-[11px] font-bold transition-all inline-flex items-center gap-1 shadow-md shadow-rose-500/10"
+                        >
+                          {acknowledging === alert.id ? (
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
+                          Acknowledge
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

@@ -148,12 +148,20 @@ def list_alerts(
     return [a.to_dict() for a in alerts]
 
 
+from datetime import datetime, timezone
+
 @router.put("/alerts/{alert_id}/acknowledge")
-def acknowledge_alert(alert_id: int, db: Session = Depends(get_db)):
+def acknowledge_alert(
+    alert_id: int,
+    acknowledged_by: Optional[str] = "Operator (Badge #4082)",
+    db: Session = Depends(get_db)
+):
     alert = db.query(Alert).filter(Alert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found.")
     alert.acknowledged = True
+    alert.acknowledged_by = acknowledged_by
+    alert.acknowledged_at = datetime.now(timezone.utc)
     db.commit()
     return alert.to_dict()
 

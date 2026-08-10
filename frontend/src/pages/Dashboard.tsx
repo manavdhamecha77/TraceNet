@@ -61,8 +61,8 @@ export default function Dashboard({ metrics }: DashboardProps) {
     {
       label: 'Camera Nodes',
       value: metrics.totalCameras,
-      valueColor: 'text-teal-700 dark:text-cyan-400',
-      iconBg: 'bg-teal-500/10 text-teal-700 dark:text-cyan-400',
+      valueColor: 'text-cyan-400',
+      iconBg: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -71,10 +71,10 @@ export default function Dashboard({ metrics }: DashboardProps) {
       delay: 'animate-stagger-1',
     },
     {
-      label: 'Video Feeds',
+      label: 'Video Feeds Indexed',
       value: metrics.totalVideos,
-      valueColor: 'text-slate-800 dark:text-slate-100',
-      iconBg: 'bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
+      valueColor: 'text-slate-100',
+      iconBg: 'bg-slate-800 text-slate-300 border border-slate-700',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
@@ -83,10 +83,10 @@ export default function Dashboard({ metrics }: DashboardProps) {
       delay: 'animate-stagger-2',
     },
     {
-      label: 'Standardized',
+      label: 'Standardized (10 FPS)',
       value: metrics.processedVideos,
-      valueColor: 'text-emerald-600 dark:text-emerald-400',
-      iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      valueColor: 'text-emerald-400',
+      iconBg: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -97,8 +97,8 @@ export default function Dashboard({ metrics }: DashboardProps) {
     {
       label: 'Queue / Processing',
       value: metrics.pendingVideos,
-      valueColor: metrics.pendingVideos > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500',
-      iconBg: metrics.pendingVideos > 0 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-500',
+      valueColor: metrics.pendingVideos > 0 ? 'text-amber-400' : 'text-slate-500',
+      iconBg: metrics.pendingVideos > 0 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-500 border border-slate-700',
       icon: (
         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" />
@@ -108,13 +108,25 @@ export default function Dashboard({ metrics }: DashboardProps) {
     },
   ]
 
+  const samplePrompts = [
+    { text: "Show me everyone near Gate 3 between 5 PM and 7 PM", tag: "NL Search" },
+    { text: "Track suspect in red jacket from Camera 001 across all nodes", tag: "Pursuit" },
+    { text: "List all unacknowledged outdoor theft and physical assault alerts", tag: "Alerts" },
+    { text: "Check operational status of all smart city camera nodes", tag: "Cameras" }
+  ]
+
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in pb-16">
       {/* Page header */}
       <div className="space-y-1">
-        <h2 className="text-title text-slate-800 dark:text-slate-100">System Dashboard</h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-xl leading-relaxed">
-          Overview of registered forensic devices, ingestion queue status, and pipeline execution logs.
+        <h2 className="text-xl font-extrabold text-slate-100 flex items-center gap-2">
+          <span>Situation Overview</span>
+          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+            FORENSIC COMMAND CENTER
+          </span>
+        </h2>
+        <p className="text-xs text-slate-400 max-w-xl">
+          Real-time smart city surveillance overview, operational AI command bar, and camera node health metrics.
         </p>
       </div>
 
@@ -123,11 +135,11 @@ export default function Dashboard({ metrics }: DashboardProps) {
         {metricCards.map((card) => (
           <div
             key={card.label}
-            className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl animate-fade-up ${card.delay} p-5 flex items-center justify-between group hover:border-slate-300 dark:hover:border-slate-700 transition-colors duration-200 shadow-xs`}
+            className={`bg-slate-900/80 border border-slate-800 rounded-xl p-5 flex items-center justify-between group hover:border-slate-700 transition-all duration-200 shadow-xs`}
           >
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{card.label}</span>
-              <p className={`text-3xl font-bold font-mono tracking-tight ${card.valueColor}`}>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{card.label}</span>
+              <p className={`text-3xl font-black font-mono tracking-tight ${card.valueColor}`}>
                 {card.value}
               </p>
             </div>
@@ -138,43 +150,104 @@ export default function Dashboard({ metrics }: DashboardProps) {
         ))}
       </section>
 
-      {/* PIPELINE STATUS */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-6 space-y-4 shadow-xs">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Forensic Preprocessing Pipeline</h3>
-          <span className="pill-online">All Systems Operational</span>
-        </div>
+      {/* MAIN CONTENT GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        
+        {/* LEFT COL: PIPELINE STATUS (Takes up 2 cols) */}
+        <section className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-6 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Forensic Preprocessing Pipeline</h3>
+            <span className="pill-online">All Systems Operational</span>
+          </div>
 
-        <div className="space-y-2.5">
-          {pipelineStages.map((stage, i) => (
-            <div
-              key={stage.name}
-              className={`bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-lg p-4 flex items-center justify-between gap-4 animate-fade-up animate-stagger-${i + 1} group hover:border-slate-300 dark:hover:border-slate-700 transition-colors duration-200`}
-            >
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 p-2 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0 group-hover:text-teal-600 dark:group-hover:text-cyan-400 transition-colors">
-                  {stage.icon}
-                </span>
-                <div className="space-y-0.5">
-                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{stage.name}</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">{stage.desc}</p>
+          <div className="space-y-2.5">
+            {pipelineStages.map((stage, i) => (
+              <div
+                key={stage.name}
+                className={`bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-lg p-4 flex items-center justify-between gap-4 animate-fade-up animate-stagger-${i + 1} group hover:border-slate-300 dark:hover:border-slate-700 transition-colors duration-200`}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 p-2 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0 group-hover:text-teal-600 dark:group-hover:text-cyan-400 transition-colors">
+                    {stage.icon}
+                  </span>
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{stage.name}</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">{stage.desc}</p>
+                  </div>
                 </div>
+                <span className={`${stage.statusClass} shrink-0`}>{stage.status}</span>
               </div>
-              <span className={`${stage.statusClass} shrink-0`}>{stage.status}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
 
-      {/* FORENSIC AUDIT FOOTER */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-4 flex items-center gap-3 shadow-xs">
-        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-        <p className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
-          <span className="text-slate-700 dark:text-slate-300 font-semibold">[Audit Engine Active]</span>{' '}
-          Verifiable SQLite engine running. Target database:{' '}
-          <span className="text-teal-600 dark:text-cyan-400 font-bold">drishti.db</span>
-        </p>
-      </section>
+        {/* RIGHT COL: AI COPILOT & AUDIT FOOTER */}
+        <div className="lg:col-span-1 space-y-6">
+          
+          {/* AI COPILOT COMMAND CENTER CARD */}
+          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-cyan-500/30 rounded-xl p-5 space-y-5 shadow-xl ring-1 ring-cyan-500/10">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 mt-0.5">
+                <svg className="h-4 w-4 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  AI Operational Assistant
+                </h3>
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  Ask natural language queries or trigger multi-camera pursuit directly.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+              }}
+              className="w-full py-2.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
+            >
+              <span>Launch Copilot</span>
+              <span className="text-[10px] font-mono text-slate-900/70 ml-1 border border-slate-900/30 px-1.5 py-0.5 rounded opacity-80">Ctrl + K</span>
+            </button>
+
+            {/* Quick Pre-loaded Prompt Chips */}
+            <div className="pt-4 border-t border-slate-800/80 space-y-2.5">
+              <span className="text-[10px] font-mono text-slate-500 font-bold uppercase block">Quick Prompts</span>
+              <div className="flex flex-col gap-2">
+                {samplePrompts.map((p, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('tracenet:open-copilot', { detail: { prompt: p.text } }))
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 transition-all hover:border-cyan-500/50 hover:text-cyan-300 flex flex-col gap-1.5 group"
+                  >
+                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 self-start group-hover:bg-cyan-500/20">
+                      {p.tag}
+                    </span>
+                    <span className="text-[10px] leading-snug truncate whitespace-normal line-clamp-2">"{p.text}"</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* FORENSIC AUDIT FOOTER */}
+          <section className="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex flex-col gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="text-slate-300 font-semibold text-xs tracking-wide uppercase">Audit Engine Active</span>
+            </div>
+            <p className="font-mono text-[10px] text-slate-500 leading-relaxed">
+              Verifiable SQLite engine running.<br/>
+              Target database: <span className="text-teal-600 dark:text-cyan-400 font-bold">drishti.db</span>
+            </p>
+          </section>
+
+        </div>
+      </div>
     </div>
   )
 }

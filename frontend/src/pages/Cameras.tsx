@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
+import { useToast } from '../components/Toast'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -114,6 +115,7 @@ const inputCls = "w-full rounded border border-slate-200 dark:border-slate-700 b
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function Cameras({ cameras, models, onOpenRegisterModal, onRefreshCameras }: CamerasProps) {
+  const toast = useToast()
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({})
   const [localCameras, setLocalCameras] = useState<Camera[]>(cameras)
 
@@ -569,13 +571,11 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
             <button
               onClick={async () => {
                 const assignedModelName = models.find(m => m.id === cam.model_id)?.name || 'Assigned Model'
-                if (window.confirm(`Sync all video detections for camera '${cam.name}' using latest model '${assignedModelName}'?`)) {
-                  try {
-                    await fetch(`${API_BASE}/api/v1/cameras/${cam.camera_id}/sync-detection`, { method: 'POST' })
-                    alert(`Sync process initiated for camera ${cam.name} with model '${assignedModelName}' in background.`)
-                  } catch {
-                    alert('Network error while triggering detection sync.')
-                  }
+                try {
+                  await fetch(`${API_BASE}/api/v1/cameras/${cam.camera_id}/sync-detection`, { method: 'POST' })
+                  toast.success('Sync Initiated', `Detection sync for ${cam.name} with model '${assignedModelName}' started in background.`)
+                } catch {
+                  toast.error('Network Error', 'Failed to trigger detection sync.')
                 }
                 setActiveMenuId(null)
               }}

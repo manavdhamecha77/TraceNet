@@ -2,33 +2,15 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   AlertTriangle, ShieldAlert, Package, CheckCheck,
   RefreshCw, Filter, ChevronRight,
-  ShieldCheck, Loader2, ArrowUpRight
+  ShieldCheck, Loader2, ArrowUpRight, CheckSquare, Square
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useToast } from '../components/Toast'
+import { formatDisplayDate } from '../utils/dateFormatter'
+import type { AlertEntry, Camera } from '../types/alerts'
+import { TRACKLET_THUMB } from '../types/alerts'
 
 const API_BASE = 'http://localhost:8000'
-
-interface AlertEntry {
-  id: number
-  alert_type: string
-  camera_id: string
-  video_id?: string
-  tracklet_id: string
-  object_tracklet_id?: string
-  owner_tracklet_ids: string[]
-  visitor_tracklet_ids: string[]
-  reid_match_tracklet_id?: string
-  abandon_duration_seconds?: number
-  analysis_log?: string
-  timestamp: string
-  acknowledged: boolean
-}
-
-interface Camera {
-  camera_id: string
-  name: string
-  participate_in_alerts?: boolean
-}
 
 interface AlertsDashboardProps {
   cameras?: Camera[]
@@ -42,9 +24,6 @@ interface AlertsDashboardProps {
     color?: string
   ) => void
 }
-
-const TRACKLET_THUMB = (trackletId: string) =>
-  `${API_BASE}/data/processed/detections/${trackletId.split('_trk_')[0]}/crops/${trackletId}.jpg`
 
 function TrackletThumb({ trackletId, label }: { trackletId: string; label: string }) {
   const [err, setErr] = useState(false)
@@ -70,12 +49,14 @@ function TrackletThumb({ trackletId, label }: { trackletId: string; label: strin
 }
 
 export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: AlertsDashboardProps) {
+  const toast = useToast()
   const [alerts, setAlerts] = useState<AlertEntry[]>([])
   const [summary, setSummary] = useState<{ total_alerts: number; unacknowledged_alerts: number; by_type: Record<string, number> } | null>(null)
   const [loading, setLoading] = useState(true)
   const [filterType, setFilterType] = useState<string>('all')
   const [filterCamera, setFilterCamera] = useState<string>('')
   const [filterAck, setFilterAck] = useState<string>('all')
+  const [selectedAlertIds, setSelectedAlertIds] = useState<number[]>([])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -107,10 +88,40 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
   const handleAcknowledge = async (alertId: number) => {
     try {
       await fetch(`${API_BASE}/api/v1/alerts/${alertId}/acknowledge`, { method: 'PUT' })
-      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, acknowledged: true } : a))
+      toast.success('Alert Acknowledged', `Security Incident #${alertId} updated.`)
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, acknowledged: true, acknowledged_by: 'Operator (Badge #4082)', acknowledged_at: new Date().toISOString() } : a))
       setSummary(prev => prev ? { ...prev, unacknowledged_alerts: Math.max(0, prev.unacknowledged_alerts - 1) } : prev)
     } catch (e) {
-      console.error(e)
+      toast.error('Error', 'Failed to acknowledge alert.')
+    }
+  }
+
+  const handleBulkAcknowledge = async () => {
+    if (selectedAlertIds.length === 0) return
+    try {
+      await Promise.all(
+        selectedAlertIds.map((id) =>
+          fetch(`${API_BASE}/api/v1/alerts/${id}/acknowledge`, { method: 'PUT' })
+        )
+      )
+      toast.success('Bulk Acknowledged', `Successfully acknowledged ${selectedAlertIds.length} security alerts.`)
+      setSelectedAlertIds([])
+      loadData()
+    } catch (e) {
+      toast.error('Bulk Error', 'Failed to acknowledge selected alerts.')
+    }
+  }
+
+  const toggleSelectAlert = (id: number) => {
+    setSelectedAlertIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])
+  }
+
+  const toggleSelectAllUnack = () => {
+    const unackIds = alerts.filter(a => !a.acknowledged).map(a => a.id)
+    if (unackIds.every(id => selectedAlertIds.includes(id))) {
+      setSelectedAlertIds(prev => prev.filter(id => !unackIds.includes(id)))
+    } else {
+      setSelectedAlertIds(prev => Array.from(new Set([...prev, ...unackIds])))
     }
   }
 
@@ -217,7 +228,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
       </div>
 
       {/* Dedicated Execution Banners */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Link
           to="/alerts/abandoned"
           className="p-4 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-900 hover:border-amber-500/60 transition-all group flex items-center justify-between"
@@ -249,6 +260,24 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
             </p>
           </div>
           <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold shrink-0 group-hover:bg-rose-700 transition-colors ml-4">
+            <span>Open Page</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </div>
+        </Link>
+
+        <Link
+          to="/assault-detection"
+          className="p-4 rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-50/80 to-white dark:from-violet-950/20 dark:to-slate-900 hover:border-violet-500/60 transition-all group flex items-center justify-between"
+        >
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4" /> Dedicated Page: Assault Detection
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Run frame-level inspection, view confidence spikes, and review detected physical assaults.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-bold shrink-0 group-hover:bg-violet-700 transition-colors ml-4">
             <span>Open Page</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
           </div>
@@ -293,15 +322,30 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
               className="h-8 px-2.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold"
             >
               <option value="">All Camera Nodes</option>
-              {cameras.map(c => (
+              {cameras.map((c: Camera) => (
                 <option key={c.camera_id} value={c.camera_id}>{c.name} ({c.camera_id})</option>
               ))}
             </select>
           )}
         </div>
 
-        <div className="text-xs font-semibold text-slate-500">
-          Showing {alerts.length} incident(s)
+        <div className="flex items-center gap-2">
+          {selectedAlertIds.length > 0 && (
+            <button
+              onClick={handleBulkAcknowledge}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-md animate-in fade-in"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              Acknowledge Selected ({selectedAlertIds.length})
+            </button>
+          )}
+          <button
+            onClick={toggleSelectAllUnack}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-colors flex items-center gap-1.5"
+          >
+            <CheckSquare className="w-3.5 h-3.5 text-cyan-400" />
+            Select Unacknowledged
+          </button>
         </div>
       </div>
 
@@ -326,6 +370,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
             const isUnattended = alert.alert_type === 'unattended_object'
             const objId = alert.object_tracklet_id
             const ownerId = alert.owner_tracklet_ids?.[0] || alert.tracklet_id
+            const isSelected = selectedAlertIds.includes(alert.id)
 
             return (
               <div
@@ -338,10 +383,21 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                     : isUnattended
                     ? 'border-teal-500/30 bg-teal-50/50 dark:border-teal-500/30 dark:bg-teal-950/20'
                     : 'border-amber-500/30 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20'
-                }`}
+                } ${isSelected ? 'ring-2 ring-cyan-500/50' : ''}`}
               >
                 <div className="flex items-start justify-between gap-4 flex-wrap sm:flex-nowrap">
                   <div className="flex items-start gap-3 min-w-0">
+                    {/* Checkbox for bulk selection */}
+                    <button
+                      onClick={() => toggleSelectAlert(alert.id)}
+                      className="mt-1 text-slate-500 hover:text-cyan-400 transition-colors"
+                    >
+                      {isSelected ? (
+                        <CheckSquare className="w-4 h-4 text-cyan-400" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-600" />
+                      )}
+                    </button>
                     <div className="shrink-0">
                       {objId ? (
                         <TrackletThumb trackletId={objId} label="Object" />
@@ -367,9 +423,15 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                           {alert.acknowledged ? 'Acknowledged' : isTheft ? 'Outdoor Theft & Snatching' : isUnattended ? 'Unattended Luggage' : 'Abandoned Object'}
                         </span>
 
-                        <span className="text-xs text-slate-500">
-                          {alert.camera_id} · {new Date(alert.timestamp).toLocaleString()}
+                        <span className="text-xs text-slate-500 font-mono">
+                          {alert.camera_id} · {formatDisplayDate(alert.timestamp)}
                         </span>
+
+                        {alert.acknowledged && alert.acknowledged_by && (
+                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded">
+                            Verified by: {alert.acknowledged_by} {alert.acknowledged_at ? `at ${formatDisplayDate(alert.acknowledged_at, true)}` : ''}
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 flex-wrap">

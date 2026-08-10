@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Cameras from './pages/Cameras'
 import CameraDetail from './pages/CameraDetail'
 import Search from './pages/Search'
-import Landing from './pages/Landing'
 import Models from './pages/Models'
 import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
@@ -14,12 +13,14 @@ import FrameInspection from './pages/FrameInspection'
 import FineTuning from './pages/FineTuning'
 import TheftAlerts from './pages/TheftAlerts'
 import AlertsDashboard from './pages/AlertsDashboard'
+import HotTargets from './pages/HotTargets'
 import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
 import LiveConnect from './pages/LiveConnect'
 import LiveCameraView from './pages/LiveCameraView'
+import { useToast } from './components/Toast'
 import {
   ExternalLink,
   Download,
@@ -90,6 +91,7 @@ interface SystemJob {
 }
 
 function App() {
+  const toast = useToast()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -157,8 +159,7 @@ function App() {
   const [loiteringThreshold, setLoiteringThreshold] = useState(60)
   const [loiteringEditorVideoId, setLoiteringEditorVideoId] = useState<string | null>(null)
 
-  // Alerts persistent toggle state
-  const [isAlertsSubmenuOpen, setIsAlertsSubmenuOpen] = useState(true)
+// Alerts persistent toggle state
 
   // Dashboard metrics state
   const [metrics, setMetrics] = useState({
@@ -236,7 +237,42 @@ function App() {
       }
     }
     fetchMetrics()
+    const metricsTimer = setInterval(fetchMetrics, 10000)
+    return () => clearInterval(metricsTimer)
   }, [location.pathname])
+
+  const [unackAlertCount, setUnackAlertCount] = useState<number>(0)
+  const [copilotInitialPrompt, setCopilotInitialPrompt] = useState<string>('')
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(false)
+
+  useEffect(() => {
+    const handleCustomCopilotOpen = (e: any) => {
+      if (e.detail && e.detail.prompt) {
+        setCopilotInitialPrompt(e.detail.prompt)
+      } else {
+        setCopilotInitialPrompt('')
+      }
+      setIsCopilotOpen(true)
+    }
+    window.addEventListener('tracenet:open-copilot', handleCustomCopilotOpen as EventListener)
+    return () => window.removeEventListener('tracenet:open-copilot', handleCustomCopilotOpen as EventListener)
+  }, [])
+
+  // Fetch unacknowledged alert count for sidebar badge
+  useEffect(() => {
+    const fetchUnackCount = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/alerts/summary`)
+        if (res.ok) {
+          const data = await res.json()
+          setUnackAlertCount(data.unacknowledged_alerts || 0)
+        }
+      } catch (_) {}
+    }
+    fetchUnackCount()
+    const alertTimer = setInterval(fetchUnackCount, 10000)
+    return () => clearInterval(alertTimer)
+  }, [])
 
   const fetchSystemJobs = async () => {
     try {
@@ -767,6 +803,29 @@ function App() {
     }
   }, [playerView, selectedVideoToPlay])
 
+  // Keyboard controls for video modal (Space = Play/Pause, Arrows = Seek)
+  useEffect(() => {
+    if (!selectedVideoToPlay) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName
+      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || targetTag === 'SELECT') return
+      const video = videoRef.current
+      if (!video) return
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (video.paused) video.play(); else video.pause();
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault()
+        video.currentTime = Math.max(0, video.currentTime - 5)
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault()
+        video.currentTime = Math.min(video.duration || 0, video.currentTime + 5)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedVideoToPlay])
+
   // Reset player state when closing
   const closePlayer = () => {
     setSelectedVideoToPlay(null)
@@ -853,17 +912,17 @@ function App() {
             </button>
           </div>
 
-          {/* Navigation */}
-          <nav className="px-2 space-y-0.5">
+          {/* Operational Police Officer Surfaces */}
+          <nav className="px-2 space-y-1">
             <Link
               to="/dashboard"
               className={navLinkClass(location.pathname === '/dashboard')}
-              title={isSidebarCollapsed ? 'Dashboard' : undefined}
+              title={isSidebarCollapsed ? 'Situation Overview' : undefined}
             >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
               </svg>
-              {!isSidebarCollapsed && <span>Dashboard</span>}
+              {!isSidebarCollapsed && <span>Situation Overview</span>}
             </Link>
 
               <Link
@@ -898,111 +957,111 @@ function App() {
             <Link
               to="/search"
               className={navLinkClass(location.pathname === '/search')}
-              title={isSidebarCollapsed ? 'Search & Rank' : undefined}
+              title={isSidebarCollapsed ? 'Search & Investigate' : undefined}
             >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              {!isSidebarCollapsed && <span>Search & Rank</span>}
+              {!isSidebarCollapsed && <span>Search &amp; Investigate</span>}
             </Link>
 
-            {/* Parent Alerts Item with Persistent Sub-sections */}
-            <div className="space-y-0.5">
-              <div
-                onClick={() => setIsAlertsSubmenuOpen(prev => !prev)}
-                className={`cursor-pointer ${navLinkClass(
-                  location.pathname.startsWith('/alerts') ||
-                  location.pathname === '/theft-alerts' ||
-                  location.pathname === '/assault-alerts' ||
-                  location.pathname === '/assault-detection'
-                )}`}
-                title={isSidebarCollapsed ? 'Alerts' : undefined}
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                {!isSidebarCollapsed && (
-                  <div className="flex-1 flex items-center justify-between">
-                    <span>Alerts</span>
-                    <svg className={`h-3 w-3 transition-transform ${isAlertsSubmenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                )}
-              </div>
+            <Link
+              to="/targets"
+              className={navLinkClass(location.pathname.startsWith('/targets') || location.pathname.startsWith('/hot-targets') || location.pathname === '/multicam')}
+              title={isSidebarCollapsed ? 'Pursuit & Tracking' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+              </svg>
+              {!isSidebarCollapsed && <span>Pursuit &amp; Tracking</span>}
+            </Link>
 
-              {/* Persistent Sub-sections when open */}
-              {!isSidebarCollapsed && isAlertsSubmenuOpen && (
-                <div className="ml-4 pl-2.5 border-l border-slate-200 dark:border-slate-800 space-y-1 my-1">
-                  <Link
-                    to="/alerts"
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
-                      location.pathname === '/alerts'
-                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <span>Overview Dashboard</span>
-                  </Link>
+            <Link
+              to="/alerts"
+              className={navLinkClass(location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts' || location.pathname === '/assault-detection')}
+              title={isSidebarCollapsed ? 'Unified Alert Center' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {!isSidebarCollapsed && <span className="flex-1">Unified Alert Center</span>}
+              {unackAlertCount > 0 && (
+                <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold rounded-full bg-rose-500 text-white shadow-xs animate-pulse">
+                  {unackAlertCount}
+                </span>
+              )}
+            </Link>
+          </nav>
 
-                  <Link
-                    to="/alerts/abandoned"
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
-                      location.pathname === '/alerts/abandoned'
-                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <span>Abandoned Objects</span>
-                  </Link>
-
-                  <Link
-                    to="/alerts/theft"
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
-                      location.pathname === '/alerts/theft' || location.pathname === '/theft-alerts'
-                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <span>Outdoor Theft</span>
-                  </Link>
-
-                  <Link
-                    to="/alerts/assault"
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
-                      location.pathname === '/alerts/assault' || location.pathname === '/assault-alerts' || location.pathname === '/assault-detection'
-                        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    <span>Assault Detection</span>
-                  </Link>
-                </div>
+          {/* Technical Admin Section (Gated for Police Officers) */}
+          <div className="pt-4 px-2 border-t border-slate-800 space-y-1">
+            <div className="flex items-center justify-between px-2.5 py-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                {!isSidebarCollapsed ? '⚙️ System Admin' : '⚙️'}
+              </span>
+              {!isSidebarCollapsed && (
+                <button
+                  onClick={() => setIsAdminMode(!isAdminMode)}
+                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                    isAdminMode
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                  }`}
+                >
+                  {isAdminMode ? 'UNLOCKED' : 'LOCKED'}
+                </button>
               )}
             </div>
 
-            <Link
-              to="/models"
-              className={navLinkClass(location.pathname.startsWith('/models'))}
-              title={isSidebarCollapsed ? 'ML Models' : undefined}
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-              </svg>
-              {!isSidebarCollapsed && <span>ML Models</span>}
-            </Link>
+            {isAdminMode ? (
+              <div className="space-y-0.5 animate-in fade-in">
+                <Link
+                  to="/models"
+                  className={navLinkClass(location.pathname.startsWith('/models'))}
+                  title={isSidebarCollapsed ? 'YOLO Detector Models' : undefined}
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                  </svg>
+                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">Detector Models</span>}
+                </Link>
 
-            <Link
-              to="/embedding-models"
-              className={navLinkClass(location.pathname.startsWith('/embedding-models'))}
-              title={isSidebarCollapsed ? 'Embedding Models' : undefined}
-            >
-              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
-              </svg>
-              {!isSidebarCollapsed && <span>Embeddings</span>}
-            </Link>
-          </nav>
+                <Link
+                  to="/embedding-models"
+                  className={navLinkClass(location.pathname.startsWith('/embedding-models'))}
+                  title={isSidebarCollapsed ? 'CLIP Embeddings' : undefined}
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
+                  </svg>
+                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">Embedding Config</span>}
+                </Link>
+
+                <Link
+                  to="/finetuning"
+                  className={navLinkClass(location.pathname === '/finetuning')}
+                  title={isSidebarCollapsed ? 'YOLO Retraining' : undefined}
+                >
+                  <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">YOLO Fine-Tuning</span>}
+                </Link>
+              </div>
+            ) : (
+              !isSidebarCollapsed && (
+                <button
+                  onClick={() => setIsAdminMode(true)}
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[11px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-2"
+                >
+                  <span className="text-[10px]">🔒</span>
+                  <span>Click to Unlock ML Controls</span>
+                </button>
+              )
+            )}
+          </div>
         </div>
 
         {/* Sidebar footer — operator identity + Theme toggle */}
@@ -1117,7 +1176,7 @@ function App() {
         >
           
           <Routes>
-            <Route path="/" element={<Landing />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard metrics={metrics} />} />
             <Route
               path="/cameras"
@@ -1158,6 +1217,7 @@ function App() {
             <Route path="/finetuning" element={<FineTuning />} />
             <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/multicam" element={<MultiCameraTracking />} />
+            <Route path="/targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
             <Route path="/live-connect" element={<LiveConnect />} />
             <Route path="/cameras/:camera_id/live" element={<LiveCameraView />} />
@@ -1658,7 +1718,7 @@ function App() {
                               document.body.removeChild(a)
                               setTimeout(() => URL.revokeObjectURL(objectUrl), 10000)
                             } catch (_) {
-                              alert('Download failed. Check backend connectivity.')
+                              toast.error('Download Error', 'Download failed. Check backend connectivity.')
                             }
                           }}
                           className="w-full text-center rounded bg-emerald-600 hover:bg-emerald-700 text-white py-1.5 text-[10px] font-bold transition-colors flex items-center justify-center gap-1.5"
@@ -1830,7 +1890,11 @@ function App() {
       {/* Global Full-Screen AI Copilot Assistant Overlay */}
       <AICopilotOverlay
         isOpen={isCopilotOpen}
-        onClose={() => setIsCopilotOpen(false)}
+        onClose={() => {
+          setIsCopilotOpen(false)
+          setCopilotInitialPrompt('')
+        }}
+        initialPrompt={copilotInitialPrompt}
         onPlayVideoAtTime={handlePlayVideoAtTime}
       />
 

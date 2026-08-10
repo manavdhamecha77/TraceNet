@@ -28,6 +28,8 @@ interface ModelsProps {
   onRefreshModels: () => void
 }
 
+import { useToast } from '../components/Toast'
+
 const API_BASE = 'http://localhost:8000'
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string; border: string; bg: string }> = {
@@ -38,6 +40,7 @@ const CATEGORY_LABELS: Record<string, { label: string; color: string; border: st
 }
 
 export default function Models({ models, onRefreshModels }: ModelsProps) {
+  const toast = useToast()
   // Local state for modals & drawers
   const [isRegisterOpen, setIsRegisterOpen] = useState(false)
   const [activeLogModelId, setActiveLogModelId] = useState<string | null>(null)
@@ -231,16 +234,17 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
       })
 
       if (res.status === 204) {
+        toast.success('Model Deleted', 'Detector model weights unlinked successfully.')
         onRefreshModels()
         if (activeLogModelId === modelId) {
           setActiveLogModelId(null)
         }
       } else {
         const errorData = await res.json()
-        alert(errorData.detail || 'Failed to delete model.')
+        toast.error('Delete Failed', errorData.detail || 'Failed to delete model.')
       }
     } catch (err) {
-      alert('Network error. Failed to delete model.')
+      toast.error('Network Error', 'Failed to delete model.')
     }
   }
 

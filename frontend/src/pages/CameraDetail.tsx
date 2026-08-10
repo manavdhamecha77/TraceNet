@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ExternalLink, MoreVertical, Trash2, RotateCcw, Download, Eye, Play, RefreshCw } from 'lucide-react'
+import { useToast } from '../components/Toast'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
 
@@ -107,6 +108,7 @@ export default function CameraDetail({
   setSelectedCamera,
   models,
 }: CameraDetailProps) {
+  const toast = useToast()
   const { camera_id } = useParams<{ camera_id: string }>()
   const [activeTab, setActiveTab] = useState<'original' | 'system' | 'bin'>('system')
   const [loading, setLoading] = useState(true)
@@ -275,11 +277,12 @@ export default function CameraDetail({
       const res = await fetch(`${API_BASE}/api/v1/videos/${videoId}/bin`, { method: 'PUT' })
       if (res.ok) {
         setCameraVideos(prev => prev.map(v => v.id === videoId ? { ...v, is_bin: true } : v))
+        toast.info('Archived', 'Video moved to archive bin.')
       } else {
-        alert('Failed to move video to bin.')
+        toast.error('Error', 'Failed to move video to bin.')
       }
     } catch (_) {
-      alert('Network error moving video to bin.')
+      toast.error('Network Error', 'Failed to move video to bin.')
     }
   }
 
@@ -288,11 +291,12 @@ export default function CameraDetail({
       const res = await fetch(`${API_BASE}/api/v1/videos/${videoId}/restore`, { method: 'PUT' })
       if (res.ok) {
         setCameraVideos(prev => prev.map(v => v.id === videoId ? { ...v, is_bin: false } : v))
+        toast.success('Restored', 'Video restored to operational view.')
       } else {
-        alert('Failed to restore video.')
+        toast.error('Error', 'Failed to restore video.')
       }
     } catch (_) {
-      alert('Network error restoring video.')
+      toast.error('Network Error', 'Failed to restore video.')
     }
   }
 
@@ -304,12 +308,13 @@ export default function CameraDetail({
         setCameraVideos(prev => prev.filter(v => v.id !== videoId))
         setDeleteConfirmVideo(null)
         setDeleteAgreeCheckbox(false)
+        toast.success('Deleted', 'Video asset deleted permanently.')
       } else {
         const errData = await res.json().catch(() => ({}))
-        alert(`Deletion failed: ${errData.detail || 'Server error'}`)
+        toast.error('Deletion Failed', errData.detail || 'Server error')
       }
     } catch (_) {
-      alert('Network error deleting video segment.')
+      toast.error('Network Error', 'Error deleting video segment.')
     } finally {
       setDeletingProgress(false)
     }
@@ -342,8 +347,9 @@ export default function CameraDetail({
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
+      toast.success('Report Exported', 'Evidence compliance report downloaded.')
     } catch (_) {
-      alert('Forensic hashing failed.')
+      toast.error('Hashing Error', 'Forensic hashing failed.')
     }
   }
 
@@ -423,7 +429,7 @@ export default function CameraDetail({
           body: JSON.stringify({ model_id: targetModelId })
         })
         if (!updateRes.ok) {
-          alert("Failed to update camera's assigned model before sync.")
+          toast.error('Sync Error', "Failed to update camera's assigned model before sync.")
           setSyncingModel(false)
           return
         }
@@ -434,13 +440,14 @@ export default function CameraDetail({
       // 2. Trigger detection sync
       const res = await fetch(`${API_BASE}/api/v1/cameras/${camera_id}/sync-detection`, { method: 'POST' })
       if (res.ok) {
+        toast.success('Sync Initiated', `Detection sync started with model '${modelNameToSync}'.`)
         setSyncSuccessMsg(`Detection sync initiated with model '${modelNameToSync}'. Videos are re-indexing in background.`)
         setTimeout(() => setSyncSuccessMsg(''), 6000)
       } else {
-        alert("Failed to trigger detection sync.")
+        toast.error('Sync Failed', 'Failed to trigger detection sync.')
       }
     } catch {
-      alert("Network error while triggering detection sync.")
+      toast.error('Network Error', 'Network error while triggering detection sync.')
     } finally {
       setSyncingModel(false)
     }
@@ -1047,14 +1054,45 @@ export default function CameraDetail({
                                   </div>
                                 </div>
 
-                                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px] text-slate-400">
-                                  <span className="text-teal-500 dark:text-teal-400 font-semibold flex items-center gap-0.5">
-                                    Click to inspect <ExternalLink className="h-2.5 w-2.5 inline" />
-                                  </span>
-                                  <span className="font-mono text-slate-500 truncate max-w-[60px]" title={tracklet.tracklet_id}>
-                                    {tracklet.tracklet_id.substring(0, 6)}
-                                  </span>
-                                </div>
+                                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[8px]">
+                                   <button
+                                     onClick={(e) => {
+                                       e.stopPropagation()
+                                       onInspectTracklet(tracklet, detectionModal.video)
+                                     }}
+                                     className="text-teal-500 dark:text-teal-400 font-semibold hover:underline flex items-center gap-0.5"
+                                   >
+                                     Inspect <ExternalLink className="h-2.5 w-2.5 inline" />
+                                   </button>
+
+                                   <button
+                                     onClick={async (e) => {
+                                       e.stopPropagation()
+                                       try {
+                                         const res = await fetch(`${API_BASE}/api/v1/multicam/targets/tag`, {
+                                           method: 'POST',
+                                           headers: { 'Content-Type': 'application/json' },
+                                           body: JSON.stringify({
+                                             label: `Suspect ${tracklet.class_name || 'Target'} #${tracklet.tracker_id} (${camera_id})`,
+                                             origin_camera_id: camera_id || 'CAM_001',
+                                             origin_tracklet_id: tracklet.tracklet_id,
+                                             priority: 'HIGH'
+                                           })
+                                         })
+                                         if (res.ok) {
+                                           const data = await res.json()
+                                           toast.success('Hot Target Tagged', data.message || 'Target pinned for multi-camera pursuit.')
+                                         }
+                                       } catch (err) {
+                                         console.error("Failed to tag target:", err)
+                                       }
+                                     }}
+                                     className="flex items-center gap-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1 py-0.5 rounded text-[8px] font-bold transition-all"
+                                     title="Tag as Hot Target for Multi-Camera Persistent Pursuit"
+                                   >
+                                     <span>🎯 Tag &amp; Pursue</span>
+                                   </button>
+                                 </div>
                               </div>
                             </div>
                           )

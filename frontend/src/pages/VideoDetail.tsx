@@ -18,6 +18,7 @@ import {
   Eye,
   Crosshair,
 } from 'lucide-react'
+import { useToast } from '../components/Toast'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
 
@@ -111,6 +112,7 @@ const extractTrackerId = (val: any): string | null => {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function VideoDetail() {
+  const toast = useToast()
   const { camera_id, video_id } = useParams<{ camera_id: string; video_id: string }>()
 
   // Data
@@ -1230,24 +1232,57 @@ export default function VideoDetail() {
                   )}
                 </div>
 
-                {/* Footer metadata */}
+                {/* Footer metadata & actions */}
                 <div className="p-2 space-y-1.5">
                   <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                     <span>Start: {item.timestamp_start_seconds.toFixed(1)}s</span>
                     <span className="font-bold text-teal-700 dark:text-teal-400">Dwell: {dwellSec}s</span>
                   </div>
 
-                  <button
-                    onClick={() => seekAndPause(item.timestamp_start_seconds, item)}
-                    className={`w-full py-1.5 font-bold text-xs rounded transition-all flex items-center justify-center gap-1.5 ${
-                      isHighlighted
-                        ? 'bg-[#00FF41] text-black shadow-sm font-extrabold'
-                        : 'bg-teal-50 dark:bg-teal-900/30 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 border border-teal-200 dark:border-teal-800'
-                    }`}
-                  >
-                    <Play className="h-3.5 w-3.5 fill-current" />
-                    <span>Seek &amp; Highlight</span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-1 font-sans">
+                    <button
+                      onClick={() => seekAndPause(item.timestamp_start_seconds, item)}
+                      className={`py-1 font-bold text-[10px] rounded transition-all flex items-center justify-center gap-1 ${
+                        isHighlighted
+                          ? 'bg-[#00FF41] text-black shadow-sm font-extrabold'
+                          : 'bg-teal-50 dark:bg-teal-900/30 hover:bg-teal-100 dark:hover:bg-teal-900/50 text-teal-700 dark:text-teal-400 border border-teal-200 dark:border-teal-800'
+                      }`}
+                    >
+                      <Play className="h-3 w-3 fill-current" />
+                      <span>Seek</span>
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_BASE}/api/v1/multicam/targets/tag`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              label: `Suspect ${item.class_name || 'Target'} #${item.tracker_id} (${video.camera_id})`,
+                              origin_camera_id: video.camera_id,
+                              origin_tracklet_id: item.tracklet_id || item.id,
+                              priority: 'HIGH'
+                            })
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            if (data.status === 'already_tagged') {
+                              toast.info('Already Tagged', data.message || 'Target is already registered.')
+                            } else {
+                              toast.success('Hot Target Tagged', data.message || 'Target pinned for multi-camera pursuit.')
+                            }
+                          }
+                        } catch (err) {
+                          console.error("Failed to tag target:", err);
+                        }
+                      }}
+                      className="flex items-center justify-center gap-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 py-1 rounded text-[10px] font-bold transition-all"
+                      title="Tag as Hot Target for Multi-Camera Persistent Pursuit"
+                    >
+                      <span>🎯 Tag</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )

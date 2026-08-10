@@ -269,6 +269,53 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "tag_hot_target",
+            "description": "Tag a specific suspect, thief, or vehicle as a Hot Target for cross-camera persistent pursuit and tracking.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "description": "Human readable target label, e.g. 'Suspect Red Sedan #VEC-09' or 'Chauta Bazar Snatcher'"
+                    },
+                    "origin_camera_id": {
+                        "type": "string",
+                        "description": "Camera ID where target was first identified, e.g. 'CAM_001'"
+                    },
+                    "origin_tracklet_id": {
+                        "type": "string",
+                        "description": "Optional tracklet ID of the target"
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["NORMAL", "HIGH", "CRITICAL"],
+                        "default": "HIGH"
+                    }
+                },
+                "required": ["label", "origin_camera_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_hot_targets",
+            "description": "List all active tagged hot targets currently under multi-camera pursuit.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["active", "resolved", "all"],
+                        "default": "active"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "detect_assault",
             "description": "Trigger VideoMAE physical assault & fighting detection scan on a target video file asset.",
             "parameters": {
@@ -473,6 +520,26 @@ class ToolExecutor:
                     target_tracklet_id=target_trk,
                     speed_mode=speed_mode
                 )
+
+            elif name == "tag_hot_target":
+                label = args.get("label", "Hot Target Suspect")
+                origin_cam = args.get("origin_camera_id", "CAM_001")
+                origin_trk = args.get("origin_tracklet_id")
+                priority = args.get("priority", "HIGH")
+                from app.analytics.hot_target import HotTargetManager
+                manager = HotTargetManager(self.db)
+                return manager.tag_hot_target(
+                    label=label,
+                    origin_camera_id=origin_cam,
+                    origin_tracklet_id=origin_trk,
+                    priority=priority
+                )
+
+            elif name == "get_hot_targets":
+                status = args.get("status", "active")
+                from app.analytics.hot_target import HotTargetManager
+                manager = HotTargetManager(self.db)
+                return {"status": "success", "targets": manager.list_hot_targets(status=status)}
 
             elif name == "get_chain_snatching_alerts":
                 limit = min(args.get("limit", 10), 20)

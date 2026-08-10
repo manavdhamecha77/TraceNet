@@ -115,8 +115,9 @@ class TrajectoryEngine:
             curr = nodes[i]
             for j in range(i + 1, len(nodes)):
                 nxt = nodes[j]
+                delta_t = nxt["abs_time"] - curr["abs_time"]
                 
-                # Check spatial-temporal feasibility
+                # Check spatial-temporal feasibility & delay probability
                 is_feasible, speed_m_s, dist_m = self.graph.check_transition_feasibility(
                     curr["cam_id"], curr["abs_time"],
                     nxt["cam_id"], nxt["abs_time"],
@@ -124,15 +125,16 @@ class TrajectoryEngine:
                 )
 
                 if is_feasible:
-                    # Transition reward calculation
-                    ideal_speed = SPEED_BOUNDS[speed_mode]["v_ideal"]
-                    speed_penalty = abs(speed_m_s - ideal_speed) / ideal_speed if speed_m_s > 0 else 0.0
-                    edge_weight = nxt["score"] - (0.15 * speed_penalty)
-                    
-                    new_score = dp[i][0] + edge_weight
+                    temporal_p = self.graph.calculate_delay_probability(delta_t, dist_m, speed_mode=speed_mode)
+                    spatial_s = self.graph.get_spatial_topology_score(curr["cam_id"], nxt["cam_id"])
+                    visual_s = nxt["score"]
 
-                    if new_score > dp[j][0]:
-                        dp[j] = (new_score, i, dp[i][2] + dist_m, speed_m_s)
+                    # Unified Link Score
+                    joint_score = (0.55 * visual_s) + (0.25 * temporal_p) + (0.20 * spatial_s)
+                    new_path_score = dp[i][0] + joint_score
+
+                    if new_path_score > dp[j][0]:
+                        dp[j] = (new_path_score, i, dp[i][2] + dist_m, speed_m_s)
 
         # 5. Trace back best path
         best_end_idx = max(range(len(nodes)), key=lambda idx: dp[idx][0])
@@ -161,9 +163,16 @@ class TrajectoryEngine:
             
             speed_kmh = round(step_dp[3] * 3.6, 1)
             dist_prev_m = 0.0
+            temporal_score = 1.0
+            spatial_score = 1.0
+
             if step_no > 1:
                 prev_idx = path_indices[step_no - 2]
-                dist_prev_m = self.graph.get_distance(nodes[prev_idx]["cam_id"], n["cam_id"])
+                prev_node = nodes[prev_idx]
+                dist_prev_m = self.graph.get_distance(prev_node["cam_id"], n["cam_id"])
+                delta_t_prev = n["abs_time"] - prev_node["abs_time"]
+                temporal_score = self.graph.calculate_delay_probability(delta_t_prev, dist_prev_m, speed_mode=speed_mode)
+                spatial_score = self.graph.get_spatial_topology_score(prev_node["cam_id"], n["cam_id"])
 
             formatted_node = self._format_node(
                 trk=trk,
@@ -171,7 +180,9 @@ class TrajectoryEngine:
                 step_number=step_no,
                 abs_timestamp=n["abs_time"],
                 speed_to_here_kmh=speed_kmh,
-                dist_from_prev_m=round(dist_prev_m, 1)
+                dist_from_prev_m=round(dist_prev_m, 1),
+                temporal_score=round(temporal_score, 2),
+                spatial_score=round(spatial_score, 2)
             )
             journey_steps.append(formatted_node)
 
@@ -192,7 +203,9 @@ class TrajectoryEngine:
         step_number: int,
         abs_timestamp: float = 0.0,
         speed_to_here_kmh: float = 0.0,
-        dist_from_prev_m: float = 0.0
+        dist_from_prev_m: float = 0.0,
+        temporal_score: float = 1.0,
+        spatial_score: float = 1.0
     ) -> Dict[str, Any]:
         cam = self.db.query(CameraProfile).filter(CameraProfile.camera_id == trk.camera_id).first()
         trk_dict = trk.to_dict()
@@ -210,6 +223,8 @@ class TrajectoryEngine:
             "timestamp_end_seconds": trk.timestamp_end_seconds,
             "abs_timestamp": abs_timestamp,
             "confidence": round(confidence, 3),
+            "temporal_score": temporal_score,
+            "spatial_score": spatial_score,
             "best_crop_path": trk_dict.get("best_crop_path", ""),
             "caption": trk_dict.get("caption", ""),
             "speed_to_here_kmh": speed_to_here_kmh,
