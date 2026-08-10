@@ -18,7 +18,7 @@ import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
-import LiveConnect from './pages/LiveConnect'
+
 import LiveCameraView from './pages/LiveCameraView'
 import { useToast } from './components/Toast'
 import {
@@ -935,13 +935,7 @@ function App() {
                 {!isSidebarCollapsed && <span>Cameras</span>}
               </Link>
 
-              <Link
-                to="/live-connect"
-                className={navLinkClass(location.pathname.startsWith('/live-connect') || location.pathname.includes('/live'))}
-              >
-                <Video className="w-4 h-4" />
-                {!isSidebarCollapsed && <span>Live Connect</span>}
-              </Link>
+
 
             <Link
               to="/multicam"
@@ -1219,7 +1213,7 @@ function App() {
             <Route path="/multicam" element={<MultiCameraTracking />} />
             <Route path="/targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
             <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
-            <Route path="/live-connect" element={<LiveConnect />} />
+
             <Route path="/cameras/:camera_id/live" element={<LiveCameraView />} />
           </Routes>
 
