@@ -278,6 +278,23 @@ def run_startup_migrations():
                 """)
                 conn.commit()
                 print("Schema Migration: Created 'live_alerts' table.")
+            # Pair codes table migration (auto-create if missing)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pair_codes'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE TABLE pair_codes (
+                        id VARCHAR PRIMARY KEY,
+                        camera_id VARCHAR REFERENCES cameras(camera_id),
+                        code_display VARCHAR NOT NULL,
+                        device_label VARCHAR,
+                        created_at DATETIME,
+                        expires_at DATETIME NOT NULL,
+                        used BOOLEAN DEFAULT 0,
+                        device_auth_token VARCHAR
+                    )
+                ''')
+                conn.commit()
+                print("Schema Migration: Created 'pair_codes' table.")
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -314,6 +331,11 @@ app.add_middleware(
 
 # Serve the data directory statically to allow access to thumbnails and transcoded clips
 app.mount("/data", StaticFiles(directory=get_data_path("")), name="data")
+
+# Serve the standalone edge camera client (decoupled device pairing app)
+_camera_client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../camera_client"))
+if os.path.isdir(_camera_client_dir):
+    app.mount("/camera-app", StaticFiles(directory=_camera_client_dir, html=True), name="camera_client")
 
 from app.api.assistant import router as assistant_router
 from app.api.multicam import router as multicam_router

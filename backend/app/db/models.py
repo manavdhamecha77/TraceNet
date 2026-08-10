@@ -577,3 +577,24 @@ class LiveAlert(Base):
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "acknowledged": self.acknowledged
         }
+
+
+class PairCode(Base):
+    __tablename__ = "pair_codes"
+    id = Column(String, primary_key=True, index=True)       # e.g. '482910'
+    camera_id = Column(String, ForeignKey("cameras.camera_id"), nullable=False)
+    code_display = Column(String, nullable=False)           # e.g. '482-910'
+    device_label = Column(String, nullable=True)            # optional label set on verify
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    device_auth_token = Column(String, nullable=True)       # issued on verify
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "camera_id": self.camera_id,
+            "code_display": self.code_display,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "used": self.used,
+        }
