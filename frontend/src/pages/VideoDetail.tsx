@@ -18,6 +18,7 @@ import {
   Eye,
   Crosshair,
 } from 'lucide-react'
+import { classColor } from '../utils/colors'
 import { useToast } from '../components/Toast'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
@@ -58,42 +59,6 @@ interface TrackletItem {
 }
 
 // ─── Color palette (matches App.tsx modal exactly) ───────────────────────────
-
-const NAMED_CLASS_COLORS: Record<string, string> = {
-  person:        '#FF3838',
-  car:           '#FF9D97',
-  truck:         '#FF701F',
-  bus:           '#FFB21D',
-  motorcycle:    '#CFD231',
-  bicycle:       '#48F90A',
-  van:           '#92CC17',
-  cat:           '#3DDB86',
-  dog:           '#1A9334',
-  bird:          '#00D4BB',
-  horse:         '#2C99A8',
-  cow:           '#00C2FF',
-  sheep:         '#344593',
-  airplane:      '#6473FF',
-  boat:          '#0018EC',
-  train:         '#8438FF',
-  traffic_light: '#520085',
-  stop_sign:     '#CB38FF',
-  fire_hydrant:  '#FF95C8',
-}
-
-const FALLBACK_PALETTE = [
-  '#E6194B', '#3CB44B', '#4363D8', '#F58231', '#911EB4',
-  '#42D4F4', '#F032E6', '#BFEF45', '#FABED4', '#469990',
-  '#DCBEFF', '#9A6324',
-]
-
-const classColor = (cn: string): string => {
-  const key = cn.toLowerCase()
-  if (NAMED_CLASS_COLORS[key]) return NAMED_CLASS_COLORS[key]
-  let hash = 5381
-  for (let i = 0; i < key.length; i++) hash = ((hash << 5) + hash) + key.charCodeAt(i)
-  return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length]
-}
 
 const extractTrackerId = (val: any): string | null => {
   if (val == null) return null

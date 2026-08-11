@@ -360,11 +360,9 @@ export default function AICopilotOverlay({
   }, [])
 
   useEffect(() => {
-    if (messages.length > 0) {
-      try {
-        sessionStorage.setItem('tracenet_copilot_messages', JSON.stringify(messages))
-      } catch (_) {}
-    }
+    try {
+      sessionStorage.setItem('tracenet_copilot_messages', JSON.stringify(messages))
+    } catch (_) {}
   }, [messages])
 
   // Settings Modal State

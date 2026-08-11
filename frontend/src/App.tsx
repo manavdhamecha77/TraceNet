@@ -19,6 +19,7 @@ import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { classColor } from './utils/colors'
 import { useToast } from './components/Toast'
 import {
   ExternalLink,
@@ -321,6 +322,21 @@ function App() {
     return () => clearInterval(timer)
   }, [fetchSystemJobs])
 
+  // Keyboard navigation shortcuts: Alt+1 (Overview), Alt+2 (GIS Cameras), Alt+3 (Search), Alt+4 (Pursuit), Alt+5 (Alerts)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === '1') { e.preventDefault(); navigate('/dashboard') }
+        else if (e.key === '2') { e.preventDefault(); navigate('/cameras') }
+        else if (e.key === '3') { e.preventDefault(); navigate('/search') }
+        else if (e.key === '4') { e.preventDefault(); navigate('/targets') }
+        else if (e.key === '5') { e.preventDefault(); navigate('/alerts') }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [navigate])
+
   // Register camera submit
   const handleCreateCamera = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -580,46 +596,6 @@ function App() {
       }
     }
     return ''
-  }
-
-  // ─── Roboflow-style diverse 20-color palette ────────────────────────────────
-  // Named classes get a stable, visually distinct color.
-  // Any unknown class gets a deterministic color via djb2 hash over the name.
-  const NAMED_CLASS_COLORS: Record<string, string> = {
-    person:       '#FF3838', // vivid red
-    car:          '#FF9D97', // salmon pink
-    truck:        '#FF701F', // deep orange
-    bus:          '#FFB21D', // amber gold
-    motorcycle:   '#CFD231', // acid lime
-    bicycle:      '#48F90A', // neon green
-    van:          '#92CC17', // olive green
-    // extended palette slots for other possible YOLO classes
-    cat:          '#3DDB86',
-    dog:          '#1A9334',
-    bird:         '#00D4BB',
-    horse:        '#2C99A8',
-    cow:          '#00C2FF',
-    sheep:        '#344593',
-    airplane:     '#6473FF',
-    boat:         '#0018EC',
-    train:        '#8438FF',
-    traffic_light:'#520085',
-    stop_sign:    '#CB38FF',
-    fire_hydrant: '#FF95C8',
-  }
-  // Fallback palette — cycles through 12 distinct vivid hues for any unknown class
-  const FALLBACK_PALETTE = [
-    '#E6194B','#3CB44B','#4363D8','#F58231','#911EB4',
-    '#42D4F4','#F032E6','#BFEF45','#FABED4','#469990',
-    '#DCBEFF','#9A6324',
-  ]
-  const classColor = (cn: string): string => {
-    const key = cn.toLowerCase()
-    if (NAMED_CLASS_COLORS[key]) return NAMED_CLASS_COLORS[key]
-    // djb2 hash for consistent color per unknown class name
-    let hash = 5381
-    for (let i = 0; i < key.length; i++) hash = ((hash << 5) + hash) + key.charCodeAt(i)
-    return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length]
   }
 
   // Load detections.json for a video when switching to annotated view

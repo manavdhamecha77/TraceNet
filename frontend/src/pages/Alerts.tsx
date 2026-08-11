@@ -567,6 +567,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
   const logPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [confirmClearLogs, setConfirmClearLogs] = useState(false)
 
   const [config, setConfig] = useState({
     abandon_time_sec: 15,
@@ -725,7 +726,6 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
   }
 
   const clearLogsAndAlerts = async () => {
-    if (!window.confirm('Are you sure you want to clear all alerts and analysis logs?')) return
     try {
       const res = await fetch(`${API_BASE}/api/v1/alerts/clear`, { method: 'DELETE' })
       if (res.ok) {
@@ -733,11 +733,13 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
         setAnalysisLog([])
         setAllObjects([])
         setSummary({ total_alerts: 0, unacknowledged_alerts: 0, by_type: {} })
-        setFeedbackMsg('All alerts and logs cleared.')
-        setTimeout(() => setFeedbackMsg(null), 3000)
+        setConfirmClearLogs(false)
+        toast.success('Alerts Cleared', 'All active alert records and evaluation logs cleared.')
+      } else {
+        toast.error('Clear Failed', 'Could not clear alert logs.')
       }
     } catch (e) {
-      console.error(e)
+      toast.error('Error', 'Failed to clear alert logs.')
     }
   }
 
@@ -850,14 +852,32 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
           </button>
 
           {/* Clear Logs Button */}
-          <button
-            onClick={clearLogsAndAlerts}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors"
-            title="Clear Evaluation Logs"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Clear Logs</span>
-          </button>
+          {confirmClearLogs ? (
+            <div className="flex items-center gap-1 bg-rose-950/40 border border-rose-500/40 rounded-lg px-2 py-1 animate-in fade-in">
+              <span className="text-[10px] font-bold text-rose-300">Clear all records?</span>
+              <button
+                onClick={clearLogsAndAlerts}
+                className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold transition-colors"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setConfirmClearLogs(false)}
+                className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-medium transition-colors"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmClearLogs(true)}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-semibold transition-colors"
+              title="Clear Evaluation Logs"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear Logs</span>
+            </button>
+          )}
 
           {/* Clear Artifacts Button */}
           {confirmClearArtifacts ? (
