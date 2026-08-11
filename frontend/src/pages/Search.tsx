@@ -16,7 +16,9 @@ import {
   Upload,
 } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
+import { classColor } from '../utils/colors'
+import { formatDisplayDate } from '../utils/dateFormatter'
 
 interface Camera {
   camera_id: string
@@ -92,7 +94,6 @@ interface SearchProps {
 }
 
 import { useToast } from '../components/Toast'
-import { formatDisplayDate } from '../utils/dateFormatter'
 
 export default function Search({ onPlayVideoAtTime }: SearchProps) {
   const toast = useToast()
@@ -118,27 +119,6 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
   const [searchError, setSearchError]         = useState('')
   const [exportHash, setExportHash]           = useState<string | null>(null)
   const [isExporting, setIsExporting]         = useState(false)
-
-  const NAMED_CLASS_COLORS: Record<string, string> = {
-    person:      '#FF3838',
-    car:         '#FF9D97',
-    truck:       '#FF701F',
-    bus:         '#FFB21D',
-    motorcycle:  '#CFD231',
-    bicycle:     '#48F90A',
-    van:         '#92CC17',
-  }
-  const FALLBACK_PALETTE = [
-    '#E6194B','#3CB44B','#4363D8','#F58231','#911EB4',
-    '#42D4F4','#F032E6','#BFEF45','#FABED4','#469990',
-  ]
-  const classColor = (cn: string): string => {
-    const key = cn.toLowerCase()
-    if (NAMED_CLASS_COLORS[key]) return NAMED_CLASS_COLORS[key]
-    let hash = 5381
-    for (let i = 0; i < key.length; i++) hash = ((hash << 5) + hash) + key.charCodeAt(i)
-    return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length]
-  }
 
   const loadMetadata = async () => {
     try {
@@ -302,7 +282,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
         `- Tracklet ID: ${r.tracklet_id}\n` +
         `- Camera node: ${r.camera_id} (${r.camera_name})\n` +
         `- Classification: ${r.class_name} (${r.object_type})\n` +
-        `- Absolute timeline: ${new Date(r.video_start_time).toLocaleString()}\n` +
+        `- Absolute timeline: ${formatDisplayDate(r.video_start_time)}\n` +
         `- Relative start: ${r.timestamp_start_seconds.toFixed(2)}s (Dwell: ${dwell}s)\n` +
         `- Frame start relative: ${r.frame_start}\n` +
         `- Standardized file alignment: ${r.video_standardized_filename}\n` +

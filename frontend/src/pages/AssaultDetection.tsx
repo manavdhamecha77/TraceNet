@@ -4,7 +4,7 @@ import { ShieldAlert, Activity, CheckCircle2, AlertTriangle, Eye, RefreshCw, Fil
 import { useToast } from '../components/Toast'
 import { formatDisplayDate } from '../utils/dateFormatter'
 
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 
 interface Camera {
   camera_id: string

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, MapPinned, Trash2, X } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 type Point = { x: number; y: number }
 interface ZoneState { name: string; polygon_points: Point[]; threshold_seconds: number; grace_seconds: number; preview_ready: boolean; preview_url: string | null }
 interface Props { videoId: string; onClose: () => void }

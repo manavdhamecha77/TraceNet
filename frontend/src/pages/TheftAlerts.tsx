@@ -10,7 +10,7 @@ import type { AlertEntry, AnalysisLogEntry, Camera } from '../types/alerts'
 import { TRACKLET_THUMB } from '../types/alerts'
 import { formatDisplayDate } from '../utils/dateFormatter'
 
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 
 
 
@@ -254,6 +254,7 @@ function ChainSnatchingCard({
 }
 
 export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime }: TheftAlertsProps) {
+  const toast = useToast()
   const [alerts, setAlerts] = useState<AlertEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [csAnalysisLog, setCsAnalysisLog] = useState<AnalysisLogEntry[]>([])
@@ -402,14 +403,18 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
     }
   }
 
+  const [confirmClear, setConfirmClear] = useState(false)
+
   const clearArtifacts = async () => {
-    if (!window.confirm('Are you sure you want to clear all active alert records and reset evaluation logs?')) return
     try {
-      await fetch(`${API_BASE}/api/v1/alerts/clear-artifacts`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/api/v1/alerts/clear-artifacts`, { method: 'POST' })
+      if (!res.ok) throw new Error('Clear failed')
+      toast.success('Artifacts Cleared', 'Active alert records and evaluation logs reset.')
+      setConfirmClear(false)
       loadAlerts()
       setCsAnalysisLog([])
     } catch (e) {
-      console.error('Failed to clear artifacts:', e)
+      toast.error('Error', 'Failed to clear artifacts.')
     }
   }
 
@@ -497,14 +502,32 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
               <span>Clear Logs</span>
             </button>
 
-            <button
-              onClick={clearArtifacts}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
-              title="Clear active alert records and reset evaluation logs"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
-              <span>Clear Artifacts</span>
-            </button>
+            {confirmClear ? (
+              <div className="flex items-center gap-1 bg-rose-950/40 border border-rose-500/40 rounded-lg px-2 py-1 animate-in fade-in">
+                <span className="text-[10px] font-bold text-rose-300">Clear all records?</span>
+                <button
+                  onClick={clearArtifacts}
+                  className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold transition-colors"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-medium transition-colors"
+                >
+                  No
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+                title="Clear active alert records and reset evaluation logs"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+                <span>Clear Artifacts</span>
+              </button>
+            )}
 
             <button
               onClick={runAnalysis}

@@ -17,8 +17,8 @@ import {
 import { JourneyMapScrubber } from '../components/JourneyMapScrubber'
 import { Link } from 'react-router-dom'
 import { useToast } from '../components/Toast'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
+import { formatDisplayDate } from '../utils/dateFormatter'
 
 interface HotTarget {
   id: string
@@ -520,7 +520,7 @@ export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
 
                     <div className="flex justify-between items-center text-[10px] text-slate-500">
                       <span>Tagged At:</span>
-                      <span>{target.created_at ? new Date(target.created_at).toLocaleString() : '--'}</span>
+                      <span>{target.created_at ? formatDisplayDate(target.created_at) : '--'}</span>
                     </div>
                   </div>
                 </div>

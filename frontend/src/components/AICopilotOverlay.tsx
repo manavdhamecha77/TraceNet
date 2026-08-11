@@ -21,7 +21,7 @@ import {
   Square,
 } from 'lucide-react'
 
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -519,19 +519,21 @@ export default function AICopilotOverlay({
     }
   }
 
+  const [confirmDeleteSessionId, setConfirmDeleteSessionId] = useState<string | null>(null)
+
   const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation()
-    if (!window.confirm('Delete this conversation history permanently?')) return
-
     try {
       const r = await fetch(`${API_BASE}/api/v1/assistant/sessions/${sessionId}`, {
         method: 'DELETE',
       })
       if (r.ok) {
         setSessions((prev) => prev.filter((s) => s.id !== sessionId))
+        setConfirmDeleteSessionId(null)
         if (activeSessionId === sessionId) {
           setActiveSessionId(null)
           setMessages([])
+          sessionStorage.removeItem('tracenet_copilot_messages')
           setActiveSessionTitle('New Conversation')
         }
       }
@@ -875,13 +877,31 @@ const SLASH_COMMANDS = [
                     <span className="truncate">{sess.title || 'New Conversation'}</span>
                   </div>
 
-                  <button
-                    onClick={(e) => handleDeleteSession(e, sess.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-slate-500 transition-opacity rounded hover:bg-slate-800"
-                    title="Delete Conversation"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {confirmDeleteSessionId === sess.id ? (
+                    <div className="flex items-center gap-1 text-[10px] bg-rose-950/60 border border-rose-500/40 rounded px-1.5 py-0.5 animate-in fade-in" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-rose-300 font-bold">Delete?</span>
+                      <button
+                        onClick={(e) => handleDeleteSession(e, sess.id)}
+                        className="px-1 py-0.2 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteSessionId(null); }}
+                        className="px-1 py-0.2 rounded bg-slate-800 text-slate-300"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteSessionId(sess.id); }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-slate-500 transition-opacity rounded hover:bg-slate-800"
+                      title="Delete Conversation"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               )
             })

@@ -18,6 +18,7 @@ import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { useToast } from './components/Toast'
 import {
   ExternalLink,
@@ -1209,51 +1210,53 @@ function App() {
           className="flex-grow p-6 pb-24 overflow-y-auto bg-slate-50 dark:bg-brand-bg transition-colors duration-150"
         >
           
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard metrics={metrics} />} />
-            <Route
-              path="/cameras"
-              element={
-                <Cameras
-                  cameras={cameras}
-                  models={models}
-                  onOpenRegisterModal={() => setIsCameraModalOpen(true)}
-                  onRefreshCameras={fetchCameras}
-                />
-              }
-            />
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard metrics={metrics} />} />
               <Route
-              path="/cameras/:camera_id"
-              element={
-                <CameraDetail
-                  onOpenUploadModal={() => setIsUploadModalOpen(true)}
-                  onPlayVideo={(video) => setSelectedVideoToPlay(video)}
-                  onInspectTracklet={(tracklet, video) => setInspectTracklet({ tracklet, video })}
-                  cameraVideos={cameraVideos}
-                  setCameraVideos={setCameraVideos}
-                  selectedCamera={selectedCamera}
-                  setSelectedCamera={setSelectedCamera}
-                  models={models}
-                />
-              }
-            />
-            <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
-            <Route path="/embedding-models" element={<EmbeddingModels />} />
-            <Route path="/alerts" element={<AlertsDashboard cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
-            <Route path="/alerts/abandoned" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
-            <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
-            <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
-            <Route path="/alerts/assault" element={<AssaultDetection cameras={cameras} />} />
-            <Route path="/assault-alerts" element={<AssaultDetection cameras={cameras} />} />
-            <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
-            <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
-            <Route path="/finetuning" element={<FineTuning />} />
-            <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
-            <Route path="/multicam" element={<MultiCameraTracking />} />
-            <Route path="/targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
-            <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
-          </Routes>
+                path="/cameras"
+                element={
+                  <Cameras
+                    cameras={cameras}
+                    models={models}
+                    onOpenRegisterModal={() => setIsCameraModalOpen(true)}
+                    onRefreshCameras={fetchCameras}
+                  />
+                }
+              />
+                <Route
+                path="/cameras/:camera_id"
+                element={
+                  <CameraDetail
+                    onOpenUploadModal={() => setIsUploadModalOpen(true)}
+                    onPlayVideo={(video) => setSelectedVideoToPlay(video)}
+                    onInspectTracklet={(tracklet, video) => setInspectTracklet({ tracklet, video })}
+                    cameraVideos={cameraVideos}
+                    setCameraVideos={setCameraVideos}
+                    selectedCamera={selectedCamera}
+                    setSelectedCamera={setSelectedCamera}
+                    models={models}
+                  />
+                }
+              />
+              <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
+              <Route path="/embedding-models" element={<EmbeddingModels />} />
+              <Route path="/alerts" element={<AlertsDashboard cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+              <Route path="/alerts/abandoned" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+              <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+              <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+              <Route path="/alerts/assault" element={<AssaultDetection cameras={cameras} />} />
+              <Route path="/assault-alerts" element={<AssaultDetection cameras={cameras} />} />
+              <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
+              <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
+              <Route path="/finetuning" element={<FineTuning />} />
+              <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+              <Route path="/multicam" element={<MultiCameraTracking />} />
+              <Route path="/targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+              <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
+            </Routes>
+          </ErrorBoundary>
 
         </div>
       </div>

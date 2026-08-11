@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router-dom'
 import { ExternalLink, MoreVertical, Trash2, RotateCcw, Download, Eye, Play, RefreshCw } from 'lucide-react'
 import { useToast } from '../components/Toast'
 
-const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
+import { API_BASE } from '../config/api'
+import { formatDisplayDate } from '../utils/dateFormatter'
 
 interface Camera {
   camera_id: string
@@ -247,7 +248,7 @@ export default function CameraDetail({
 
   const formatDateTime = (isoStr?: string) => {
     if (!isoStr) return 'N/A'
-    return new Date(isoStr).toLocaleString()
+    return formatDisplayDate(isoStr)
   }
 
   const getThumbnailUrl = (video: Video) => {
@@ -324,7 +325,7 @@ export default function CameraDetail({
     const reportHeader = `========================================================================\n` +
                          `               TRACENET EVIDENCE CUSTODY COMPLIANCE REPORT              \n` +
                          `========================================================================\n` +
-                         `Report Generated At: ${new Date().toLocaleString()}\n` +
+                         `Report Generated At: ${formatDisplayDate(new Date().toISOString())}\n` +
                          `Video Asset UUID   : ${video.id}\n` +
                          `Original Filename  : ${video.original_filename}\n` +
                          `Standardized MP4   : ${video.standardized_filename}\n` +
@@ -413,9 +414,6 @@ export default function CameraDetail({
   const handleSyncModel = async () => {
     if (!camera_id) return
     const modelNameToSync = tempModelName
-    if (!window.confirm(`Sync all video detections for camera '${selectedCamera?.name}' using model '${modelNameToSync}'? This will re-run detection in the background.`)) {
-      return
-    }
     setSyncingModel(true)
     setSyncSuccessMsg('')
     try {

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { RefreshCw } from 'lucide-react'
 import { useToast } from '../components/Toast'
 
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 
 interface Camera {
   camera_id: string

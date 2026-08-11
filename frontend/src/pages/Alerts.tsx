@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom'
 import type { AlertEntry, AnalysisLogEntry, Camera } from '../types/alerts'
 import { formatDisplayDate } from '../utils/dateFormatter'
 
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 
 const extractTrackerId = (val: any): string => {
   if (val == null) return ''

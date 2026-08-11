@@ -30,8 +30,7 @@ interface ModelsProps {
 }
 
 import { useToast } from '../components/Toast'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string; border: string; bg: string }> = {
   general: { label: 'General', color: 'text-teal-700 dark:text-teal-300', border: 'border-teal-500/30', bg: 'bg-teal-500/10' },
@@ -221,13 +220,11 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
     }
   }
 
+  const [confirmDeleteModelId, setConfirmDeleteModelId] = useState<string | null>(null)
+
   const handleDeleteModel = async (modelId: string) => {
     const model = models.find(m => m.id === modelId)
     if (!model) return
-
-    if (!window.confirm(`Are you sure you want to delete model "${model.name}"? This operation cannot be undone.`)) {
-      return
-    }
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/models/${modelId}`, {
@@ -236,16 +233,15 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
 
       if (res.status === 204) {
         toast.success('Model Deleted', 'Detector model weights unlinked successfully.')
+        setConfirmDeleteModelId(null)
         onRefreshModels()
         if (activeLogModelId === modelId) {
           setActiveLogModelId(null)
+          setModelLogs([])
         }
-      } else {
-        const errorData = await res.json()
-        toast.error('Delete Failed', errorData.detail || 'Failed to delete model.')
       }
     } catch (err) {
-      toast.error('Network Error', 'Failed to delete model.')
+      toast.error('Error', 'Failed to delete model.')
     }
   }
 
@@ -578,12 +574,30 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                             </svg>
                           </button>
                           
-                          <button
-                            onClick={() => handleDeleteModel(model.id)}
-                            className="bg-transparent hover:bg-rose-500/10 border border-rose-500/20 hover:border-rose-500/30 text-rose-600 dark:text-rose-400 px-2 py-1 rounded text-[10px] font-bold transition-all"
-                          >
-                            Delete
-                          </button>
+                          {confirmDeleteModelId === model.id ? (
+                            <div className="inline-flex items-center gap-1 bg-rose-950/40 border border-rose-500/40 px-2 py-0.5 rounded animate-in fade-in">
+                              <span className="text-[9px] font-bold text-rose-300">Delete?</span>
+                              <button
+                                onClick={() => handleDeleteModel(model.id)}
+                                className="px-1.5 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[9px] font-bold"
+                              >
+                                Yes
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteModelId(null)}
+                                className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px]"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteModelId(model.id)}
+                              className="bg-transparent hover:bg-rose-500/10 border border-rose-500/20 hover:border-rose-500/30 text-rose-600 dark:text-rose-400 px-2 py-1 rounded text-[10px] font-bold transition-all"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

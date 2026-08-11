@@ -5,7 +5,7 @@ import { SentinelWaveHUD, type SentinelSession } from '../components/SentinelWav
 
 import { useToast } from '../components/Toast'
 
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 
 declare global {
   interface Window { L: any }

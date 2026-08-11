@@ -9,8 +9,8 @@ import { useToast } from '../components/Toast'
 import { formatDisplayDate } from '../utils/dateFormatter'
 import type { AlertEntry, Camera } from '../types/alerts'
 import { TRACKLET_THUMB } from '../types/alerts'
-
-const API_BASE = 'http://localhost:8000'
+import { API_BASE } from '../config/api'
+import { DEMO_OPERATOR } from '../config/operator'
 
 interface AlertsDashboardProps {
   cameras?: Camera[]
@@ -89,7 +89,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
     try {
       await fetch(`${API_BASE}/api/v1/alerts/${alertId}/acknowledge`, { method: 'PUT' })
       toast.success('Alert Acknowledged', `Security Incident #${alertId} updated.`)
-      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, acknowledged: true, acknowledged_by: 'Operator (Badge #4082)', acknowledged_at: new Date().toISOString() } : a))
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, acknowledged: true, acknowledged_by: DEMO_OPERATOR, acknowledged_at: new Date().toISOString() } : a))
       setSummary(prev => prev ? { ...prev, unacknowledged_alerts: Math.max(0, prev.unacknowledged_alerts - 1) } : prev)
     } catch (e) {
       toast.error('Error', 'Failed to acknowledge alert.')

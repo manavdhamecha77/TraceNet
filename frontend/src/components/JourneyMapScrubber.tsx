@@ -1,4 +1,5 @@
 import React from 'react'
+import { API_BASE } from '../config/api'
 import { MapPin, Navigation, Clock, ShieldCheck, ChevronRight, Zap } from 'lucide-react'
 
 export interface JourneyStep {
@@ -36,8 +37,6 @@ export const JourneyMapScrubber: React.FC<JourneyMapScrubberProps> = ({
   totalDurationSeconds
 }) => {
   if (!steps || steps.length === 0) return null
-
-  const API_BASE = 'http://localhost:8000'
 
   return (
     <div className="w-full bg-slate-900/90 backdrop-blur-md border-t border-slate-800 p-4 text-white shadow-2xl">
