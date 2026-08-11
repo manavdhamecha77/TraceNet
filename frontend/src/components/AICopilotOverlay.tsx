@@ -344,6 +344,7 @@ export default function AICopilotOverlay({
   const [referenceB64, setReferenceB64]       = useState<string | null>(null)
   const [loading, setLoading]                 = useState(false)
   const [errorMsg, setErrorMsg]               = useState('')
+  const [confirmDeleteSessionId, setConfirmDeleteSessionId] = useState<string | null>(null)
 
   // Fix Issue #25: Persist chat messages in sessionStorage across open/close modal toggles
   useEffect(() => {
@@ -518,8 +519,6 @@ export default function AICopilotOverlay({
       setLoading(false)
     }
   }
-
-  const [confirmDeleteSessionId, setConfirmDeleteSessionId] = useState<string | null>(null)
 
   const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation()
