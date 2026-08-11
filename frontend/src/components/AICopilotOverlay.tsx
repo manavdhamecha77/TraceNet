@@ -345,6 +345,27 @@ export default function AICopilotOverlay({
   const [loading, setLoading]                 = useState(false)
   const [errorMsg, setErrorMsg]               = useState('')
 
+  // Fix Issue #25: Persist chat messages in sessionStorage across open/close modal toggles
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('tracenet_copilot_messages')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed)
+        }
+      }
+    } catch (_) {}
+  }, [])
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        sessionStorage.setItem('tracenet_copilot_messages', JSON.stringify(messages))
+      } catch (_) {}
+    }
+  }, [messages])
+
   // Settings Modal State
   const [isSettingsOpen, setIsSettingsOpen]   = useState(false)
   const [config, setConfig]                   = useState({

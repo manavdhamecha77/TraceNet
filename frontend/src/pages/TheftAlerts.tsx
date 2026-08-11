@@ -8,6 +8,7 @@ import {
 import { Link } from 'react-router-dom'
 import type { AlertEntry, AnalysisLogEntry, Camera } from '../types/alerts'
 import { TRACKLET_THUMB } from '../types/alerts'
+import { formatDisplayDate } from '../utils/dateFormatter'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -51,6 +52,8 @@ function TrackletThumb({ trackletId, label }: { trackletId: string; label: strin
   )
 }
 
+import { useToast } from '../components/Toast'
+
 function ChainSnatchingCard({
   alert,
   onAcknowledge,
@@ -62,14 +65,20 @@ function ChainSnatchingCard({
   onTrackTracklet: (videoId: string, trackletIdStr: string, tag: 'SUSPECT' | 'VICTIM', color: string) => void;
   onViewEvidence: (alert: AlertEntry, theftFrames: any[]) => void;
 }) {
+  const toast = useToast()
   const [expanded, setExpanded] = useState(false)
   const [acking, setAcking] = useState(false)
 
   const handleAck = async () => {
     setAcking(true)
     try {
-      await fetch(`${API_BASE}/api/v1/alerts/${alert.id}/acknowledge`, { method: 'PUT' })
+      const res = await fetch(`${API_BASE}/api/v1/alerts/${alert.id}/acknowledge`, { method: 'PUT' })
+      if (!res.ok) throw new Error('Acknowledgement failed')
+      toast.success('Alert Acknowledged', `Theft alert #${alert.id} confirmed.`)
+      window.dispatchEvent(new CustomEvent('tracenet:alert-ack'))
       onAcknowledge(alert.id)
+    } catch (err) {
+      toast.error('Acknowledgement Failed', 'Network or server error while updating alert.')
     } finally {
       setAcking(false)
     }
@@ -170,7 +179,7 @@ function ChainSnatchingCard({
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
             <span className="font-semibold text-slate-700 dark:text-slate-200">{alert.camera_id}</span>
             <span>·</span>
-            <span>{new Date(alert.timestamp).toLocaleString()}</span>
+            <span>{formatDisplayDate(alert.timestamp)}</span>
           </div>
 
           {/* Telemetry snippet */}

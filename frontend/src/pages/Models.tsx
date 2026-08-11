@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { formatDisplayDate } from '../utils/dateFormatter'
 
 interface MLModel {
   id: string
@@ -287,7 +288,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
 
   const formatDateTime = (isoStr: string | null) => {
     if (!isoStr) return 'Never used'
-    return new Date(isoStr).toLocaleString()
+    return formatDisplayDate(isoStr)
   }
 
   return (
@@ -623,7 +624,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-600 dark:text-slate-350">
                                   {modelLogs.map((log) => (
                                     <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20">
-                                      <td className="px-3 py-2 whitespace-nowrap">{new Date(log.timestamp).toLocaleString()}</td>
+                                      <td className="px-3 py-2 whitespace-nowrap">{formatDisplayDate(log.timestamp)}</td>
                                       <td className="px-3 py-2 font-mono text-teal-700 dark:text-teal-400">{log.camera_id}</td>
                                       <td
                                         className="px-3 py-2 truncate max-w-[150px] font-mono text-teal-600 dark:text-teal-400 cursor-pointer hover:underline"

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { AlertEntry, AnalysisLogEntry, Camera } from '../types/alerts'
+import { formatDisplayDate } from '../utils/dateFormatter'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -253,7 +254,7 @@ function AbandonedAlertCard({
           <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
             <span className="font-semibold text-slate-700 dark:text-slate-200">{alert.camera_id}</span>
             <span className="mx-1.5 text-slate-300 dark:text-slate-700">·</span>
-            <span>{new Date(alert.timestamp).toLocaleString()}</span>
+            <span>{formatDisplayDate(alert.timestamp)}</span>
           </div>
 
           {isLoitering && loiteringEvidence && (
@@ -547,7 +548,10 @@ function DetectedObjectCard({
   )
 }
 
+import { useToast } from '../components/Toast'
+
 export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPageProps) {
+  const toast = useToast()
   const [alerts, setAlerts] = useState<AlertEntry[]>([])
   const [summary, setSummary] = useState<{ total_alerts: number; unacknowledged_alerts: number; by_type: Record<string, number> } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -642,16 +646,18 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
         if (!anyRunning) {
           setIsRunning(false)
           if (logPollRef.current) clearInterval(logPollRef.current)
+          toast.success('Analysis Completed', 'Object analysis and abandoned object evaluation finished.')
           loadAlerts()
           loadAllDetectedObjects()
         }
       }
     } catch {}
-  }, [loadAlerts, loadAllDetectedObjects])
+  }, [loadAlerts, loadAllDetectedObjects, toast])
 
   const runAnalysis = async () => {
     setIsRunning(true)
     setAnalysisLog([])
+    toast.info('Analysis Started', 'Evaluating spatial-temporal tracklets across all camera feeds...')
     try {
       // First save configuration to ensure backend gets fresh settings
       await fetch(`${API_BASE}/api/v1/alerts/config`, {
@@ -668,6 +674,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
       logPollRef.current = setInterval(pollLog, 1000)
     } catch (e) {
       setIsRunning(false)
+      toast.error('Analysis Failed', 'Failed to trigger alert analysis.')
     }
   }
 
@@ -787,16 +794,22 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
   const handleAcknowledge = (alertId: number) => {
     setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, acknowledged: true } : a))
     setSummary(prev => prev ? { ...prev, unacknowledged_alerts: Math.max(0, prev.unacknowledged_alerts - 1) } : prev)
+    toast.success('Alert Acknowledged', `Incident #${alertId} confirmed.`)
+    window.dispatchEvent(new CustomEvent('tracenet:alert-ack'))
   }
 
+  const [confirmClearArtifacts, setConfirmClearArtifacts] = useState(false)
+
   const clearArtifacts = async () => {
-    if (!window.confirm('Are you sure you want to clear all active alert records and reset evaluation logs?')) return
     try {
-      await fetch(`${API_BASE}/api/v1/alerts/clear-artifacts`, { method: 'POST' })
+      const res = await fetch(`${API_BASE}/api/v1/alerts/clear-artifacts`, { method: 'POST' })
+      if (!res.ok) throw new Error('Clear failed')
+      toast.success('Artifacts Cleared', 'Active alert records and evaluation logs reset.')
+      setConfirmClearArtifacts(false)
       loadAlerts()
       setAnalysisLog([])
     } catch (e) {
-      console.error('Failed to clear artifacts:', e)
+      toast.error('Clear Failed', 'Failed to clear alert records.')
     }
   }
 
@@ -847,14 +860,32 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
           </button>
 
           {/* Clear Artifacts Button */}
-          <button
-            onClick={clearArtifacts}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
-            title="Clear active alert records and reset evaluation logs"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-            <span>Clear Artifacts</span>
-          </button>
+          {confirmClearArtifacts ? (
+            <div className="flex items-center gap-1 bg-rose-950/40 border border-rose-500/40 rounded-lg px-2 py-1 animate-in fade-in">
+              <span className="text-[10px] font-bold text-rose-300">Clear all records?</span>
+              <button
+                onClick={clearArtifacts}
+                className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold transition-colors"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setConfirmClearArtifacts(false)}
+                className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-medium transition-colors"
+              >
+                No
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmClearArtifacts(true)}
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+              title="Clear active alert records and reset evaluation logs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              <span>Clear Artifacts</span>
+            </button>
+          )}
 
           {/* Run now */}
           <button

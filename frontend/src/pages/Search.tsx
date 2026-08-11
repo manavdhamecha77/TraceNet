@@ -237,7 +237,10 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
   const handlePhotoSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!referenceFile) return
+    if (!referenceFile) {
+      toast.warning('No Photo Selected', 'Please upload or drag & drop a reference suspect photo before running reverse image search.')
+      return
+    }
 
     setSearching(true)
     setSearchError('')

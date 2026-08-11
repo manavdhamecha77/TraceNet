@@ -203,7 +203,7 @@ function App() {
     }
   }
 
-  // Fetch cameras and models on mount, location change, and periodically every 5 seconds
+  // Fetch cameras and models on mount and periodically every 5 seconds (Fixes Issue #5)
   useEffect(() => {
     fetchCameras()
     fetchModels()
@@ -212,9 +212,9 @@ function App() {
       fetchModels()
     }, 5000)
     return () => clearInterval(timer)
-  }, [location.pathname])
+  }, [])
 
-  // Fetch aggregated dashboard metrics from backend
+  // Fetch aggregated dashboard metrics from backend (Fixes Issue #6)
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
@@ -236,7 +236,7 @@ function App() {
     fetchMetrics()
     const metricsTimer = setInterval(fetchMetrics, 10000)
     return () => clearInterval(metricsTimer)
-  }, [location.pathname])
+  }, [])
 
   const [unackAlertCount, setUnackAlertCount] = useState<number>(0)
   const [copilotInitialPrompt, setCopilotInitialPrompt] = useState<string>('')
@@ -251,27 +251,51 @@ function App() {
       }
       setIsCopilotOpen(true)
     }
+    const handleKeyNav = (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === '1') navigate('/dashboard')
+        else if (e.key === '2') navigate('/cameras')
+        else if (e.key === '3') navigate('/search')
+        else if (e.key === '4') navigate('/targets')
+        else if (e.key === '5') navigate('/alerts')
+      }
+    }
     window.addEventListener('tracenet:open-copilot', handleCustomCopilotOpen as EventListener)
-    return () => window.removeEventListener('tracenet:open-copilot', handleCustomCopilotOpen as EventListener)
+    window.addEventListener('keydown', handleKeyNav)
+    return () => {
+      window.removeEventListener('tracenet:open-copilot', handleCustomCopilotOpen as EventListener)
+      window.removeEventListener('keydown', handleKeyNav)
+    }
+  }, [navigate])
+
+  // Fetch unacknowledged alert count for sidebar badge (Fixes Issue #21 with instant custom event listener)
+  const fetchUnackCount = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/alerts/summary`)
+      if (res.ok) {
+        const data = await res.json()
+        setUnackAlertCount(data.unacknowledged_alerts || 0)
+      }
+    } catch (_) {}
   }, [])
 
-  // Fetch unacknowledged alert count for sidebar badge
   useEffect(() => {
-    const fetchUnackCount = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/v1/alerts/summary`)
-        if (res.ok) {
-          const data = await res.json()
-          setUnackAlertCount(data.unacknowledged_alerts || 0)
-        }
-      } catch (_) {}
-    }
     fetchUnackCount()
     const alertTimer = setInterval(fetchUnackCount, 10000)
-    return () => clearInterval(alertTimer)
-  }, [])
+    window.addEventListener('tracenet:alert-ack', fetchUnackCount)
+    return () => {
+      clearInterval(alertTimer)
+      window.removeEventListener('tracenet:alert-ack', fetchUnackCount)
+    }
+  }, [fetchUnackCount])
 
-  const fetchSystemJobs = async () => {
+  // Fix Issue #1: Use ref for lastActiveCount comparison to avoid resetting 3s interval on every state update
+  const lastActiveCountRef = useRef(lastActiveCount)
+  useEffect(() => {
+    lastActiveCountRef.current = lastActiveCount
+  }, [lastActiveCount])
+
+  const fetchSystemJobs = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/jobs`)
       if (res.ok) {
@@ -279,7 +303,7 @@ function App() {
         setSystemJobs(data)
         const activeCount = data.filter((j: any) => j.status === 'running' || j.status === 'pending').length
         
-        if (activeCount !== lastActiveCount) {
+        if (activeCount !== lastActiveCountRef.current) {
           setHasActiveTransition(true)
           setLastActiveCount(activeCount)
           setTimeout(() => setHasActiveTransition(false), 1000)
@@ -288,13 +312,13 @@ function App() {
     } catch (err) {
       console.error('Failed to fetch system jobs:', err)
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchSystemJobs()
     const timer = setInterval(fetchSystemJobs, 3000)
     return () => clearInterval(timer)
-  }, [lastActiveCount])
+  }, [fetchSystemJobs])
 
   // Register camera submit
   const handleCreateCamera = async (e: React.FormEvent) => {
@@ -367,7 +391,10 @@ function App() {
       return
     }
 
-    if (!selectedCamera) return
+    if (!selectedCamera) {
+      setUploadError('Please select a target camera node for this video feed.')
+      return
+    }
 
     setUploadProgress('uploading')
 
@@ -464,12 +491,18 @@ function App() {
       setSeekedColor(null)
     }
 
-    setTimeout(() => {
-      if (videoRef.current) {
-        videoRef.current.currentTime = timestamp
-        videoRef.current.pause()
+    if (videoRef.current) {
+      const vid = videoRef.current
+      const doSeek = () => {
+        vid.currentTime = timestamp
+        vid.pause()
       }
-    }, 400)
+      if (vid.readyState >= 1) {
+        doSeek()
+      } else {
+        vid.addEventListener('loadedmetadata', doSeek, { once: true })
+      }
+    }
   }
 
   // Helper formats
@@ -480,7 +513,7 @@ function App() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  // Breadcrumbs generator
+  // Breadcrumbs generator (Fixes Issue #7 and #16)
   const getBreadcrumbs = () => {
     const paths = location.pathname.split('/').filter((p) => p)
     const crumbs = [{ label: 'DRISHTI', link: '/' }]
@@ -491,7 +524,6 @@ function App() {
         if (paths[1]) {
           const camLabel = selectedCamera ? selectedCamera.name : paths[1]
           crumbs.push({ label: camLabel, link: `/cameras/${paths[1]}` })
-          // /cameras/:id/videos/:vid_id
           if (paths[2] === 'videos' && paths[3]) {
             crumbs.push({ label: 'Video Investigation', link: `/cameras/${paths[1]}/videos/${paths[3]}` })
           }
@@ -499,11 +531,34 @@ function App() {
       } else if (paths[0] === 'search') {
         crumbs.push({ label: 'Search', link: '/search' })
       } else if (paths[0] === 'alerts') {
-        crumbs.push({ label: 'Alerts', link: '/alerts' })
+        crumbs.push({ label: 'Unified Alert Center', link: '/alerts' })
+        if (paths[1] === 'abandoned') {
+          crumbs.push({ label: 'Abandoned Objects', link: '/alerts/abandoned' })
+        } else if (paths[1] === 'theft') {
+          crumbs.push({ label: 'Outdoor Theft', link: '/alerts/theft' })
+        } else if (paths[1] === 'assault') {
+          crumbs.push({ label: 'Assault Detection', link: '/alerts/assault' })
+        }
+      } else if (paths[0] === 'theft-alerts') {
+        crumbs.push({ label: 'Outdoor Theft', link: '/alerts/theft' })
+      } else if (paths[0] === 'assault-detection' || paths[0] === 'assault-alerts') {
+        crumbs.push({ label: 'Assault Detection', link: '/alerts/assault' })
+      } else if (paths[0] === 'targets' || paths[0] === 'hot-targets') {
+        crumbs.push({ label: 'Pursuit & Hot Targets', link: '/targets' })
+      } else if (paths[0] === 'multicam') {
+        crumbs.push({ label: 'Pursuit & Hot Targets', link: '/targets' })
+        crumbs.push({ label: 'Multi-Camera Sentinel Wave', link: '/multicam' })
       } else if (paths[0] === 'dashboard') {
         crumbs.push({ label: 'Dashboard', link: '/dashboard' })
       } else if (paths[0] === 'models') {
-        crumbs.push({ label: 'Model Registry', link: '/models' })
+        crumbs.push({ label: 'YOLO Detector Models', link: '/models' })
+      } else if (paths[0] === 'embedding-models') {
+        crumbs.push({ label: 'Embedding Config', link: '/embedding-models' })
+      } else if (paths[0] === 'finetuning') {
+        crumbs.push({ label: 'YOLO Retraining', link: '/finetuning' })
+      } else if (paths[0] === 'frame-inspection') {
+        crumbs.push({ label: 'Unified Alert Center', link: '/alerts' })
+        crumbs.push({ label: `Frame Inspection #${paths[1] || ''}`, link: `/frame-inspection/${paths[1] || ''}` })
       }
     }
 

@@ -68,14 +68,36 @@ export const MultiCameraTracking: React.FC = () => {
     }
   }
 
-  // 2. Initialize Leaflet Map
+  const [leafletReady, setLeafletReady] = useState<boolean>(typeof window !== 'undefined' && !!(window as any).L)
+
+  // Poll window.L ready state if CDN is slow to load
   useEffect(() => {
-    if (!mapContainerRef.current || !window.L) return
+    if (leafletReady) return
+    const interval = setInterval(() => {
+      if ((window as any).L) {
+        setLeafletReady(true)
+        clearInterval(interval)
+      }
+    }, 200)
+    return () => clearInterval(interval)
+  }, [leafletReady])
+
+  // 2. Initialize Leaflet Map (Fixes Issue #9 and #20)
+  useEffect(() => {
+    if (!mapContainerRef.current || !window.L || !leafletReady) return
 
     if (!mapInstanceRef.current) {
+      const validCams = cameras.filter(c => c.latitude != null && c.longitude != null)
+      const defaultCenter: [number, number] = validCams.length > 0
+        ? [
+            validCams.reduce((sum, c) => sum + (c.latitude || 0), 0) / validCams.length,
+            validCams.reduce((sum, c) => sum + (c.longitude || 0), 0) / validCams.length
+          ]
+        : [20.5937, 78.9629] // Generic centered view fallback
+
       const map = window.L.map(mapContainerRef.current, {
-        center: [19.076, 72.8777], // Default city coordinates
-        zoom: 13,
+        center: defaultCenter,
+        zoom: validCams.length > 0 ? 14 : 5,
         zoomControl: true
       })
 
@@ -89,7 +111,7 @@ export const MultiCameraTracking: React.FC = () => {
     }
 
     renderMapMarkersAndPath()
-  }, [cameras, journeySteps, activeSentinelSession])
+  }, [cameras, journeySteps, activeSentinelSession, leafletReady])
 
   // 3. Render Map Markers and Trajectory Polyline
   const renderMapMarkersAndPath = () => {

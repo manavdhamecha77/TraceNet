@@ -24,6 +24,9 @@ interface FrameInspectionData {
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000';
 
+import { Link } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+
 export default function FrameInspection() {
   const { alertId } = useParams<{ alertId: string }>();
   const [data, setData] = useState<FrameInspectionData | null>(null);
@@ -77,8 +80,15 @@ export default function FrameInspection() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="border-b border-slate-800 pb-4">
-          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-            <span>Frame-Level Inspection</span>
+          <Link
+            to="/alerts"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 transition-colors mb-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Unified Alert Center</span>
+          </Link>
+          <h1 className="text-2xl font-black text-slate-100 flex items-center gap-2">
+            <span>Violent Assault Frame Inspection</span>
             <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
               PHYSICAL ASSAULT ANALYTICS
             </span>

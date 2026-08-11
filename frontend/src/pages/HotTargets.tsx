@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { JourneyMapScrubber } from '../components/JourneyMapScrubber'
 import { Link } from 'react-router-dom'
+import { useToast } from '../components/Toast'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -59,6 +60,7 @@ interface HotTargetsProps {
 }
 
 export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
+  const toast = useToast()
   const [targets, setTargets] = useState<HotTarget[]>([])
   const [alerts, setAlerts] = useState<ReappearanceAlert[]>([])
   const [loading, setLoading] = useState(true)
@@ -107,31 +109,35 @@ export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
     }
   }
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+
   const handleToggleStatus = async (targetId: string, currentStatus: string) => {
-    const nextStatus = currentStatus === 'active' ? 'resolved' : 'active'
+    const newStatus = currentStatus === 'active' ? 'resolved' : 'active'
     try {
-      const res = await fetch(`${API_BASE}/api/v1/multicam/targets/${targetId}/status?status=${nextStatus}`, {
+      const res = await fetch(`${API_BASE}/api/v1/multicam/targets/${targetId}/status?status=${newStatus}`, {
         method: 'PUT'
       })
       if (res.ok) {
+        toast.success('Status Updated', `Hot target marked as ${newStatus}.`)
         fetchHotTargets()
       }
     } catch (err) {
-      console.error('Failed to update target status:', err)
+      toast.error('Error', 'Failed to update target status.')
     }
   }
 
   const handleDeleteTarget = async (targetId: string) => {
-    if (!window.confirm('Are you sure you want to delete this tagged hot target permanently?')) return
     try {
       const res = await fetch(`${API_BASE}/api/v1/multicam/targets/${targetId}`, {
         method: 'DELETE'
       })
       if (res.ok) {
+        toast.success('Target Deleted', 'Hot target profile deleted permanently.')
+        setConfirmDeleteId(null)
         fetchHotTargets()
       }
     } catch (err) {
-      console.error('Failed to delete target:', err)
+      toast.error('Error', 'Failed to delete target profile.')
     }
   }
 
@@ -520,31 +526,51 @@ export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
                 </div>
 
                 {/* Bottom Action Footer */}
-                <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => handleOpenJourneyMap(target)}
-                    className="flex-1 py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <Navigation className="h-3.5 w-3.5" />
-                    <span>View Journey Map</span>
-                  </button>
+                {confirmDeleteId === target.id ? (
+                  <div className="p-3 bg-rose-950/40 border-t border-rose-500/40 flex items-center justify-between gap-2 animate-in fade-in">
+                    <span className="text-[11px] font-bold text-rose-300">Permanently delete target profile?</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleDeleteTarget(target.id)}
+                        className="px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold transition-colors"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => handleOpenJourneyMap(target)}
+                      className="flex-1 py-1.5 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      <span>View Journey Map</span>
+                    </button>
 
-                  <button
-                    onClick={() => handleToggleStatus(target.id, target.status)}
-                    className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
-                    title={target.status === 'active' ? 'Mark as Resolved' : 'Reactivate Pursuit'}
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                  </button>
+                    <button
+                      onClick={() => handleToggleStatus(target.id, target.status)}
+                      className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
+                      title={target.status === 'active' ? 'Mark as Resolved' : 'Reactivate Pursuit'}
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                    </button>
 
-                  <button
-                    onClick={() => handleDeleteTarget(target.id)}
-                    className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors"
-                    title="Delete Target Profile"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                    <button
+                      onClick={() => setConfirmDeleteId(target.id)}
+                      className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors"
+                      title="Delete Target Profile"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
