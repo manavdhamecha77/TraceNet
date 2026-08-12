@@ -310,15 +310,39 @@ settings = get_settings()
 app = FastAPI(title=settings.app_name)
 
 
+_mediamtx_process = None
+
+def start_mediamtx_server():
+    global _mediamtx_process
+    if _mediamtx_process is not None and _mediamtx_process.poll() is None:
+        return _mediamtx_process
+    try:
+        import subprocess
+        from app.streaming.mediamtx_downloader import ensure_mediamtx
+        binary_path = ensure_mediamtx()
+        config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../mediamtx/mediamtx.yml"))
+        
+        cmd = [binary_path]
+        if os.path.exists(config_path):
+            cmd.append(config_path)
+            
+        print(f"Startup: Launching MediaMTX WebRTC server ({binary_path})...")
+        _mediamtx_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return _mediamtx_process
+    except Exception as e:
+        print(f"Startup Warning: Failed to launch MediaMTX server: {e}")
+        return None
+
 @app.on_event("startup")
 def load_startup_singletons() -> None:
-    """Load shared ML models once at app startup."""
+    """Load shared ML models and MediaMTX server at app startup."""
     clip_encoder = get_clip_encoder()
     app.state.clip_encoder = clip_encoder
     print(
         "Startup: CLIP encoder loaded "
         f"(model={clip_encoder.model_name}, pretrained={clip_encoder.pretrained}, device={clip_encoder.device})."
     )
+    start_mediamtx_server()
 
 # Enable CORS for frontend integration (allow all origins for LAN / multi-device access)
 app.add_middleware(
