@@ -336,6 +336,7 @@ app.mount("/data", StaticFiles(directory=get_data_path("")), name="data")
 _camera_client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../camera_client"))
 if os.path.isdir(_camera_client_dir):
     app.mount("/camera-app", StaticFiles(directory=_camera_client_dir, html=True), name="camera_client")
+    app.mount("/camera_client", StaticFiles(directory=_camera_client_dir, html=True), name="camera_client_alias")
 
 from app.api.assistant import router as assistant_router
 from app.api.multicam import router as multicam_router
