@@ -24,6 +24,7 @@ from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
 from app.db.session import engine
+from app.db.optimize import optimize_database
 import sqlite3
 
 # Ensure data folders exist absolutely in backend/data/
@@ -205,6 +206,9 @@ run_startup_migrations()
 
 # Ensure tables are created
 Base.metadata.create_all(bind=engine)
+
+# Optimize database with indexes
+optimize_database()
 
 settings = get_settings()
 
