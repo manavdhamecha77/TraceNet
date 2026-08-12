@@ -208,7 +208,88 @@ Base.metadata.create_all(bind=engine)
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(
+    title="TraceNet & DRISHTI API",
+    description="Advanced Video Surveillance, Real-time Detection & Hybrid Search Intelligence (DRISHTI) - A comprehensive video retrieval and threat detection system",
+    version="1.0.0",
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    redoc_url="/api/redoc",
+    openapi_tags=[
+        {
+            "name": "Health",
+            "description": "System health and status checks"
+        },
+        {
+            "name": "Cameras",
+            "description": "Camera management and configuration"
+        },
+        {
+            "name": "Detection",
+            "description": "Object detection results and management"
+        },
+        {
+            "name": "Videos",
+            "description": "Video upload and management"
+        },
+        {
+            "name": "Models",
+            "description": "Detection model management"
+        },
+        {
+            "name": "Search",
+            "description": "Hybrid video search using CLIP embeddings"
+        },
+        {
+            "name": "Metrics",
+            "description": "System performance metrics"
+        },
+        {
+            "name": "Alerts",
+            "description": "Alert management and acknowledgment"
+        },
+        {
+            "name": "Analytics",
+            "description": "Detection analytics and statistics"
+        },
+        {
+            "name": "Audit",
+            "description": "Audit logging and compliance"
+        },
+        {
+            "name": "Assault Detection",
+            "description": "Violence and assault detection using deep learning"
+        },
+        {
+            "name": "Video Processing",
+            "description": "Real-time video processing pipeline"
+        },
+        {
+            "name": "Webhooks",
+            "description": "Webhook configuration and management"
+        },
+        {
+            "name": "Frame Inspection",
+            "description": "Frame-level analysis and visualization"
+        },
+        {
+            "name": "Fine-Tuning",
+            "description": "Model fine-tuning and transfer learning"
+        },
+        {
+            "name": "AI Assistant",
+            "description": "MCP-based AI assistant with analysis tools"
+        },
+        {
+            "name": "Multi-Camera Intelligence",
+            "description": "Advanced multi-camera tracking and analytics"
+        },
+        {
+            "name": "System Jobs",
+            "description": "Background job management"
+        }
+    ]
+)
 
 
 @app.on_event("startup")
@@ -245,25 +326,25 @@ from app.api.assistant import router as assistant_router
 from app.api.multicam import router as multicam_router
 
 # Register routes
-app.include_router(health_router, prefix=settings.api_prefix)
-app.include_router(cameras_router, prefix=settings.api_prefix)
-app.include_router(detections_router, prefix=settings.api_prefix)
-app.include_router(upload_router, prefix=settings.api_prefix)
-app.include_router(models_router, prefix=settings.api_prefix)
-app.include_router(embedding_models_router, prefix=settings.api_prefix)
-app.include_router(search_router, prefix=settings.api_prefix)
-app.include_router(metrics_router, prefix=settings.api_prefix)
-app.include_router(alerts_router, prefix=settings.api_prefix)
-app.include_router(analytics_router, prefix=settings.api_prefix)
-app.include_router(audit_router, prefix=settings.api_prefix)
-app.include_router(assault_detection_router, prefix=settings.api_prefix)
-app.include_router(processing_router, prefix=settings.api_prefix)
-app.include_router(webhooks_router, prefix=settings.api_prefix)
-app.include_router(frame_inspection_router, prefix=settings.api_prefix)
-app.include_router(finetuning_router, prefix=settings.api_prefix)
-app.include_router(assistant_router, prefix=settings.api_prefix)
-app.include_router(multicam_router)
-app.include_router(system_jobs_router, prefix=settings.api_prefix)
+app.include_router(health_router, prefix=settings.api_prefix, tags=["Health"])
+app.include_router(cameras_router, prefix=settings.api_prefix, tags=["Cameras"])
+app.include_router(detections_router, prefix=settings.api_prefix, tags=["Detection"])
+app.include_router(upload_router, prefix=settings.api_prefix, tags=["Videos"])
+app.include_router(models_router, prefix=settings.api_prefix, tags=["Models"])
+app.include_router(embedding_models_router, prefix=settings.api_prefix, tags=["Models"])
+app.include_router(search_router, prefix=settings.api_prefix, tags=["Search"])
+app.include_router(metrics_router, prefix=settings.api_prefix, tags=["Metrics"])
+app.include_router(alerts_router, prefix=settings.api_prefix, tags=["Alerts"])
+app.include_router(analytics_router, prefix=settings.api_prefix, tags=["Analytics"])
+app.include_router(audit_router, prefix=settings.api_prefix, tags=["Audit"])
+app.include_router(assault_detection_router, prefix=settings.api_prefix, tags=["Assault Detection"])
+app.include_router(processing_router, prefix=settings.api_prefix, tags=["Video Processing"])
+app.include_router(webhooks_router, prefix=settings.api_prefix, tags=["Webhooks"])
+app.include_router(frame_inspection_router, prefix=settings.api_prefix, tags=["Frame Inspection"])
+app.include_router(finetuning_router, prefix=settings.api_prefix, tags=["Fine-Tuning"])
+app.include_router(assistant_router, prefix=settings.api_prefix, tags=["AI Assistant"])
+app.include_router(multicam_router, tags=["Multi-Camera Intelligence"])
+app.include_router(system_jobs_router, prefix=settings.api_prefix, tags=["System Jobs"])
 
 
 @app.get("/", include_in_schema=False)
