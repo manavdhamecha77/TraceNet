@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 interface DashboardProps {
   metrics: {
     totalCameras: number
@@ -148,6 +150,45 @@ export default function Dashboard({ metrics }: DashboardProps) {
             </span>
           </div>
         ))}
+      </section>
+
+      {/* LIVE CCTV STREAM BANNER */}
+      <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-cyan-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg ring-1 ring-cyan-500/10">
+        <div className="flex items-center gap-3">
+          <div className="relative flex items-center justify-center">
+            <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping absolute" />
+            <span className="w-3 h-3 rounded-full bg-rose-500 relative" />
+          </div>
+          <div className="space-y-0.5">
+            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <span>Live WebRTC CCTV Feeds</span>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                ACTIVE INFERENCE
+              </span>
+            </h3>
+            <p className="text-xs text-slate-400">
+              Monitor low-latency live WebRTC streams, canvas bounding boxes, active tracklets, and real-time alerts.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            to="/cameras/CAM_001/live"
+            className="px-3 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
+          >
+            <span>Watch CAM_001 Live</span>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+          <Link
+            to="/cameras"
+            className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all border border-slate-700"
+          >
+            All Cameras
+          </Link>
+        </div>
       </section>
 
       {/* MAIN CONTENT GRID */}

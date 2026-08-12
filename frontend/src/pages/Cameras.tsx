@@ -539,6 +539,18 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
                   <td className="px-3 py-2.5 whitespace-nowrap text-right">
                     <div className="inline-flex items-center gap-2 justify-end">
                       <Link
+                        to={`/cameras/${cam.camera_id}/live`}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold transition-all ${
+                          cam.is_streaming 
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                        }`}
+                        title="View Live WebRTC CCTV Stream"
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${cam.is_streaming ? 'bg-rose-500 animate-ping' : 'bg-cyan-400'}`} />
+                        Live
+                      </Link>
+                      <Link
                         to={`/cameras/${cam.camera_id}`}
                         className="inline-flex items-center gap-1 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white px-2.5 py-1 rounded text-[11px] font-bold transition-colors"
                       >
