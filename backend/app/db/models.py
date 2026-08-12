@@ -57,6 +57,11 @@ class CameraProfile(Base):
     theft_model_id = Column(String, ForeignKey("models.id"), nullable=True)
     abandoned_model_id = Column(String, ForeignKey("models.id"), nullable=True)
     assault_model_id = Column(String, ForeignKey("models.id"), nullable=True)
+    is_streaming = Column(Boolean, default=False)
+    stream_key = Column(String, nullable=True)
+    stream_auth_token = Column(String, nullable=True)
+    stream_token_expires_at = Column(DateTime, nullable=True)
+    stream_started_at = Column(DateTime, nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
     assigned_model = relationship("MLModel", foreign_keys=[model_id], back_populates="cameras")
@@ -81,7 +86,12 @@ class CameraProfile(Base):
             "theft_model_id": self.theft_model_id,
             "abandoned_model_id": self.abandoned_model_id,
             "assault_model_id": self.assault_model_id,
-            "video_count": len(self.videos) if self.videos else 0
+            "video_count": len(self.videos) if self.videos else 0,
+            "is_streaming": self.is_streaming,
+            "stream_key": self.stream_key,
+            "stream_auth_token": self.stream_auth_token,
+            "stream_token_expires_at": self.stream_token_expires_at.isoformat() if self.stream_token_expires_at else None,
+            "stream_started_at": self.stream_started_at.isoformat() if self.stream_started_at else None
         }
 
 
@@ -486,4 +496,105 @@ class SystemJob(Base):
             "payload": extra,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class LiveStreamSession(Base):
+    __tablename__ = "live_stream_sessions"
+    id = Column(String, primary_key=True, index=True)
+    camera_id = Column(String, ForeignKey("cameras.camera_id"), nullable=False)
+    status = Column(String, default="active")  # active | ended | error
+    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    ended_at = Column(DateTime, nullable=True)
+    total_duration_sec = Column(Float, nullable=True)
+    chunks_recorded = Column(Integer, default=0)
+    alerts_generated = Column(Integer, default=0)
+    inference_model_id = Column(String, nullable=True)
+    stream_config = Column(Text, default="{}")
+    
+    def to_dict(self):
+        try:
+            config_dict = json.loads(self.stream_config) if self.stream_config else {}
+        except Exception:
+            config_dict = {}
+        return {
+            "id": self.id,
+            "camera_id": self.camera_id,
+            "status": self.status,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "ended_at": self.ended_at.isoformat() if self.ended_at else None,
+            "total_duration_sec": self.total_duration_sec,
+            "chunks_recorded": self.chunks_recorded,
+            "alerts_generated": self.alerts_generated,
+            "inference_model_id": self.inference_model_id,
+            "stream_config": config_dict
+        }
+
+
+class StreamChunk(Base):
+    __tablename__ = "stream_chunks"
+    id = Column(String, primary_key=True, index=True)
+    session_id = Column(String, ForeignKey("live_stream_sessions.id"), nullable=False)
+    camera_id = Column(String, nullable=False)
+    chunk_index = Column(Integer, default=0)
+    file_path = Column(String, nullable=False)
+    start_time = Column(DateTime, nullable=True)
+    end_time = Column(DateTime, nullable=True)
+    duration_sec = Column(Float, nullable=True)
+    file_size_bytes = Column(Integer, nullable=True)
+    imported_as_video_id = Column(String, nullable=True)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "camera_id": self.camera_id,
+            "chunk_index": self.chunk_index,
+            "file_path": self.file_path,
+            "start_time": self.start_time.isoformat() if self.start_time else None,
+            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "duration_sec": self.duration_sec,
+            "file_size_bytes": self.file_size_bytes,
+            "imported_as_video_id": self.imported_as_video_id
+        }
+
+
+class LiveAlert(Base):
+    __tablename__ = "live_alerts"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    alert_type = Column(String, nullable=False)
+    camera_id = Column(String, nullable=False)
+    session_id = Column(String, ForeignKey("live_stream_sessions.id"), nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    acknowledged = Column(Boolean, default=False)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "alert_type": self.alert_type,
+            "camera_id": self.camera_id,
+            "session_id": self.session_id,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "acknowledged": self.acknowledged
+        }
+
+
+class PairCode(Base):
+    __tablename__ = "pair_codes"
+    id = Column(String, primary_key=True, index=True)       # e.g. '482910'
+    camera_id = Column(String, ForeignKey("cameras.camera_id"), nullable=False)
+    code_display = Column(String, nullable=False)           # e.g. '482-910'
+    device_label = Column(String, nullable=True)            # optional label set on verify
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(Boolean, default=False)
+    device_auth_token = Column(String, nullable=True)       # issued on verify
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "camera_id": self.camera_id,
+            "code_display": self.code_display,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "used": self.used,
         }

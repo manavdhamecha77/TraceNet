@@ -17,6 +17,7 @@ interface Camera {
   altitude?: number
   model_id?: string | null
   video_count: number
+  is_streaming?: boolean
 }
 
 interface CamerasProps {
@@ -147,6 +148,49 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
   const [deleteCamera, setDeleteCamera] = useState<Camera | null>(null)
   const [confirmName, setConfirmName] = useState('')
   const [deleteError, setDeleteError] = useState('')
+
+  // ── Pair Device state
+  const [pairCamera, setPairCamera] = useState<Camera | null>(null)
+  const [pairCode, setPairCode] = useState<string | null>(null)
+  const [pairLoading, setPairLoading] = useState(false)
+  const [pairSecondsLeft, setPairSecondsLeft] = useState(0)
+  const pairCountdownRef = useRef<any>(null)
+
+  const generatePairCode = async (cam: Camera) => {
+    setPairCamera(cam)
+    setPairCode(null)
+    setPairLoading(true)
+    if (pairCountdownRef.current) clearInterval(pairCountdownRef.current)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/stream/pair/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ camera_id: cam.camera_id })
+      })
+      if (!res.ok) throw new Error('Failed to generate pair code')
+      const data = await res.json()
+      setPairCode(data.code)
+      const expiresAt = new Date(data.expires_at)
+      const calcSecs = () => Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+      setPairSecondsLeft(calcSecs())
+      pairCountdownRef.current = setInterval(() => {
+        const s = calcSecs()
+        setPairSecondsLeft(s)
+        if (s <= 0) clearInterval(pairCountdownRef.current)
+      }, 1000)
+    } catch (e: any) {
+      toast.error(e.message || 'Could not generate pair code')
+      setPairCamera(null)
+    } finally {
+      setPairLoading(false)
+    }
+  }
+
+  const closePairModal = () => {
+    if (pairCountdownRef.current) clearInterval(pairCountdownRef.current)
+    setPairCamera(null)
+    setPairCode(null)
+  }
 
   const mainMapRef = useRef<HTMLDivElement>(null)
   const mainMapInstanceRef = useRef<any>(null)
@@ -444,7 +488,15 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
 
                   {/* NAME / ID */}
                   <td className="px-3 py-2.5 whitespace-nowrap">
-                    <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">{cam.name}</div>
+                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
+                      {cam.name}
+                      {cam.is_streaming && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-1.5 py-0.5 rounded">
+                          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                          LIVE
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] font-mono text-teal-700 dark:text-teal-400 mt-0.5">{cam.camera_id}</div>
                   </td>
 
@@ -574,6 +626,16 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
             >
               <RefreshCw className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
               <span className="truncate">Sync Detections ({models.find(m => m.id === cam.model_id)?.name || 'Model'})</span>
+            </button>
+            <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+            <button
+              onClick={() => { generatePairCode(cam); setActiveMenuId(null) }}
+              className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/20 transition-colors font-semibold"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              Pair Remote Device
             </button>
             <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
             <button
@@ -994,6 +1056,73 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
           </div>
         </Modal>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════
+          PAIR REMOTE DEVICE MODAL
+          ════════════════════════════════════════════════════════════════ */}
+      {pairCamera && (
+        <Modal onClose={closePairModal}>
+          <div className="relative w-full max-w-md mx-4 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+              <div className="flex items-center gap-2.5">
+                <svg className="h-4 w-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Pair Remote Device</span>
+                <span className="text-[10px] font-mono bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded">{pairCamera.camera_id}</span>
+              </div>
+              <button onClick={closePairModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 flex flex-col items-center gap-5">
+              {pairLoading ? (
+                <div className="py-8 flex flex-col items-center gap-3 text-slate-400">
+                  <svg className="h-8 w-8 animate-spin text-sky-500" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  <span className="text-sm">Generating pair code…</span>
+                </div>
+              ) : pairCode ? (
+                <>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+                    Open the Edge Camera app on the device, enter the backend URL and this 6-digit code.
+                  </p>
+                  <div className="bg-slate-900 dark:bg-slate-950 rounded-xl px-8 py-5 text-center w-full">
+                    <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Pair Code</div>
+                    <div className="text-4xl font-black font-mono tracking-[0.35em] text-sky-400">{pairCode}</div>
+                    <div className={`text-xs mt-2 font-mono ${pairSecondsLeft < 60 ? 'text-rose-400' : 'text-slate-400'}`}>
+                      Expires in {Math.floor(pairSecondsLeft / 60)}:{String(pairSecondsLeft % 60).padStart(2,'0')}
+                    </div>
+                  </div>
+                  <div className="w-full">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Edge Camera App URL</div>
+                    <div className="flex gap-2 items-center">
+                      <code className="flex-1 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 text-sky-600 dark:text-sky-400 truncate">
+                        {`${window.location.protocol}//${window.location.hostname}:8000/camera-app`}
+                      </code>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(`${window.location.protocol}//${window.location.hostname}:8000/camera-app`); toast.success('Copied', 'Camera app URL copied') }}
+                        className="px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-xs text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap"
+                      >Copy</button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1.5">Share this URL + the pair code with the camera device operator.</p>
+                  </div>
+                  {pairSecondsLeft <= 0 && (
+                    <button onClick={() => generatePairCode(pairCamera)} className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold rounded-lg transition-colors">
+                      Generate New Code
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="py-6 text-sm text-slate-400">Failed to generate code. Try again.</div>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
     </div>
   )
 }

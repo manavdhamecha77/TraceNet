@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>DRISHTI — Edge Camera</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html, body { height: 100%; margin: 0; background: #0a0e17; overscroll-behavior: none; }
+    #videoPreview { width: 100%; height: 100%; object-fit: cover; background: #000; transform: scaleX(-1); }
+    .glass { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; }
+    .pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; animation: pulse 1.2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+    input[type=range] { -webkit-appearance: none; height: 4px; border-radius: 2px; background: #334155; outline: none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+    .code-box { letter-spacing: 0.5em; font-size: 2.5rem; font-family: monospace; font-weight: 800; }
+    #canvas-overlay { display: none; }
+  </style>
+</head>
+<body class="flex flex-col" style="height:100dvh;">
+
+<!-- ===================== PAIR SCREEN ===================== -->
+<div id="pairScreen" class="flex flex-col items-center justify-center h-full px-6 gap-6">
+  <div class="text-center">
+    <div class="text-sky-400 text-xs font-bold uppercase tracking-widest mb-1">DRISHTI Edge Camera</div>
+    <h1 class="text-white text-2xl font-black">Pair Device</h1>
+    <p class="text-slate-400 text-sm mt-1">Enter the 6-digit pairing code shown on the operator dashboard</p>
+  </div>
+
+  <div class="w-full max-w-sm flex flex-col gap-4">
+    <div>
+      <label class="text-slate-400 text-xs uppercase tracking-wider mb-1 block">Backend Server URL</label>
+      <input id="backendUrl" type="url" value="" placeholder="http://192.168.x.x:8000"
+        class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-sky-500" />
+    </div>
+
+    <div>
+      <label class="text-slate-400 text-xs uppercase tracking-wider mb-1 block">Pair Code</label>
+      <input id="pairCodeInput" type="tel" maxlength="7" placeholder="XXX-XXX"
+        class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-4 py-3 text-center code-box focus:outline-none focus:border-sky-500"
+        oninput="formatPairCode(this)" />
+    </div>
+
+    <div>
+      <label class="text-slate-400 text-xs uppercase tracking-wider mb-1 block">Device Label <span class="text-slate-500">(optional)</span></label>
+      <input id="deviceLabel" type="text" placeholder="e.g. Gate-3 Mobile"
+        class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-sky-500" />
+    </div>
+
+    <button id="pairBtn" onclick="handlePair()"
+      class="w-full bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+      Pair &amp; Connect
+    </button>
+
+    <div id="pairError" class="hidden text-rose-400 text-sm text-center px-2"></div>
+  </div>
+</div>
+
+<!-- ===================== STREAM SCREEN ===================== -->
+<div id="streamScreen" class="hidden flex-col h-full relative">
+
+  <!-- Full-screen camera preview -->
+  <div class="relative flex-1 bg-black overflow-hidden">
+    <video id="videoPreview" autoplay muted playsinline></video>
+
+    <!-- TOP HUD -->
+    <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10">
+      <div class="glass rounded-full px-3 py-1.5 flex items-center gap-2">
+        <div id="liveIndicator" class="pulse-dot" style="background:#94a3b8"></div>
+        <span id="statusLabel" class="text-xs font-bold text-slate-300">READY</span>
+      </div>
+      <div id="cameraNameBadge" class="glass rounded-full px-3 py-1.5 text-xs font-bold text-sky-300"></div>
+      <div id="durationBadge" class="glass rounded-full px-3 py-1.5 text-xs font-mono font-bold text-white">00:00</div>
+    </div>
+
+    <!-- TELEMETRY BAR (bottom overlay) -->
+    <div id="telemetryBar" class="absolute bottom-0 left-0 right-0 glass p-3 z-10 flex flex-col gap-2">
+      <!-- Row 1: Metrics -->
+      <div class="flex gap-3 justify-between text-center">
+        <div class="flex-1">
+          <div class="text-slate-400 text-[10px] uppercase tracking-wider">Battery</div>
+          <div id="batteryVal" class="text-white text-sm font-mono font-bold">--%</div>
+        </div>
+        <div class="flex-1">
+          <div class="text-slate-400 text-[10px] uppercase tracking-wider">Bitrate</div>
+          <div id="bitrateVal" class="text-white text-sm font-mono font-bold">-- kbps</div>
+        </div>
+        <div class="flex-1">
+          <div class="text-slate-400 text-[10px] uppercase tracking-wider">RTT</div>
+          <div id="rttVal" class="text-white text-sm font-mono font-bold">-- ms</div>
+        </div>
+        <div class="flex-1">
+          <div class="text-slate-400 text-[10px] uppercase tracking-wider">FPS</div>
+          <div id="fpsVal" class="text-white text-sm font-mono font-bold">--</div>
+        </div>
+      </div>
+      <!-- Row 2: Controls -->
+      <div class="flex gap-2 justify-center pt-1">
+        <button id="startBtn" onclick="handleStartStream()"
+          class="flex-1 bg-sky-600 hover:bg-sky-500 active:bg-sky-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+          Start Stream
+        </button>
+        <button id="stopBtn" onclick="handleStopStream()" disabled
+          class="flex-1 bg-rose-700 hover:bg-rose-600 active:bg-rose-800 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" stroke-width="2"/></svg>
+          Stop Stream
+        </button>
+        <button onclick="flipCamera()"
+          class="bg-slate-700 hover:bg-slate-600 text-white p-2.5 rounded-xl transition-all">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        </button>
+        <button onclick="toggleTorch()" id="torchBtn"
+          class="bg-slate-700 hover:bg-slate-600 text-white p-2.5 rounded-xl transition-all">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+        </button>
+        <button onclick="handleUnpair()"
+          class="bg-slate-700 hover:bg-slate-600 text-white p-2.5 rounded-xl transition-all">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+        </button>
+      </div>
+      <!-- Row 3: FPS selector -->
+      <div class="flex items-center gap-3 pt-1">
+        <span class="text-slate-400 text-[10px] uppercase tracking-wider whitespace-nowrap">Target FPS</span>
+        <input type="range" id="fpsSlider" min="1" max="15" value="4" class="flex-1"
+          oninput="document.getElementById('fpsDisplay').textContent=this.value" />
+        <span id="fpsDisplay" class="text-sky-300 text-xs font-mono w-6 text-right">4</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== STATE =====================
+let backendUrl = '';
+let deviceToken = '';
+let cameraId = '';
+let sessionId = '';
+let whipUrl = '';
+let streamToken = '';
+let streamKey = '';
+
+let pc = null;
+let localStream = null;
+let durationTimer = null;
+let durationSecs = 0;
+let telemetryTimer = null;
+let useFrontCamera = true;
+let torchEnabled = false;
+let streamActive = false;
+
+// ===================== PAIR CODE FORMATTING =====================
+function formatPairCode(input) {
+  let val = input.value.replace(/[^0-9]/g, '');
+  if (val.length > 3) val = val.slice(0, 3) + '-' + val.slice(3, 6);
+  input.value = val;
+}
+
+// ===================== PAIR FLOW =====================
+async function handlePair() {
+  const btn = document.getElementById('pairBtn');
+  const errEl = document.getElementById('pairError');
+  errEl.classList.add('hidden');
+
+  backendUrl = document.getElementById('backendUrl').value.trim().replace(/\/$/, '');
+  const code = document.getElementById('pairCodeInput').value.trim();
+  const label = document.getElementById('deviceLabel').value.trim() || navigator.userAgent.slice(0, 40);
+
+  if (!backendUrl) { showPairError('Please enter the Backend Server URL.'); return; }
+  if (code.replace('-','').length !== 6) { showPairError('Please enter a valid 6-digit code.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Pairing…';
+
+  try {
+    const res = await fetch(`${backendUrl}/api/v1/stream/pair/verify`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ code, device_label: label, backend_host: backendUrl })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    deviceToken = data.device_auth_token;
+    cameraId = data.camera_id;
+    sessionId = data.session_id;
+    whipUrl = data.whip_url;
+    streamToken = data.stream_token;
+    streamKey = data.stream_key;
+
+    // Store in sessionStorage for persistence
+    sessionStorage.setItem('drishti_device_token', deviceToken);
+    sessionStorage.setItem('drishti_backend_url', backendUrl);
+    sessionStorage.setItem('drishti_camera_id', cameraId);
+    sessionStorage.setItem('drishti_whip_url', whipUrl);
+    sessionStorage.setItem('drishti_stream_token', streamToken);
+    sessionStorage.setItem('drishti_stream_key', streamKey);
+    sessionStorage.setItem('drishti_session_id', sessionId);
+
+    await launchStreamScreen();
+  } catch (e) {
+    showPairError(e.message || 'Pairing failed. Check URL and code.');
+    btn.disabled = false;
+    btn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg> Pair &amp; Connect`;
+  }
+}
+
+function showPairError(msg) {
+  const el = document.getElementById('pairError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+// ===================== CAMERA PREVIEW =====================
+async function launchStreamScreen() {
+  document.getElementById('pairScreen').classList.add('hidden');
+  document.getElementById('streamScreen').classList.remove('hidden');
+  document.getElementById('streamScreen').classList.add('flex');
+  document.getElementById('cameraNameBadge').textContent = cameraId;
+
+  await startCameraPreview();
+  startBatteryPolling();
+}
+
+async function startCameraPreview(front = true) {
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  const constraints = {
+    video: { facingMode: front ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false
+  };
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('videoPreview').srcObject = localStream;
+    document.getElementById('videoPreview').style.transform = front ? 'scaleX(-1)' : 'scaleX(1)';
+  } catch (e) {
+    console.error('Camera access error:', e);
+  }
+}
+
+// ===================== WHIP STREAMING =====================
+async function handleStartStream() {
+  if (streamActive) return;
+  setStatus('CONNECTING', '#f59e0b');
+
+  try {
+    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+
+    // Add video track only
+    localStream.getVideoTracks().forEach(track => pc.addTrack(track, localStream));
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        setStatus('LIVE', '#22c55e');
+        streamActive = true;
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+        startDurationTimer();
+        startTelemetryPolling();
+      } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+        setStatus('RECONNECTING', '#f59e0b');
+      }
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitForICEGathering(pc);
+
+    const targetFps = parseInt(document.getElementById('fpsSlider').value) || 4;
+    const whipTarget = `${whipUrl}?token=${encodeURIComponent(streamToken)}&stream_key=${encodeURIComponent(streamKey)}`;
+
+    const res = await fetch(whipTarget, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/sdp' },
+      body: pc.localDescription.sdp
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`WHIP ${res.status}: ${text.slice(0,120)}`);
+    }
+
+    const answerSdp = await res.text();
+    await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+  } catch (e) {
+    console.error('Stream error:', e);
+    setStatus(`ERROR: ${e.message.slice(0,40)}`, '#ef4444');
+    if (pc) { pc.close(); pc = null; }
+    streamActive = false;
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+  }
+}
+
+async function waitForICEGathering(pc) {
+  return new Promise(resolve => {
+    if (pc.iceGatheringState === 'complete') { resolve(); return; }
+    const check = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', check); resolve(); } };
+    pc.addEventListener('icegatheringstatechange', check);
+    setTimeout(resolve, 3000); // fallback
+  });
+}
+
+async function handleStopStream() {
+  stopDurationTimer();
+  stopTelemetryPolling();
+  if (pc) { pc.close(); pc = null; }
+  streamActive = false;
+
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  setStatus('STOPPED', '#94a3b8');
+
+  try {
+    await fetch(`${backendUrl}/api/v1/stream/pair/stop`, {
+      method: 'POST',
+      headers: { 'X-Device-Token': deviceToken }
+    });
+  } catch {}
+}
+
+// ===================== CAMERA CONTROLS =====================
+async function flipCamera() {
+  useFrontCamera = !useFrontCamera;
+  if (streamActive) await handleStopStream();
+  await startCameraPreview(useFrontCamera);
+}
+
+async function toggleTorch() {
+  torchEnabled = !torchEnabled;
+  const track = localStream && localStream.getVideoTracks()[0];
+  if (track && 'applyConstraints' in track) {
+    try { await track.applyConstraints({ advanced: [{ torch: torchEnabled }] }); } catch {}
+  }
+  const btn = document.getElementById('torchBtn');
+  btn.style.background = torchEnabled ? '#ca8a04' : '';
+}
+
+function handleUnpair() {
+  if (streamActive) handleStopStream();
+  sessionStorage.clear();
+  location.reload();
+}
+
+// ===================== DURATION TIMER =====================
+function startDurationTimer() {
+  durationSecs = 0;
+  durationTimer = setInterval(() => {
+    durationSecs++;
+    const m = String(Math.floor(durationSecs / 60)).padStart(2, '0');
+    const s = String(durationSecs % 60).padStart(2, '0');
+    document.getElementById('durationBadge').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+function stopDurationTimer() {
+  if (durationTimer) { clearInterval(durationTimer); durationTimer = null; }
+  document.getElementById('durationBadge').textContent = '00:00';
+}
+
+// ===================== TELEMETRY POLLING =====================
+function startTelemetryPolling() {
+  telemetryTimer = setInterval(async () => {
+    // WebRTC stats
+    if (pc) {
+      try {
+        const stats = await pc.getStats();
+        stats.forEach(report => {
+          if (report.type === 'outbound-rtp' && report.mediaType === 'video') {
+            const bps = report.bytesSent && report.timestamp ? (report.bytesSent * 8 / (report.timestamp / 1000)) : 0;
+            document.getElementById('bitrateVal').textContent = bps > 0 ? `${Math.round(bps / 1000)} kbps` : '-- kbps';
+            document.getElementById('fpsVal').textContent = report.framesPerSecond ? report.framesPerSecond.toFixed(1) : '--';
+          }
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            document.getElementById('rttVal').textContent = report.currentRoundTripTime ? `${Math.round(report.currentRoundTripTime * 1000)} ms` : '-- ms';
+          }
+        });
+      } catch {}
+    }
+  }, 2000);
+}
+
+function stopTelemetryPolling() {
+  if (telemetryTimer) { clearInterval(telemetryTimer); telemetryTimer = null; }
+}
+
+// ===================== BATTERY =====================
+async function startBatteryPolling() {
+  if ('getBattery' in navigator) {
+    try {
+      const battery = await navigator.getBattery();
+      const updateBattery = () => {
+        const pct = Math.round(battery.level * 100);
+        const chargingIcon = battery.charging ? '⚡' : '';
+        document.getElementById('batteryVal').textContent = `${pct}%${chargingIcon}`;
+      };
+      updateBattery();
+      battery.addEventListener('levelchange', updateBattery);
+      battery.addEventListener('chargingchange', updateBattery);
+    } catch {}
+  }
+}
+
+// ===================== STATUS HELPERS =====================
+function setStatus(label, color) {
+  document.getElementById('statusLabel').textContent = label;
+  document.getElementById('liveIndicator').style.background = color;
+  document.getElementById('liveIndicator').style.animation = label === 'LIVE' ? '' : 'none';
+}
+
+// ===================== AUTO-RESTORE FROM SESSIONSSTORAGE =====================
+(function restoreSession() {
+  const savedToken = sessionStorage.getItem('drishti_device_token');
+  const savedBackend = sessionStorage.getItem('drishti_backend_url');
+  const savedCam = sessionStorage.getItem('drishti_camera_id');
+
+  if (savedToken && savedBackend && savedCam) {
+    deviceToken = savedToken;
+    backendUrl = savedBackend;
+    cameraId = savedCam;
+    whipUrl = sessionStorage.getItem('drishti_whip_url') || '';
+    streamToken = sessionStorage.getItem('drishti_stream_token') || '';
+    streamKey = sessionStorage.getItem('drishti_stream_key') || '';
+    sessionId = sessionStorage.getItem('drishti_session_id') || '';
+    launchStreamScreen();
+  } else {
+    // Pre-fill backend URL from current page's origin if served from FastAPI
+    const currentOrigin = window.location.origin;
+    if (!currentOrigin.includes('localhost:5173')) {
+      document.getElementById('backendUrl').value = currentOrigin;
+    }
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# MediaMTX Configuration for DRISHTI Realtime WebRTC Streaming
+
+authMethod: http
+authHTTPAddress: http://localhost:8000/api/v1/stream/mediamtx-auth
+authHTTPExclude:
+  - action: api
+  - action: metrics
+
+# Enable WebRTC CORS & public STUN ICE servers for multi-device LAN access
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: no
+webrtcAllowOrigin: '*'
+webrtcLocalUDPAddress: :8189
+webrtcICEServers:
+  - url: stun:stun.l.google.com:19302
+  - url: stun:stun1.l.google.com:19302
+
+paths:
+  all:
+    source: publisher
