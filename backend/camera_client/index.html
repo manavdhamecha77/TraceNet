@@ -270,16 +270,22 @@ async function handleStartStream() {
     await waitForICEGathering(pc);
 
     const targetFps = parseInt(document.getElementById('fpsSlider').value) || 4;
-    let whipTarget = `${whipUrl}?token=${encodeURIComponent(streamToken)}&stream_key=${encodeURIComponent(streamKey)}`;
+    let whipTarget = whipUrl;
     try {
       const u = new URL(whipUrl);
+      if (!u.searchParams.has('token') && streamToken) {
+        u.searchParams.set('token', streamToken);
+      }
+      if (!u.searchParams.has('stream_key') && streamKey) {
+        u.searchParams.set('stream_key', streamKey);
+      }
       if (backendUrl) {
         const b = new URL(backendUrl);
         u.hostname = b.hostname;
       } else {
         u.hostname = window.location.hostname;
       }
-      whipTarget = `${u.href}?token=${encodeURIComponent(streamToken)}&stream_key=${encodeURIComponent(streamKey)}`;
+      whipTarget = u.href;
     } catch(e) {}
 
     const res = await fetch(whipTarget, {
