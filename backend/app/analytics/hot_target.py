@@ -45,12 +45,43 @@ class HotTargetManager:
 
         if origin_tracklet_id:
             trk = self.db.query(Tracklet).filter(Tracklet.id == origin_tracklet_id).first()
-            if trk and trk.qdrant_point_id:
-                retrieved_vec = self.vector_index.get_vector_by_point_id(trk.qdrant_point_id)
-                if retrieved_vec:
-                    target_vec = retrieved_vec
             if trk:
                 object_type = trk.object_type
+                if target_vec is None:
+                    import uuid
+                    point_id = trk.qdrant_point_id or str(uuid.uuid5(uuid.NAMESPACE_DNS, trk.id))
+                    retrieved_vec = self.vector_index.get_vector_by_point_id(point_id)
+                    if retrieved_vec is not None:
+                        target_vec = retrieved_vec
+
+                if target_vec is None and trk.video_id:
+                    try:
+                        from app.config import get_data_path
+                        import os
+                        emb_path = get_data_path(os.path.join("processed/detections", trk.video_id, "embeddings.json"))
+                        if os.path.exists(emb_path):
+                            with open(emb_path, "r", encoding="utf-8") as f:
+                                data = json.load(f)
+                                for item in data.get("tracklets", []):
+                                    if item.get("tracklet_id") == origin_tracklet_id and item.get("embedding"):
+                                        target_vec = item["embedding"]
+                                        break
+                    except Exception:
+                        pass
+
+                if target_vec is None:
+                    try:
+                        from app.config import get_data_path
+                        import os
+                        crop_rel = getattr(trk, 'best_crop_path', None)
+                        if crop_rel:
+                            crop_abs = get_data_path(crop_rel)
+                            if os.path.exists(crop_abs):
+                                from app.embeddings.clip_encoder import CLIPEncoder
+                                encoder = CLIPEncoder()
+                                target_vec = encoder.encode_image(crop_abs)
+                    except Exception:
+                        pass
 
         if target_vec is None:
             return {"status": "error", "message": "Could not resolve feature vector for target tagging."}
