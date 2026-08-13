@@ -42,7 +42,7 @@ export default function LiveCameraView() {
   const [alerts, setAlerts] = useState<any[]>([])
   
   // Customizable Chunk Duration & Pipeline Logs State
-  const [chunkDurationSec, setChunkDurationSec] = useState<number>(120) // default 2 mins (120s)
+  const [chunkDurationSec, setChunkDurationSec] = useState<number>(30) // default 30s for demo
   const [pipelineLogs, setPipelineLogs] = useState<any[]>([])
 
   // Pair Code State
@@ -72,6 +72,13 @@ export default function LiveCameraView() {
       })
       .catch(() => {})
 
+    const parseIsoUtc = (str?: string) => {
+      if (!str) return Date.now()
+      const s = str.endsWith('Z') || str.includes('+') ? str : str + 'Z'
+      const t = new Date(s).getTime()
+      return isNaN(t) ? Date.now() : t
+    }
+
     const pollStatus = () => {
       fetch(`${API_BASE}/api/v1/stream/status/${camera_id}`)
         .then(r => r.json())
@@ -80,11 +87,12 @@ export default function LiveCameraView() {
           const isLive = data.is_streaming === true || data.status === 'streaming'
           if (isLive && streamStartedAtRef.current === null) {
             streamStartedAtRef.current = data.started_at
-              ? new Date(data.started_at).getTime()
+              ? parseIsoUtc(data.started_at)
               : Date.now()
             if (durationTimerRef.current) clearInterval(durationTimerRef.current)
             durationTimerRef.current = setInterval(() => {
-              setDuration(Math.max(0, Math.floor((Date.now() - streamStartedAtRef.current!) / 1000)))
+              const elapsed = Math.max(0, Math.floor((Date.now() - streamStartedAtRef.current!) / 1000))
+              setDuration(elapsed)
             }, 1000)
           }
         })
@@ -386,8 +394,13 @@ export default function LiveCameraView() {
   }
 
   const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60)
-    const s = secs % 60
+    if (isNaN(secs) || secs < 0) return '0:00'
+    const h = Math.floor(secs / 3600)
+    const m = Math.floor((secs % 3600) / 60)
+    const s = Math.floor(secs % 60)
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+    }
     return `${m}:${s.toString().padStart(2, '0')}`
   }
 
@@ -656,13 +669,18 @@ export default function LiveCameraView() {
                 <span className="text-slate-500">Chunk Length</span>
                 <select
                   value={chunkDurationSec}
+                  disabled={videoPlaying || streamStatus?.is_streaming === true}
                   onChange={(e) => setChunkDurationSec(Number(e.target.value))}
-                  className="font-mono text-xs font-bold text-teal-600 dark:text-teal-400 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-1.5 py-0.5 focus:outline-none"
+                  title={videoPlaying || streamStatus?.is_streaming ? "Chunk length cannot be changed while live stream is active" : "Select chunk length for stream recording"}
+                  className="font-mono text-xs font-bold text-teal-600 dark:text-teal-400 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-1.5 py-0.5 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
+                  <option value={15}>15 sec (Test)</option>
+                  <option value={30}>30 sec (Demo Default)</option>
                   <option value={60}>1 min (60s)</option>
-                  <option value={120}>2 min (120s - Default)</option>
+                  <option value={120}>2 min (120s)</option>
                   <option value={300}>5 min (300s)</option>
-                  <option value={600}>10 min (600s)</option>
+                  <option value={900}>15 min (900s)</option>
+                  <option value={1800}>30 min (1800s)</option>
                 </select>
               </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1">
@@ -723,7 +741,7 @@ export default function LiveCameraView() {
               {pipelineLogs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 italic space-y-1">
                   <span className="text-[10px]">Waiting for video chunk pre-processing…</span>
-                  <span className="text-[9px] text-slate-500 font-sans">Chunk length set to {Math.floor(chunkDurationSec / 60)} min</span>
+                  <span className="text-[9px] text-slate-500 font-sans">Chunk length set to {chunkDurationSec < 60 ? `${chunkDurationSec}s` : `${Math.floor(chunkDurationSec / 60)} min`}</span>
                 </div>
               ) : (
                 pipelineLogs.map((log, idx) => (

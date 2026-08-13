@@ -53,51 +53,62 @@ class StreamChunker:
         os.makedirs(output_dir, exist_ok=True)
         output_pattern = os.path.join(output_dir, "chunk_%Y%m%d_%H%M%S.mp4")
 
-        # FFmpeg command optimized for RTSP/WebRTC H.264 video segmenting
+        ffmpeg_bin = VideoPreprocessor.get_ffmpeg_binary()
+        seg_time_sec = int(self.config.max_chunk_duration_sec or 30)
+
+        # FFmpeg command forcing keyframe placement at exact segment duration
         cmd = [
-            "ffmpeg",
+            ffmpeg_bin,
             "-y",
-            "-loglevel", "error",
+            "-loglevel", "warning",
             "-rtsp_transport", "tcp",
-            "-analyzeduration", "10000000",
-            "-probesize", "10000000",
+            "-analyzeduration", "5000000",
+            "-probesize", "5000000",
             "-i", self.rtsp_url,
-            "-map", "0:v:0",         # Map primary video track only
-            "-c:v", "copy",          # Zero-CPU video passthrough
+            "-map", "0:v:0",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-crf", "23",
+            "-g", str(seg_time_sec * 10),
+            "-force_key_frames", f"expr:gte(t,n_forced*{seg_time_sec})",
             "-f", "segment",
-            "-segment_time", str(self.config.max_chunk_duration_sec),
+            "-segment_time", str(seg_time_sec),
             "-segment_format", "mp4",
             "-reset_timestamps", "1",
             "-strftime", "1",
             output_pattern
         ]
 
-        logger.info(f"FFmpeg chunker thread initialized for {self.camera_id} (segment_time={self.config.max_chunk_duration_sec}s)")
+        logger.info(f"FFmpeg chunker initialized for {self.camera_id} using executable '{ffmpeg_bin}' (segment_time={seg_time_sec}s)")
 
         chunk_idx = 0
         while not self._stop_event.is_set():
             if self.manager:
                 status = self.manager.get_status(self.camera_id)
                 if not status or not status.get("is_streaming"):
-                    time.sleep(2.0)
+                    time.sleep(1.0)
                     continue
 
             try:
                 self.process = subprocess.Popen(
                     cmd, 
-                    stdout=subprocess.DEVNULL, 
-                    stderr=subprocess.DEVNULL
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    text=True
                 )
+                logger.info(f"FFmpeg chunker process spawned (PID {self.process.pid}) for {self.camera_id}")
                 
                 while not self._stop_event.is_set():
                     poll = self.process.poll()
                     if poll is not None:
+                        err_out = self.process.stderr.read() if self.process.stderr else ""
+                        logger.warning(f"FFmpeg chunker process exited with code {poll}. Stderr: {err_out[:300]}")
                         break
-                    time.sleep(1.0)
+                    time.sleep(0.5)
                     chunk_idx = self._sync_recorded_chunks(output_dir, chunk_idx)
 
             except Exception as e:
-                logger.error(f"FFmpeg chunker error for {self.camera_id}: {e}")
+                logger.error(f"FFmpeg chunker execution error for {self.camera_id}: {e}")
                 time.sleep(2.0)
 
     def _sync_recorded_chunks(self, output_dir, current_idx, force_flush=False):
