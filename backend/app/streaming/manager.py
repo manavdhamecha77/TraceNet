@@ -11,6 +11,26 @@ from app.streaming.config import StreamConfig
 class StreamManager:
     _active_streams = {}
 
+    # Pending WS clients that connected before the stream was registered in
+    # _active_streams. Drained into the real ws_clients set when start_inference
+    # is called for the same camera_id.
+    _pending_ws_clients: dict = {}
+
+    # The uvicorn event loop, captured the first time a WS client connects.
+    # We must use this specific loop for asyncio.run_coroutine_threadsafe calls
+    # from the background inference thread — creating a new loop per frame
+    # (the old fallback) breaks all WebSocket send operations.
+    _event_loop: asyncio.AbstractEventLoop | None = None
+
+    def _capture_loop(self):
+        """Call from an async context to lock in the running event loop."""
+        try:
+            loop = asyncio.get_running_loop()
+            if self._event_loop is None or not self._event_loop.is_running():
+                self.__class__._event_loop = loop
+        except RuntimeError:
+            pass
+
     def generate_stream_token(self, camera_id, db, config: StreamConfig = None):
         if not config:
             config = StreamConfig()
@@ -80,13 +100,15 @@ class StreamManager:
         worker = InferenceWorker(camera_id, session_id, rtsp_url, config, self)
         chunker = StreamChunker(camera_id, session_id, rtsp_url, config, self)
         
+        # Drain any WS clients that connected before the stream was ready
+        pending = self.__class__._pending_ws_clients.pop(camera_id, set())
+        
         self._active_streams[camera_id] = {
             "worker_thread": worker,
             "chunker_process": chunker,
             "session_id": session_id,
-            "ws_clients": set(),
+            "ws_clients": pending,   # pre-seed with clients that arrived early
             "config": config,
-            "loop": None
         }
         
         cam.is_streaming = True
@@ -147,44 +169,56 @@ class StreamManager:
             }
         return {"status": "stopped", "is_streaming": False}
 
-    def register_ws_client(self, camera_id, websocket):
+    def register_ws_client(self, camera_id: str, websocket):
+        """Register a WebSocket viewer for telemetry pushes.
+
+        Called from the FastAPI async context — safe to capture the event loop here.
+        If the stream isn't running yet (page loaded before the inference session
+        started), we queue the client and drain the queue in start_inference().
+        """
+        self._capture_loop()
+
         if camera_id in self._active_streams:
             self._active_streams[camera_id]["ws_clients"].add(websocket)
-            try:
-                self._active_streams[camera_id]["loop"] = asyncio.get_running_loop()
-            except RuntimeError:
-                pass
+            logger.debug(f"[WS] Registered client for active stream '{camera_id}'")
+        else:
+            # Stream not yet started — queue until start_inference runs
+            if camera_id not in self.__class__._pending_ws_clients:
+                self.__class__._pending_ws_clients[camera_id] = set()
+            self.__class__._pending_ws_clients[camera_id].add(websocket)
+            logger.info(f"[WS] Queued client for camera '{camera_id}' (stream not yet active)")
             
     def unregister_ws_client(self, camera_id, websocket):
         if camera_id in self._active_streams:
-            if websocket in self._active_streams[camera_id]["ws_clients"]:
-                self._active_streams[camera_id]["ws_clients"].remove(websocket)
+            self._active_streams[camera_id]["ws_clients"].discard(websocket)
+        # Also remove from pending queue if the WS closed before stream started
+        if camera_id in self.__class__._pending_ws_clients:
+            self.__class__._pending_ws_clients[camera_id].discard(websocket)
                 
     def broadcast_to_clients(self, camera_id, message_dict):
-        if camera_id in self._active_streams:
-            clients = self._active_streams[camera_id]["ws_clients"].copy()
-            if not clients:
-                return
+        """Called from the background inference thread. Uses the stored uvicorn
+        event loop — never creates a new one, which would break WebSocket sends."""
+        if camera_id not in self._active_streams:
+            return
+
+        clients = self._active_streams[camera_id]["ws_clients"].copy()
+        if not clients:
+            return
             
-            async def _send():
-                dead_clients = set()
-                for client in clients:
-                    try:
-                        await client.send_json(message_dict)
-                    except Exception:
-                        dead_clients.add(client)
-                if dead_clients and camera_id in self._active_streams:
-                    self._active_streams[camera_id]["ws_clients"] -= dead_clients
-                        
-            loop = self._active_streams[camera_id].get("loop")
-            if loop and loop.is_running():
-                asyncio.run_coroutine_threadsafe(_send(), loop)
-            else:
+        loop = self.__class__._event_loop
+        if loop is None or not loop.is_running():
+            # Loop not captured yet — broadcast cannot proceed this frame.
+            # It will succeed once the first WS client connects and sets the loop.
+            return
+
+        async def _send():
+            dead_clients = set()
+            for client in clients:
                 try:
-                    current_loop = asyncio.get_event_loop()
-                    if current_loop.is_running():
-                        asyncio.run_coroutine_threadsafe(_send(), current_loop)
-                    else:
-                        asyncio.run(_send())
-                except RuntimeError:
-                    asyncio.run(_send())
+                    await client.send_json(message_dict)
+                except Exception:
+                    dead_clients.add(client)
+            if dead_clients and camera_id in self._active_streams:
+                self._active_streams[camera_id]["ws_clients"] -= dead_clients
+
+        asyncio.run_coroutine_threadsafe(_send(), loop)

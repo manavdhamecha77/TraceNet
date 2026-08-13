@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Square, Activity, AlertTriangle, Info } from 'lucide-react'
-import ReactECharts from 'echarts-for-react'
 
 import { API_BASE } from '../config/api'
 import { formatDisplayDate } from '../utils/dateFormatter'
@@ -51,6 +50,7 @@ export default function LiveCameraView() {
   const durationTimerRef = useRef<any>(null)
   const statusPollRef = useRef<any>(null)
   const streamStartedAtRef = useRef<number | null>(null)
+  const isMounted = useRef(true)
 
   useEffect(() => {
     fetch(`${API_BASE}/api/v1/cameras`)
@@ -92,7 +92,7 @@ export default function LiveCameraView() {
   useEffect(() => {
     if (camera?.camera_id) {
       initWhep(camera.camera_id)
-      initWebSocket()
+      initWebSocket(camera.camera_id)
     }
   }, [camera])
 
@@ -127,6 +127,7 @@ export default function LiveCameraView() {
   }, [])
 
   const cleanup = () => {
+    isMounted.current = false
     if (pcRef.current) {
       pcRef.current.close()
       pcRef.current = null
@@ -185,13 +186,13 @@ export default function LiveCameraView() {
     }
   }
 
-  const initWebSocket = () => {
-    const url = `${WS_BASE}/ws/stream/${camera_id}`
+  const initWebSocket = (camId: string) => {
+    const url = `${WS_BASE}/ws/stream/${camId}`
     console.log('[WebSocket] Connecting to:', url)
     const ws = new WebSocket(url)
     wsRef.current = ws
     
-    ws.onopen = () => console.log('[WebSocket] Connected cleanly to backend telemetry endpoint')
+    ws.onopen = () => console.log('[WebSocket] Connected for', camId)
     ws.onerror = (err) => console.error('[WebSocket] Error:', err)
     
     ws.onmessage = (e) => {
@@ -219,11 +220,13 @@ export default function LiveCameraView() {
     }
     
     ws.onclose = () => {
+      // Only reconnect if this WS is still the current one (not superseded by
+      // a newer call to initWebSocket) and the component hasn't unmounted.
       setTimeout(() => {
-        if (wsRef.current === ws) {
-          initWebSocket()
+        if (isMounted.current && wsRef.current === ws) {
+          initWebSocket(camId)
         }
-      }, 3000)
+      }, 2000)
     }
     
     startRenderLoop()
@@ -326,26 +329,38 @@ export default function LiveCameraView() {
     return `${m}:${s.toString().padStart(2, '0')}`
   }
 
-  const createSparklineOption = (data: number[], color: string, _title?: string) => ({
-    grid: { left: 0, right: 0, top: 0, bottom: 0 },
-    xAxis: { type: 'category', show: false },
-    yAxis: { type: 'value', show: false, scale: true },
-    series: [{
-      data: data,
-      type: 'line',
-      smooth: true,
-      symbol: 'none',
-      lineStyle: { color, width: 2 },
-      areaStyle: {
-        color: {
-          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [{ offset: 0, color }, { offset: 1, color: 'transparent' }]
-        },
-        opacity: 0.3
-      }
-    }],
-    tooltip: { show: false }
-  })
+  // Pure SVG sparkline — renders reliably at any height with no init overhead
+  const Sparkline = ({ data, color }: { data: number[], color: string }) => {
+    if (data.length < 2) {
+      return <svg width="100%" height="100%" style={{ display: 'block' }}>
+        <line x1="0" y1="50%" x2="100%" y2="50%" stroke={color} strokeWidth="1.5" strokeOpacity="0.3" />
+      </svg>
+    }
+    const W = 200, H = 32
+    const min = Math.min(...data)
+    const max = Math.max(...data)
+    const range = max - min || 1
+    const pts = data.map((v, i) => {
+      const x = (i / (data.length - 1)) * W
+      const y = H - ((v - min) / range) * (H - 4) - 2
+      return `${x},${y}`
+    })
+    const polyline = pts.join(' ')
+    // Area fill polygon: close path along bottom
+    const area = `${pts[0].split(',')[0]},${H} ` + polyline + ` ${pts[pts.length-1].split(',')[0]},${H}`
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="none" style={{ display: 'block' }}>
+        <defs>
+          <linearGradient id={`sg-${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={area} fill={`url(#sg-${color.replace('#','')})`} />
+        <polyline points={polyline} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    )
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-60px)] animate-in fade-in">
@@ -438,8 +453,8 @@ export default function LiveCameraView() {
               <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
                 {latestDetections?.inference_ms ? latestDetections.inference_ms.toFixed(1) : 0}ms
               </div>
-              <div className="h-6 mt-1">
-                <ReactECharts option={createSparklineOption(telemetryHistory.inference, '#0f766e', '')} style={{ height: '100%', width: '100%' }} />
+              <div className="h-8 mt-1">
+                <Sparkline data={telemetryHistory.inference} color="#0f766e" />
               </div>
             </div>
             <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-md p-2">
@@ -447,8 +462,8 @@ export default function LiveCameraView() {
               <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
                 {latestDetections?.fps ? latestDetections.fps.toFixed(1) : 0}
               </div>
-              <div className="h-6 mt-1">
-                <ReactECharts option={createSparklineOption(telemetryHistory.fps, '#3b82f6', '')} style={{ height: '100%', width: '100%' }} />
+              <div className="h-8 mt-1">
+                <Sparkline data={telemetryHistory.fps} color="#3b82f6" />
               </div>
             </div>
             <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-md p-2">
@@ -456,8 +471,8 @@ export default function LiveCameraView() {
               <div className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
                 {latestDetections?.e2e_latency_ms ? latestDetections.e2e_latency_ms.toFixed(1) : 0}ms
               </div>
-              <div className="h-6 mt-1">
-                <ReactECharts option={createSparklineOption(telemetryHistory.latency, '#f59e0b', '')} style={{ height: '100%', width: '100%' }} />
+              <div className="h-8 mt-1">
+                <Sparkline data={telemetryHistory.latency} color="#f59e0b" />
               </div>
             </div>
           </div>
