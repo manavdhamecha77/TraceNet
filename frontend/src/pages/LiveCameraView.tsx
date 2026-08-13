@@ -28,6 +28,10 @@ export default function LiveCameraView() {
   const [streamStatus, setStreamStatus] = useState<any>(null)
   const [viewTab, setViewTab] = useState<'annotated' | 'raw'>('annotated')
   const [duration, setDuration] = useState(0)
+  // Tracks whether the <video> element is actually producing frames.
+  // We gate the "Stream Offline" overlay on this independently of the API
+  // so a transient/stale backend status doesn't cause a false offline flash.
+  const [videoPlaying, setVideoPlaying] = useState(false)
   
   const [latestDetections, setLatestDetections] = useState<any>(null)
   const [telemetryHistory, setTelemetryHistory] = useState({
@@ -45,6 +49,8 @@ export default function LiveCameraView() {
   const latestDetectionsRef = useRef<any>(null)
   const rafRef = useRef<number>(0)
   const durationTimerRef = useRef<any>(null)
+  const statusPollRef = useRef<any>(null)
+  const streamStartedAtRef = useRef<number | null>(null)
 
   useEffect(() => {
     fetch(`${API_BASE}/api/v1/cameras`)
@@ -53,21 +59,32 @@ export default function LiveCameraView() {
         const cam = data.find((c: any) => c.camera_id === camera_id)
         if (cam) setCamera(cam)
       })
-      
-    fetch(`${API_BASE}/api/v1/stream/status/${camera_id}`)
-      .then(r => r.json())
-      .then(data => {
-        setStreamStatus(data)
-        if (data.is_streaming || data.status === 'streaming') {
-          const startedAt = data.started_at ? new Date(data.started_at).getTime() : Date.now()
-          if (durationTimerRef.current) clearInterval(durationTimerRef.current)
-          durationTimerRef.current = setInterval(() => {
-            setDuration(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)))
-          }, 1000)
-        }
-      })
+      .catch(() => {})
+
+    const pollStatus = () => {
+      fetch(`${API_BASE}/api/v1/stream/status/${camera_id}`)
+        .then(r => r.json())
+        .then(data => {
+          setStreamStatus(data)
+          const isLive = data.is_streaming === true || data.status === 'streaming'
+          if (isLive && streamStartedAtRef.current === null) {
+            streamStartedAtRef.current = data.started_at
+              ? new Date(data.started_at).getTime()
+              : Date.now()
+            if (durationTimerRef.current) clearInterval(durationTimerRef.current)
+            durationTimerRef.current = setInterval(() => {
+              setDuration(Math.max(0, Math.floor((Date.now() - streamStartedAtRef.current!) / 1000)))
+            }, 1000)
+          }
+        })
+        .catch(() => {})
+    }
+
+    pollStatus()
+    statusPollRef.current = setInterval(pollStatus, 5000)
 
     return () => {
+      if (statusPollRef.current) clearInterval(statusPollRef.current)
       cleanup()
     }
   }, [camera_id])
@@ -78,6 +95,36 @@ export default function LiveCameraView() {
       initWebSocket()
     }
   }, [camera])
+
+  // Video element event listeners — track real playback state
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const onPlaying = () => {
+      setVideoPlaying(true)
+      // Fallback: start duration timer if the status poll hasn't kicked it off yet
+      if (streamStartedAtRef.current === null) {
+        streamStartedAtRef.current = Date.now()
+        if (durationTimerRef.current) clearInterval(durationTimerRef.current)
+        durationTimerRef.current = setInterval(() => {
+          setDuration(Math.max(0, Math.floor((Date.now() - streamStartedAtRef.current!) / 1000)))
+        }, 1000)
+      }
+    }
+    const onWaiting = () => setVideoPlaying(false)
+    const onStalled = () => setVideoPlaying(false)
+    const onEnded  = () => setVideoPlaying(false)
+    video.addEventListener('playing', onPlaying)
+    video.addEventListener('waiting', onWaiting)
+    video.addEventListener('stalled', onStalled)
+    video.addEventListener('ended',   onEnded)
+    return () => {
+      video.removeEventListener('playing', onPlaying)
+      video.removeEventListener('waiting', onWaiting)
+      video.removeEventListener('stalled', onStalled)
+      video.removeEventListener('ended',   onEnded)
+    }
+  }, [])
 
   const cleanup = () => {
     if (pcRef.current) {
@@ -91,6 +138,7 @@ export default function LiveCameraView() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     if (durationTimerRef.current) clearInterval(durationTimerRef.current)
     if (videoRef.current) videoRef.current.srcObject = null
+    streamStartedAtRef.current = null
   }
 
   const initWhep = async (streamKey: string) => {
@@ -107,6 +155,14 @@ export default function LiveCameraView() {
       pc.ontrack = (e) => {
         if (videoRef.current) {
           videoRef.current.srcObject = e.streams[0]
+          // Force play — some browsers suppress autoPlay on programmatic MediaStream assignment
+          videoRef.current.play().catch(() => {})
+        }
+      }
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          setVideoPlaying(false)
         }
       }
       
@@ -356,10 +412,17 @@ export default function LiveCameraView() {
                 className="absolute inset-0 w-full h-full pointer-events-none"
               />
             )}
-            {streamStatus?.is_streaming === false && (
+            {/* Only show the Offline overlay when:
+                1. We have a confirmed API response (streamStatus !== null)
+                2. The backend says the stream is stopped
+                3. The <video> element itself isn't producing any frames
+                This prevents false flashes when the status fetch races with MediaMTX
+                or when the backend in-memory dict is reset while the camera keeps streaming. */}
+            {streamStatus !== null && streamStatus.is_streaming === false && !videoPlaying && (
               <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-10">
                 <AlertTriangle className="w-8 h-8 text-amber-500 mb-2" />
                 <div className="font-bold">Stream Offline</div>
+                <div className="text-xs text-slate-400 mt-1">Retrying every 5s…</div>
               </div>
             )}
           </div>
