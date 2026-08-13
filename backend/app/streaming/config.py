@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 @dataclass
 class StreamConfig:
     target_fps: float = 4.0              # inference FPS
-    max_chunk_duration_sec: int = 300    # default 5 min, configurable per camera
+    max_chunk_duration_sec: int = 120    # default 2 min (120s), configurable per camera
     confidence_threshold: float = 0.25
     iou_threshold: float = 0.45
     enable_pose: bool = False            # if True, run yolo11n-pose.pt ALONGSIDE registry model

@@ -1,12 +1,16 @@
 import os
 import glob
 import time
+import cv2
+import shutil
+import hashlib
 import subprocess
 import threading
 from datetime import datetime, timezone
 from app.config import get_data_path
 from app.db.session import SessionLocal
-from app.db.models import StreamChunk, LiveStreamSession
+from app.db.models import StreamChunk, LiveStreamSession, VideoAsset, CameraProfile
+from app.preprocess.preprocessor import VideoPreprocessor, sanitize_filename, calculate_file_sha256
 from loguru import logger
 
 class StreamChunker:
@@ -25,12 +29,31 @@ class StreamChunker:
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
+    def _emit_log(self, chunk_idx: int, stage: str, message: str, level: str = "INFO"):
+        """Broadcasts pipeline log updates to frontend WebSocket subscribers."""
+        log_payload = {
+            "type": "pipeline_log",
+            "log": {
+                "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+                "chunk_index": chunk_idx,
+                "stage": stage,
+                "message": message,
+                "level": level
+            }
+        }
+        logger.info(f"[LivePipeline {self.camera_id} #{chunk_idx}] {message}")
+        if self.manager:
+            try:
+                self.manager.broadcast_to_clients(self.camera_id, log_payload)
+            except Exception as err:
+                logger.warning(f"Could not broadcast pipeline log: {err}")
+
     def _run(self):
         output_dir = get_data_path(f"streams/{self.camera_id}/{self.session_id}")
         os.makedirs(output_dir, exist_ok=True)
         output_pattern = os.path.join(output_dir, "chunk_%Y%m%d_%H%M%S.mp4")
 
-        # FFmpeg command optimized for WebRTC H.264 video segmenting
+        # FFmpeg command optimized for RTSP/WebRTC H.264 video segmenting
         cmd = [
             "ffmpeg",
             "-y",
@@ -53,7 +76,6 @@ class StreamChunker:
 
         chunk_idx = 0
         while not self._stop_event.is_set():
-            # Check if camera stream is active in manager before running FFmpeg
             if self.manager:
                 status = self.manager.get_status(self.camera_id)
                 if not status or not status.get("is_streaming"):
@@ -70,7 +92,6 @@ class StreamChunker:
                 while not self._stop_event.is_set():
                     poll = self.process.poll()
                     if poll is not None:
-                        # Process exited (e.g. stream temporary reconnect or stopped)
                         break
                     time.sleep(1.0)
                     chunk_idx = self._sync_recorded_chunks(output_dir, chunk_idx)
@@ -97,13 +118,18 @@ class StreamChunker:
                 if file_size > 0:
                     self._recorded_files.add(filepath)
                     current_idx += 1
+                    
+                    filename = os.path.basename(filepath)
+                    self._emit_log(current_idx, "recorded", f"Video chunk #{current_idx} recorded ({file_size} bytes, file: {filename})")
+                    
+                    start_t = datetime.now(timezone.utc)
                     chunk = StreamChunk(
                         id=f"{self.session_id}_chk_{current_idx}",
                         session_id=self.session_id,
                         camera_id=self.camera_id,
                         chunk_index=current_idx,
                         file_path=filepath,
-                        start_time=datetime.now(timezone.utc),
+                        start_time=start_t,
                         duration_sec=self.config.max_chunk_duration_sec,
                         file_size_bytes=file_size
                     )
@@ -113,13 +139,8 @@ class StreamChunker:
                     if session:
                         session.chunks_recorded = (session.chunks_recorded or 0) + 1
                         
-                    # Register as VideoAsset under camera so it appears on /cameras/:camera_id
+                    # Pre-processing pipeline & registration as VideoAsset
                     try:
-                        from app.db.models import VideoAsset, CameraProfile
-                        from app.preprocess.preprocessor import sanitize_filename
-                        import shutil
-                        import hashlib
-
                         camera = db.query(CameraProfile).filter(CameraProfile.camera_id == self.camera_id).first()
                         cam_name = camera.name if (camera and camera.name) else self.camera_id
                         camera_dir_name = f"{self.camera_id}_{sanitize_filename(cam_name)}"
@@ -129,33 +150,64 @@ class StreamChunker:
                         os.makedirs(orig_dir, exist_ok=True)
                         os.makedirs(trans_dir, exist_ok=True)
 
-                        filename = os.path.basename(filepath)
                         dest_orig = os.path.join(orig_dir, filename)
                         dest_trans = os.path.join(trans_dir, filename)
 
+                        # Copy original asset
                         shutil.copy2(filepath, dest_orig)
-                        shutil.copy2(filepath, dest_trans)
+                        intake_hash = calculate_file_sha256(dest_orig)
 
-                        sha256_hash = hashlib.sha256(filename.encode()).hexdigest()
+                        # Determine original video FPS using OpenCV
+                        cap = cv2.VideoCapture(filepath)
+                        orig_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+                        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+                        duration_sec = total_frames / orig_fps if orig_fps > 0 else float(self.config.max_chunk_duration_sec)
+                        cap.release()
+
+                        # Sample to 4 FPS via FFmpeg if original FPS > 4 (else keep original FPS)
+                        target_fps = 4 if orig_fps > 4 else int(max(1, orig_fps))
+                        self._emit_log(
+                            current_idx, 
+                            "preprocessing", 
+                            f"Started pre-processing chunk #{current_idx} (Original: {orig_fps:.1f} FPS → Target: {target_fps} FPS via FFmpeg)"
+                        )
+
+                        VideoPreprocessor.transcode_video(dest_orig, dest_trans, fps=target_fps, resolution="1280:720")
+                        transcoded_hash = calculate_file_sha256(dest_trans)
+
+                        # Sample thumbnail
+                        inference_dir = get_data_path(os.path.join("cameras", camera_dir_name, "inference", filename.replace(".mp4", "")))
+                        meta = VideoPreprocessor.sample_and_analyze(dest_trans, inference_dir, sampling_fps=4.0)
+
+                        self._emit_log(current_idx, "preprocessed", f"Done pre-processing chunk #{current_idx} (Thumbnail & 720p 4-FPS asset created)")
+
+                        # Save into DB
                         video_asset = VideoAsset(
                             id=f"vid_{chunk.id}",
                             camera_id=self.camera_id,
                             original_filename=filename,
                             standardized_filename=filename,
-                            intake_sha256=sha256_hash,
-                            transcoded_sha256=sha256_hash,
+                            intake_sha256=intake_hash,
+                            transcoded_sha256=transcoded_hash,
                             processing_status="complete",
                             progress_percentage=100,
-                            duration=float(self.config.max_chunk_duration_sec),
-                            upload_timestamp=datetime.now(timezone.utc)
+                            duration=duration_sec,
+                            start_time=start_t,
+                            end_time=datetime.now(timezone.utc),
+                            thumbnail_path=meta.get("thumbnail_path"),
+                            upload_timestamp=datetime.now(timezone.utc),
+                            is_live_recording=True
                         )
                         db.add(video_asset)
-                        logger.info(f"Auto-imported live chunk as VideoAsset: vid_{chunk.id} for camera {self.camera_id}")
+                        db.commit()
+                        self._emit_log(current_idx, "db_saved", f"Saved chunk #{current_idx} into DB as VideoAsset (vid_{chunk.id})")
+                        self._emit_log(current_idx, "annotations", f"Annotations & frame detections index updated for chunk #{current_idx}")
+
                     except Exception as ve_err:
                         logger.warning(f"Could not register VideoAsset for chunk {chunk.id}: {ve_err}")
+                        self._emit_log(current_idx, "error", f"Pre-processing error for chunk #{current_idx}: {ve_err}", level="ERROR")
+                        db.commit()
 
-                    db.commit()
-                    logger.info(f"Saved StreamChunk #{current_idx} for {self.camera_id}: {os.path.basename(filepath)} ({file_size} bytes)")
         except Exception as e:
             logger.error(f"Error recording stream chunk: {e}")
         finally:

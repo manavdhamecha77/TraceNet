@@ -109,6 +109,16 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'stream_started_at' column to cameras.")
 
+            # Check if videos table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(videos)")
+                v_cols = [c[1] for c in cursor.fetchall()]
+                if "is_live_recording" not in v_cols:
+                    cursor.execute("ALTER TABLE videos ADD COLUMN is_live_recording BOOLEAN DEFAULT 0")
+                    conn.commit()
+                    print("Schema Migration: Added 'is_live_recording' column to videos.")
+
             # Check if models table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='models'")
             if cursor.fetchone():

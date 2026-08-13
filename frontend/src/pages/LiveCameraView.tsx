@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Square, Activity, AlertTriangle, Info, QrCode, Copy, Check, RefreshCw, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Square, Activity, Info, QrCode, Copy, Check, RefreshCw, ExternalLink, Film } from 'lucide-react'
 
 import { API_BASE } from '../config/api'
 import { formatDisplayDate } from '../utils/dateFormatter'
@@ -41,6 +41,10 @@ export default function LiveCameraView() {
   
   const [alerts, setAlerts] = useState<any[]>([])
   
+  // Customizable Chunk Duration & Pipeline Logs State
+  const [chunkDurationSec, setChunkDurationSec] = useState<number>(120) // default 2 mins (120s)
+  const [pipelineLogs, setPipelineLogs] = useState<any[]>([])
+
   // Pair Code State
   const [pairCode, setPairCode] = useState<string | null>(null)
   const [pairLoading, setPairLoading] = useState(false)
@@ -162,7 +166,12 @@ export default function LiveCameraView() {
       const res = await fetch(`${API_BASE}/api/v1/stream/pair/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ camera_id })
+        body: JSON.stringify({
+          camera_id,
+          config: {
+            max_chunk_duration_sec: chunkDurationSec
+          }
+        })
       })
       if (!res.ok) throw new Error('Failed to generate pair code')
       const data = await res.json()
@@ -245,6 +254,12 @@ export default function LiveCameraView() {
     ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
+
+        if (data.type === 'pipeline_log' && data.log) {
+          setPipelineLogs(prev => [data.log, ...prev].slice(0, 50))
+          return
+        }
+
         latestDetectionsRef.current = data
         setLatestDetections(data)
         
@@ -637,6 +652,19 @@ export default function LiveCameraView() {
                 <span className="text-slate-500">Pose Estimation</span>
                 <span className="font-bold text-teal-600 dark:text-teal-400">ON</span>
               </div>
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1 items-center">
+                <span className="text-slate-500">Chunk Length</span>
+                <select
+                  value={chunkDurationSec}
+                  onChange={(e) => setChunkDurationSec(Number(e.target.value))}
+                  className="font-mono text-xs font-bold text-teal-600 dark:text-teal-400 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded px-1.5 py-0.5 focus:outline-none"
+                >
+                  <option value={60}>1 min (60s)</option>
+                  <option value={120}>2 min (120s - Default)</option>
+                  <option value={300}>5 min (300s)</option>
+                  <option value={600}>10 min (600s)</option>
+                </select>
+              </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1">
                 <span className="text-slate-500">Chunks Recorded</span>
                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{streamStatus?.telemetry?.frame_count ? Math.floor(streamStatus.telemetry.frame_count/300) : 0}</span>
@@ -677,6 +705,42 @@ export default function LiveCameraView() {
                 <div className="text-[9px] text-slate-400 mt-1 text-right font-mono">
                   Expires in {Math.floor(pairSecondsLeft / 60)}m {pairSecondsLeft % 60}s
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recording Pipeline Logs Panel */}
+          <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-md flex flex-col h-44 shrink-0 overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900 shrink-0">
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Film className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" /> Live Pipeline Logs
+              </span>
+              <span className="text-[9px] font-mono bg-teal-500/10 text-teal-700 dark:text-teal-400 px-1.5 py-0.5 rounded border border-teal-500/20 font-bold">
+                {pipelineLogs.length} events
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1.5 text-[11px] font-mono">
+              {pipelineLogs.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 italic space-y-1">
+                  <span className="text-[10px]">Waiting for video chunk pre-processing…</span>
+                  <span className="text-[9px] text-slate-500 font-sans">Chunk length set to {Math.floor(chunkDurationSec / 60)} min</span>
+                </div>
+              ) : (
+                pipelineLogs.map((log, idx) => (
+                  <div key={idx} className="p-1.5 rounded bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-start gap-2">
+                    <span className="text-[9px] text-slate-400 shrink-0 mt-0.5">{log.timestamp}</span>
+                    <span className={`text-[9px] font-bold px-1 rounded uppercase shrink-0 ${
+                      log.stage === 'recorded' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                      log.stage === 'preprocessing' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 animate-pulse' :
+                      log.stage === 'preprocessed' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400' :
+                      log.stage === 'db_saved' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+                      'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                    }`}>
+                      {log.stage}
+                    </span>
+                    <span className="text-slate-700 dark:text-slate-300 flex-1 leading-snug">{log.message}</span>
+                  </div>
+                ))
               )}
             </div>
           </div>

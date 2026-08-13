@@ -109,6 +109,7 @@ class VideoAsset(Base):
     progress_percentage = Column(Integer, default=0)
     
     is_bin = Column(Boolean, default=False)
+    is_live_recording = Column(Boolean, default=False)
     
     # Metadata and properties
     duration = Column(Float, nullable=True)  # In seconds
@@ -135,7 +136,8 @@ class VideoAsset(Base):
             "start_time": self.start_time.isoformat() if self.start_time else None,
             "end_time": self.end_time.isoformat() if self.end_time else None,
             "thumbnail_path": self.thumbnail_path,
-            "is_bin": self.is_bin
+            "is_bin": self.is_bin,
+            "is_live_recording": bool(self.is_live_recording)
         }
 
 
