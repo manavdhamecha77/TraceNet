@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Square, Activity, AlertTriangle, Info } from 'lucide-react'
+import { ArrowLeft, Square, Activity, AlertTriangle, Info, QrCode, Copy, Check, RefreshCw, ExternalLink } from 'lucide-react'
 
 import { API_BASE } from '../config/api'
 import { formatDisplayDate } from '../utils/dateFormatter'
@@ -40,6 +40,13 @@ export default function LiveCameraView() {
   })
   
   const [alerts, setAlerts] = useState<any[]>([])
+  
+  // Pair Code State
+  const [pairCode, setPairCode] = useState<string | null>(null)
+  const [pairLoading, setPairLoading] = useState(false)
+  const [pairSecondsLeft, setPairSecondsLeft] = useState(0)
+  const [copiedCode, setCopiedCode] = useState(false)
+  const pairCountdownRef = useRef<any>(null)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -83,8 +90,12 @@ export default function LiveCameraView() {
     pollStatus()
     statusPollRef.current = setInterval(pollStatus, 5000)
 
+    // Generate initial pair code for camera
+    generatePairCode()
+
     return () => {
       if (statusPollRef.current) clearInterval(statusPollRef.current)
+      if (pairCountdownRef.current) clearInterval(pairCountdownRef.current)
       cleanup()
     }
   }, [camera_id])
@@ -138,8 +149,44 @@ export default function LiveCameraView() {
     }
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     if (durationTimerRef.current) clearInterval(durationTimerRef.current)
+    if (pairCountdownRef.current) clearInterval(pairCountdownRef.current)
     if (videoRef.current) videoRef.current.srcObject = null
     streamStartedAtRef.current = null
+  }
+
+  const generatePairCode = async () => {
+    if (!camera_id) return
+    setPairLoading(true)
+    if (pairCountdownRef.current) clearInterval(pairCountdownRef.current)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/stream/pair/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ camera_id })
+      })
+      if (!res.ok) throw new Error('Failed to generate pair code')
+      const data = await res.json()
+      setPairCode(data.code)
+      const expiresAt = new Date(data.expires_at)
+      const calcSecs = () => Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+      setPairSecondsLeft(calcSecs())
+      pairCountdownRef.current = setInterval(() => {
+        const s = calcSecs()
+        setPairSecondsLeft(s)
+        if (s <= 0) clearInterval(pairCountdownRef.current)
+      }, 1000)
+    } catch (err) {
+      console.error('Failed to generate pair code:', err)
+    } finally {
+      setPairLoading(false)
+    }
+  }
+
+  const copyPairCode = () => {
+    if (!pairCode) return
+    navigator.clipboard.writeText(pairCode)
+    setCopiedCode(true)
+    setTimeout(() => setCopiedCode(false), 2000)
   }
 
   const initWhep = async (streamKey: string) => {
@@ -385,12 +432,36 @@ export default function LiveCameraView() {
             </span>
           </div>
         </div>
-        <button 
-          onClick={handleDisconnect}
-          className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm"
-        >
-          <Square className="w-3.5 h-3.5 fill-current" /> Disconnect Stream
-        </button>
+
+        {/* Pairing Code Quick Badge */}
+        <div className="flex items-center gap-2 bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800/60 px-3 py-1 rounded-md">
+          <QrCode className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+          <div className="flex flex-col">
+            <span className="text-[9px] font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider">Pair Code</span>
+            <span className="font-mono text-xs font-black text-slate-900 dark:text-slate-100">{pairCode || '---'}</span>
+          </div>
+          <button
+            onClick={copyPairCode}
+            className="p-1 text-slate-500 hover:text-teal-600 dark:hover:text-teal-300 transition-colors ml-1"
+            title="Copy Pair Code"
+          >
+            {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            onClick={generatePairCode}
+            disabled={pairLoading}
+            className="p-1 text-slate-500 hover:text-teal-600 dark:hover:text-teal-300 transition-colors"
+            title="Generate New Pair Code"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${pairLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button 
+            onClick={handleDisconnect}
+            className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm ml-2"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" /> Disconnect
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -434,10 +505,54 @@ export default function LiveCameraView() {
                 This prevents false flashes when the status fetch races with MediaMTX
                 or when the backend in-memory dict is reset while the camera keeps streaming. */}
             {streamStatus !== null && streamStatus.is_streaming === false && !videoPlaying && (
-              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-10">
-                <AlertTriangle className="w-8 h-8 text-amber-500 mb-2" />
-                <div className="font-bold">Stream Offline</div>
-                <div className="text-xs text-slate-400 mt-1">Retrying every 5s…</div>
+              <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-white z-10 p-6">
+                <div className="bg-slate-900/90 border border-slate-700 p-6 rounded-xl text-center max-w-md shadow-2xl flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center mb-3 border border-teal-500/30">
+                    <QrCode className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-bold text-lg text-white">Stream Offline</h3>
+                  <p className="text-xs text-slate-400 mt-1 mb-4 leading-relaxed">
+                    Connect your mobile or edge camera at <a href="http://localhost:8000/camera-app" target="_blank" rel="noreferrer" className="text-teal-400 underline font-mono">localhost:8000/camera-app</a> using this active pair code:
+                  </p>
+                  
+                  <div className="flex items-center gap-3 bg-slate-950 px-5 py-3 rounded-lg border border-teal-500/40 mb-4 shadow-inner">
+                    <span className="font-mono text-2xl tracking-widest font-black text-teal-400">
+                      {pairCode || '------'}
+                    </span>
+                    <button
+                      onClick={copyPairCode}
+                      className="p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+                      title="Copy Code"
+                    >
+                      {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  {pairSecondsLeft > 0 && (
+                    <div className="text-[10px] text-slate-400 mb-4 font-mono">
+                      Code valid for {Math.floor(pairSecondsLeft / 60)}m {pairSecondsLeft % 60}s
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={generatePairCode}
+                      disabled={pairLoading}
+                      className="text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded transition-colors"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${pairLoading ? 'animate-spin' : ''}`} />
+                      New Code
+                    </button>
+                    <a
+                      href="http://localhost:8000/camera-app"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-semibold text-teal-200 hover:text-white flex items-center gap-1.5 bg-teal-800 hover:bg-teal-700 px-3 py-1.5 rounded transition-colors shadow-sm"
+                    >
+                      Open Camera App <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -530,6 +645,39 @@ export default function LiveCameraView() {
                 <span className="text-slate-500">Total Alerts</span>
                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{streamStatus?.telemetry?.alert_count || alerts.length}</span>
               </div>
+            </div>
+
+            {/* Camera Pair Code Widget in Session Details */}
+            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-2.5 mt-3">
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <QrCode className="w-3 h-3 text-teal-600 dark:text-teal-400" /> Camera Pair Code
+                </span>
+                <button
+                  onClick={generatePairCode}
+                  disabled={pairLoading}
+                  className="text-[10px] text-teal-600 dark:text-teal-400 font-bold hover:underline flex items-center gap-0.5"
+                >
+                  <RefreshCw className={`w-2.5 h-2.5 ${pairLoading ? 'animate-spin' : ''}`} /> New Code
+                </button>
+              </div>
+              <div className="flex items-center justify-between bg-white dark:bg-slate-950 px-2.5 py-1.5 rounded border border-slate-200 dark:border-slate-800">
+                <span className="font-mono text-sm font-black tracking-wider text-teal-600 dark:text-teal-400">
+                  {pairCode || '---'}
+                </span>
+                <button
+                  onClick={copyPairCode}
+                  className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:text-teal-600 flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800"
+                >
+                  {copiedCode ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  {copiedCode ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              {pairSecondsLeft > 0 && (
+                <div className="text-[9px] text-slate-400 mt-1 text-right font-mono">
+                  Expires in {Math.floor(pairSecondsLeft / 60)}m {pairSecondsLeft % 60}s
+                </div>
+              )}
             </div>
           </div>
 

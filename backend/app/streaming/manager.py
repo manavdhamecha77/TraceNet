@@ -11,15 +11,15 @@ from app.streaming.config import StreamConfig
 class StreamManager:
     _active_streams = {}
 
-    # Pending WS clients that connected before the stream was registered in
-    # _active_streams. Drained into the real ws_clients set when start_inference
-    # is called for the same camera_id.
-    _pending_ws_clients: dict = {}
+    # Persistent WS client registry per camera_id.
+    # Decoupled from individual inference sessions so that when a stream is stopped
+    # and restarted (e.g. from the camera-app), existing connected browser clients
+    # don't lose their telemetry connection.
+    _ws_clients: dict = {}
 
     # The uvicorn event loop, captured the first time a WS client connects.
     # We must use this specific loop for asyncio.run_coroutine_threadsafe calls
-    # from the background inference thread — creating a new loop per frame
-    # (the old fallback) breaks all WebSocket send operations.
+    # from the background inference thread.
     _event_loop: asyncio.AbstractEventLoop | None = None
 
     def _capture_loop(self):
@@ -100,14 +100,10 @@ class StreamManager:
         worker = InferenceWorker(camera_id, session_id, rtsp_url, config, self)
         chunker = StreamChunker(camera_id, session_id, rtsp_url, config, self)
         
-        # Drain any WS clients that connected before the stream was ready
-        pending = self.__class__._pending_ws_clients.pop(camera_id, set())
-        
         self._active_streams[camera_id] = {
             "worker_thread": worker,
             "chunker_process": chunker,
             "session_id": session_id,
-            "ws_clients": pending,   # pre-seed with clients that arrived early
             "config": config,
         }
         
@@ -172,43 +168,32 @@ class StreamManager:
     def register_ws_client(self, camera_id: str, websocket):
         """Register a WebSocket viewer for telemetry pushes.
 
-        Called from the FastAPI async context — safe to capture the event loop here.
-        If the stream isn't running yet (page loaded before the inference session
-        started), we queue the client and drain the queue in start_inference().
+        Decoupled from inference session lifecycle so WS connections remain valid across
+        stream stop/restart events.
         """
         self._capture_loop()
-
-        if camera_id in self._active_streams:
-            self._active_streams[camera_id]["ws_clients"].add(websocket)
-            logger.debug(f"[WS] Registered client for active stream '{camera_id}'")
-        else:
-            # Stream not yet started — queue until start_inference runs
-            if camera_id not in self.__class__._pending_ws_clients:
-                self.__class__._pending_ws_clients[camera_id] = set()
-            self.__class__._pending_ws_clients[camera_id].add(websocket)
-            logger.info(f"[WS] Queued client for camera '{camera_id}' (stream not yet active)")
+        if camera_id not in self.__class__._ws_clients:
+            self.__class__._ws_clients[camera_id] = set()
+        self.__class__._ws_clients[camera_id].add(websocket)
+        logger.info(f"[WS] Registered client for camera '{camera_id}' (total subscribers: {len(self.__class__._ws_clients[camera_id])})")
             
-    def unregister_ws_client(self, camera_id, websocket):
-        if camera_id in self._active_streams:
-            self._active_streams[camera_id]["ws_clients"].discard(websocket)
-        # Also remove from pending queue if the WS closed before stream started
-        if camera_id in self.__class__._pending_ws_clients:
-            self.__class__._pending_ws_clients[camera_id].discard(websocket)
+    def unregister_ws_client(self, camera_id: str, websocket):
+        if camera_id in self.__class__._ws_clients:
+            self.__class__._ws_clients[camera_id].discard(websocket)
+            logger.info(f"[WS] Unregistered client for camera '{camera_id}'")
                 
-    def broadcast_to_clients(self, camera_id, message_dict):
+    def broadcast_to_clients(self, camera_id: str, message_dict: dict):
         """Called from the background inference thread. Uses the stored uvicorn
-        event loop — never creates a new one, which would break WebSocket sends."""
+        event loop to broadcast telemetry data to all active WebSocket subscribers."""
         if camera_id not in self._active_streams:
             return
 
-        clients = self._active_streams[camera_id]["ws_clients"].copy()
+        clients = self.__class__._ws_clients.get(camera_id, set()).copy()
         if not clients:
             return
             
         loop = self.__class__._event_loop
         if loop is None or not loop.is_running():
-            # Loop not captured yet — broadcast cannot proceed this frame.
-            # It will succeed once the first WS client connects and sets the loop.
             return
 
         async def _send():
@@ -218,7 +203,7 @@ class StreamManager:
                     await client.send_json(message_dict)
                 except Exception:
                     dead_clients.add(client)
-            if dead_clients and camera_id in self._active_streams:
-                self._active_streams[camera_id]["ws_clients"] -= dead_clients
+            if dead_clients and camera_id in self.__class__._ws_clients:
+                self.__class__._ws_clients[camera_id] -= dead_clients
 
         asyncio.run_coroutine_threadsafe(_send(), loop)
