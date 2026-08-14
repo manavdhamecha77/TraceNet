@@ -20,6 +20,7 @@ from app.api.webhooks import router as webhooks_router
 from app.api.frame_inspection import router as frame_inspection_router
 from app.api.finetuning import router as finetuning_router
 from app.api.system_jobs import router as system_jobs_router
+from app.api.streaming import router as streaming_router
 from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
@@ -35,7 +36,7 @@ os.makedirs(get_data_path("processed/detections"), exist_ok=True)
 os.makedirs(get_data_path("models"), exist_ok=True)
 os.makedirs(get_data_path("finetuned_models"), exist_ok=True)
 os.makedirs(get_data_path("audit_logs"), exist_ok=True)
-
+os.makedirs(get_data_path("streams"), exist_ok=True)
 # Run schema migrations for SQLite dynamically to prevent OperationalError
 def run_startup_migrations():
     db_path = get_data_path("drishti.db")
@@ -83,6 +84,41 @@ def run_startup_migrations():
                     cursor.execute("ALTER TABLE cameras ADD COLUMN assault_model_id VARCHAR REFERENCES models(id)")
                     conn.commit()
                     print("Schema Migration: Added 'assault_model_id' column to cameras.")
+
+                if "is_streaming" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN is_streaming BOOLEAN DEFAULT 0")
+                    conn.commit()
+                    print("Schema Migration: Added 'is_streaming' column to cameras.")
+
+                if "stream_key" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN stream_key VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_key' column to cameras.")
+
+                if "stream_auth_token" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN stream_auth_token VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_auth_token' column to cameras.")
+
+                if "stream_token_expires_at" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN stream_token_expires_at DATETIME")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_token_expires_at' column to cameras.")
+
+                if "stream_started_at" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN stream_started_at DATETIME")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_started_at' column to cameras.")
+
+            # Check if videos table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(videos)")
+                v_cols = [c[1] for c in cursor.fetchall()]
+                if "is_live_recording" not in v_cols:
+                    cursor.execute("ALTER TABLE videos ADD COLUMN is_live_recording BOOLEAN DEFAULT 0")
+                    conn.commit()
+                    print("Schema Migration: Added 'is_live_recording' column to videos.")
 
             # Check if models table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='models'")
@@ -197,6 +233,79 @@ def run_startup_migrations():
                 """)
                 conn.commit()
                 print("Schema Migration: Created 'webhooks' table.")
+
+            # Check if live_stream_sessions table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='live_stream_sessions'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE live_stream_sessions (
+                        id VARCHAR PRIMARY KEY,
+                        camera_id VARCHAR NOT NULL REFERENCES cameras(camera_id),
+                        status VARCHAR DEFAULT 'active',
+                        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        ended_at DATETIME,
+                        total_duration_sec FLOAT,
+                        chunks_recorded INTEGER DEFAULT 0,
+                        alerts_generated INTEGER DEFAULT 0,
+                        inference_model_id VARCHAR,
+                        stream_config TEXT DEFAULT '{}'
+                    )
+                """)
+                conn.commit()
+                print("Schema Migration: Created 'live_stream_sessions' table.")
+
+            # Check if stream_chunks table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='stream_chunks'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE stream_chunks (
+                        id VARCHAR PRIMARY KEY,
+                        session_id VARCHAR NOT NULL REFERENCES live_stream_sessions(id),
+                        camera_id VARCHAR NOT NULL,
+                        chunk_index INTEGER DEFAULT 0,
+                        file_path VARCHAR NOT NULL,
+                        start_time DATETIME,
+                        end_time DATETIME,
+                        duration_sec FLOAT,
+                        file_size_bytes INTEGER,
+                        imported_as_video_id VARCHAR
+                    )
+                """)
+                conn.commit()
+                print("Schema Migration: Created 'stream_chunks' table.")
+
+            # Check if live_alerts table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='live_alerts'")
+            if not cursor.fetchone():
+                cursor.execute("""
+                    CREATE TABLE live_alerts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        alert_type VARCHAR NOT NULL,
+                        camera_id VARCHAR NOT NULL,
+                        session_id VARCHAR NOT NULL REFERENCES live_stream_sessions(id),
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        acknowledged BOOLEAN DEFAULT 0
+                    )
+                """)
+                conn.commit()
+                print("Schema Migration: Created 'live_alerts' table.")
+            # Pair codes table migration (auto-create if missing)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pair_codes'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE TABLE pair_codes (
+                        id VARCHAR PRIMARY KEY,
+                        camera_id VARCHAR REFERENCES cameras(camera_id),
+                        code_display VARCHAR NOT NULL,
+                        device_label VARCHAR,
+                        created_at DATETIME,
+                        expires_at DATETIME NOT NULL,
+                        used BOOLEAN DEFAULT 0,
+                        device_auth_token VARCHAR
+                    )
+                ''')
+                conn.commit()
+                print("Schema Migration: Created 'pair_codes' table.")
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -296,28 +405,44 @@ app = FastAPI(
 )
 
 
+_mediamtx_process = None
+
+def start_mediamtx_server():
+    global _mediamtx_process
+    if _mediamtx_process is not None and _mediamtx_process.poll() is None:
+        return _mediamtx_process
+    try:
+        import subprocess
+        from app.streaming.mediamtx_downloader import ensure_mediamtx
+        binary_path = ensure_mediamtx()
+        config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../mediamtx/mediamtx.yml"))
+        
+        cmd = [binary_path]
+        if os.path.exists(config_path):
+            cmd.append(config_path)
+            
+        print(f"Startup: Launching MediaMTX WebRTC server ({binary_path})...")
+        _mediamtx_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return _mediamtx_process
+    except Exception as e:
+        print(f"Startup Warning: Failed to launch MediaMTX server: {e}")
+        return None
+
 @app.on_event("startup")
 def load_startup_singletons() -> None:
-    """Load shared ML models once at app startup."""
+    """Load shared ML models and MediaMTX server at app startup."""
     clip_encoder = get_clip_encoder()
     app.state.clip_encoder = clip_encoder
     print(
         "Startup: CLIP encoder loaded "
         f"(model={clip_encoder.model_name}, pretrained={clip_encoder.pretrained}, device={clip_encoder.device})."
     )
+    start_mediamtx_server()
 
-# Enable CORS for frontend integration
+# Enable CORS for frontend integration (allow all origins for LAN / multi-device access)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:[0-9]+)?",
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -325,6 +450,12 @@ app.add_middleware(
 
 # Serve the data directory statically to allow access to thumbnails and transcoded clips
 app.mount("/data", StaticFiles(directory=get_data_path("")), name="data")
+
+# Serve the standalone edge camera client (decoupled device pairing app)
+_camera_client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../camera_client"))
+if os.path.isdir(_camera_client_dir):
+    app.mount("/camera-app", StaticFiles(directory=_camera_client_dir, html=True), name="camera_client")
+    app.mount("/camera_client", StaticFiles(directory=_camera_client_dir, html=True), name="camera_client_alias")
 
 from app.api.assistant import router as assistant_router
 from app.api.multicam import router as multicam_router
@@ -349,6 +480,7 @@ app.include_router(finetuning_router, prefix=settings.api_prefix, tags=["Fine-Tu
 app.include_router(assistant_router, prefix=settings.api_prefix, tags=["AI Assistant"])
 app.include_router(multicam_router, tags=["Multi-Camera Intelligence"])
 app.include_router(system_jobs_router, prefix=settings.api_prefix, tags=["System Jobs"])
+app.include_router(streaming_router, prefix=settings.api_prefix, tags=["Streaming"])
 
 
 @app.get("/", include_in_schema=False)

@@ -35,6 +35,7 @@ interface Video {
   end_time?: string
   thumbnail_path?: string
   is_bin?: boolean
+  is_live_recording?: boolean
 }
 
 interface DetectionBox {
@@ -683,9 +684,12 @@ export default function CameraDetail({
 
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div 
-                          className="font-bold text-slate-800 dark:text-slate-100 cursor-help"
+                          className="font-bold text-slate-800 dark:text-slate-100 cursor-help flex items-center"
                           title={activeTab === 'original' ? video.original_filename : video.standardized_filename}
                         >
+                          {video.is_live_recording && (
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse inline-block mr-1.5 shrink-0" title="Live Stream Recorded Segment" />
+                          )}
                           {truncateMiddle(activeTab === 'original' ? video.original_filename : video.standardized_filename)}
                         </div>
                         <div className="text-[10px] font-mono text-slate-400 mt-0.5 truncate max-w-[240px]" title={activeTab === 'original' ? video.intake_sha256 : video.transcoded_sha256}>

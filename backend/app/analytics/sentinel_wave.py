@@ -36,10 +36,40 @@ class SentinelWaveManager:
 
         if target_tracklet_id:
             target_trk = self.db.query(Tracklet).filter(Tracklet.id == target_tracklet_id).first()
-            if target_trk and target_trk.qdrant_point_id:
-                retrieved_vec = self.vector_index.get_vector_by_point_id(target_trk.qdrant_point_id)
+            if target_trk and target_vec is None:
+                point_id = target_trk.qdrant_point_id or str(uuid.uuid5(uuid.NAMESPACE_DNS, target_trk.id))
+                retrieved_vec = self.vector_index.get_vector_by_point_id(point_id)
                 if retrieved_vec is not None:
                     target_vec = retrieved_vec
+
+            if target_trk and target_vec is None and target_trk.video_id:
+                try:
+                    from app.config import get_data_path
+                    import os
+                    emb_path = get_data_path(os.path.join("processed/detections", target_trk.video_id, "embeddings.json"))
+                    if os.path.exists(emb_path):
+                        with open(emb_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            for item in data.get("tracklets", []):
+                                if item.get("tracklet_id") == target_tracklet_id and item.get("embedding"):
+                                    target_vec = item["embedding"]
+                                    break
+                except Exception:
+                    pass
+
+            if target_trk and target_vec is None:
+                try:
+                    from app.config import get_data_path
+                    import os
+                    crop_rel = getattr(target_trk, 'best_crop_path', None)
+                    if crop_rel:
+                        crop_abs = get_data_path(crop_rel)
+                        if os.path.exists(crop_abs):
+                            from app.embeddings.clip_encoder import CLIPEncoder
+                            encoder = CLIPEncoder()
+                            target_vec = encoder.encode_image(crop_abs)
+                except Exception:
+                    pass
             
             if target_trk and speed_mode == "auto":
                 speed_mode = "vehicle" if target_trk.object_type == "vehicle" else "pedestrian"

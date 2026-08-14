@@ -35,10 +35,39 @@ class TrajectoryEngine:
             if not target_tracklet:
                 return {"status": "error", "message": f"Tracklet '{target_tracklet_id}' not found."}
 
-            if target_tracklet.qdrant_point_id:
-                retrieved_vec = self.vector_index.get_vector_by_point_id(target_tracklet.qdrant_point_id)
+            if target_vec is None:
+                # 1. Try Qdrant point ID or computed deterministic UUID
+                point_id = target_tracklet.qdrant_point_id or str(uuid.uuid5(uuid.NAMESPACE_DNS, target_tracklet.id))
+                retrieved_vec = self.vector_index.get_vector_by_point_id(point_id)
                 if retrieved_vec is not None:
                     target_vec = retrieved_vec
+
+            if target_vec is None and target_tracklet.video_id:
+                # 2. Try loading from embeddings.json
+                try:
+                    emb_path = get_data_path(os.path.join("processed/detections", target_tracklet.video_id, "embeddings.json"))
+                    if os.path.exists(emb_path):
+                        with open(emb_path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                            for item in data.get("tracklets", []):
+                                if item.get("tracklet_id") == target_tracklet_id and item.get("embedding"):
+                                    target_vec = item["embedding"]
+                                    break
+                except Exception:
+                    pass
+
+            if target_vec is None:
+                # 3. Fallback: encode image crop via CLIPEncoder
+                try:
+                    crop_rel = getattr(target_tracklet, 'best_crop_path', None)
+                    if crop_rel:
+                        crop_abs = get_data_path(crop_rel)
+                        if os.path.exists(crop_abs):
+                            from app.embeddings.clip_encoder import CLIPEncoder
+                            encoder = CLIPEncoder()
+                            target_vec = encoder.encode_image(crop_abs)
+                except Exception:
+                    pass
 
             # Deduce default speed mode if auto
             if speed_mode == "auto":

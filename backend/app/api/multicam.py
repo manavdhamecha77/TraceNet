@@ -173,27 +173,7 @@ def delete_hot_target(
     return res
 
 
-@router.post("/sentinel/activate")
-def reconstruct_trajectory(
-    req: TrajectoryRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Reconstruct multi-camera spatial-temporal journey trajectory for a target tracklet or visual embedding.
-    """
-    engine = TrajectoryEngine(db)
-    result = engine.reconstruct_trajectory(
-        target_tracklet_id=req.tracklet_id,
-        query_embedding=req.query_embedding,
-        speed_mode=req.speed_mode,
-        top_k_candidates=req.top_k_candidates,
-        min_visual_similarity=req.min_visual_similarity
-    )
 
-    if result.get("status") == "error":
-        raise HTTPException(status_code=400, detail=result.get("message"))
-
-    return result
 
 
 @router.post("/sentinel/activate")
