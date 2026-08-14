@@ -600,3 +600,78 @@ class PairCode(Base):
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "used": self.used,
         }
+
+
+class CrimeReport(Base):
+    __tablename__ = "crime_reports"
+
+    id = Column(String, primary_key=True, index=True)  # UUID
+    report_type = Column(String, nullable=False)  # 'theft', 'assault', 'abandoned_object', 'loitering'
+    alert_id = Column(Integer, ForeignKey("alerts.id"), nullable=True)
+    camera_id = Column(String, ForeignKey("cameras.camera_id"), nullable=False, index=True)
+    video_id = Column(String, ForeignKey("videos.id"), nullable=True)
+
+    # Report metadata
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    severity = Column(String, default="medium")  # 'low', 'medium', 'high', 'critical'
+    status = Column(String, default="pending")  # 'pending', 'reviewed', 'archived'
+
+    # Detection details
+    detection_confidence = Column(Float, nullable=True)  # Confidence score of detection
+    detected_objects = Column(Text, default="[]")  # JSON list of detected objects
+    frame_count = Column(Integer, default=0)  # Number of frames in alert
+
+    # Time information
+    incident_timestamp = Column(DateTime, nullable=False)  # When the crime occurred
+    detection_timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    report_generated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Report file
+    pdf_file_path = Column(String, nullable=True)  # Path to generated PDF
+    pdf_generated_at = Column(DateTime, nullable=True)  # When PDF was generated
+
+    # Additional details
+    location = Column(String, nullable=True)  # Description of location
+    assigned_to = Column(String, nullable=True)  # Officer assigned to investigate
+    notes = Column(Text, nullable=True)  # Investigator notes
+
+    # Metadata
+    report_data = Column(Text, default="{}")  # JSON string with additional report data
+    created_by = Column(String, nullable=True)  # User who created report
+
+    def to_dict(self):
+        try:
+            objects = json.loads(self.detected_objects) if self.detected_objects else []
+        except Exception:
+            objects = []
+
+        try:
+            data = json.loads(self.report_data) if self.report_data else {}
+        except Exception:
+            data = {}
+
+        return {
+            "id": self.id,
+            "report_type": self.report_type,
+            "alert_id": self.alert_id,
+            "camera_id": self.camera_id,
+            "video_id": self.video_id,
+            "title": self.title,
+            "description": self.description,
+            "severity": self.severity,
+            "status": self.status,
+            "detection_confidence": self.detection_confidence,
+            "detected_objects": objects,
+            "frame_count": self.frame_count,
+            "incident_timestamp": self.incident_timestamp.isoformat() if self.incident_timestamp else None,
+            "detection_timestamp": self.detection_timestamp.isoformat() if self.detection_timestamp else None,
+            "report_generated_at": self.report_generated_at.isoformat() if self.report_generated_at else None,
+            "pdf_file_path": self.pdf_file_path,
+            "pdf_generated_at": self.pdf_generated_at.isoformat() if self.pdf_generated_at else None,
+            "location": self.location,
+            "assigned_to": self.assigned_to,
+            "notes": self.notes,
+            "report_data": data,
+            "created_by": self.created_by,
+        }

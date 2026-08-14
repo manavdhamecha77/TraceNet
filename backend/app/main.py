@@ -306,6 +306,49 @@ def run_startup_migrations():
                 ''')
                 conn.commit()
                 print("Schema Migration: Created 'pair_codes' table.")
+
+            # Crime reports table migration (auto-create if missing)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='crime_reports'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE TABLE crime_reports (
+                        id VARCHAR PRIMARY KEY,
+                        report_type VARCHAR NOT NULL,
+                        alert_id INTEGER REFERENCES alerts(id),
+                        camera_id VARCHAR NOT NULL REFERENCES cameras(camera_id),
+                        video_id VARCHAR REFERENCES videos(id),
+                        title VARCHAR NOT NULL,
+                        description TEXT,
+                        severity VARCHAR DEFAULT 'medium',
+                        status VARCHAR DEFAULT 'pending',
+                        detection_confidence FLOAT,
+                        detected_objects TEXT DEFAULT '[]',
+                        frame_count INTEGER DEFAULT 0,
+                        incident_timestamp DATETIME NOT NULL,
+                        detection_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        report_generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        pdf_file_path VARCHAR,
+                        pdf_generated_at DATETIME,
+                        location VARCHAR,
+                        assigned_to VARCHAR,
+                        notes TEXT,
+                        report_data TEXT DEFAULT '{}',
+                        created_by VARCHAR
+                    )
+                ''')
+                conn.commit()
+                print("Schema Migration: Created 'crime_reports' table.")
+
+            # Create indexes on crime_reports for common queries
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_crime_reports_camera_id'")
+            if not cursor.fetchone():
+                cursor.execute("CREATE INDEX idx_crime_reports_camera_id ON crime_reports(camera_id)")
+                cursor.execute("CREATE INDEX idx_crime_reports_report_type ON crime_reports(report_type)")
+                cursor.execute("CREATE INDEX idx_crime_reports_severity ON crime_reports(severity)")
+                cursor.execute("CREATE INDEX idx_crime_reports_status ON crime_reports(status)")
+                conn.commit()
+                print("Schema Migration: Created indexes on 'crime_reports' table.")
+
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -459,6 +502,7 @@ if os.path.isdir(_camera_client_dir):
 
 from app.api.assistant import router as assistant_router
 from app.api.multicam import router as multicam_router
+from app.api.reports import router as reports_router
 
 # Register routes
 app.include_router(health_router, prefix=settings.api_prefix, tags=["Health"])
@@ -477,6 +521,7 @@ app.include_router(processing_router, prefix=settings.api_prefix, tags=["Video P
 app.include_router(webhooks_router, prefix=settings.api_prefix, tags=["Webhooks"])
 app.include_router(frame_inspection_router, prefix=settings.api_prefix, tags=["Frame Inspection"])
 app.include_router(finetuning_router, prefix=settings.api_prefix, tags=["Fine-Tuning"])
+app.include_router(reports_router, prefix=settings.api_prefix, tags=["Reports"])
 app.include_router(assistant_router, prefix=settings.api_prefix, tags=["AI Assistant"])
 app.include_router(multicam_router, tags=["Multi-Camera Intelligence"])
 app.include_router(system_jobs_router, prefix=settings.api_prefix, tags=["System Jobs"])
