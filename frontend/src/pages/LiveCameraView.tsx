@@ -737,7 +737,7 @@ export default function LiveCameraView() {
                 {pipelineLogs.length} events
               </span>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1.5 text-[11px] font-mono">
+            <div className="flex-1 overflow-y-auto p-2 space-y-1.5 text-[11px] font-mono flex flex-col-reverse">
               {pipelineLogs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 italic space-y-1">
                   <span className="text-[10px]">Waiting for video chunk pre-processing…</span>
@@ -745,17 +745,24 @@ export default function LiveCameraView() {
                 </div>
               ) : (
                 pipelineLogs.map((log, idx) => (
-                  <div key={idx} className="p-1.5 rounded bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-start gap-2">
+                  <div key={idx} className="p-1.5 rounded bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-start gap-2 animate-in fade-in duration-150">
                     <span className="text-[9px] text-slate-400 shrink-0 mt-0.5">{log.timestamp}</span>
                     <span className={`text-[9px] font-bold px-1 rounded uppercase shrink-0 ${
                       log.stage === 'recorded' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' :
                       log.stage === 'preprocessing' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 animate-pulse' :
                       log.stage === 'preprocessed' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400' :
-                      log.stage === 'db_saved' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
-                      'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+                      log.stage === 'indexing' ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 animate-pulse' :
+                      log.stage === 'db_saved' ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400' :
+                      log.stage === 'complete' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black' :
+                      'bg-slate-500/10 text-slate-600 dark:text-slate-400'
                     }`}>
                       {log.stage}
                     </span>
+                    {log.progress !== undefined && log.progress > 0 && (
+                      <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400 shrink-0">
+                        {log.progress}%
+                      </span>
+                    )}
                     <span className="text-slate-700 dark:text-slate-300 flex-1 leading-snug">{log.message}</span>
                   </div>
                 ))
