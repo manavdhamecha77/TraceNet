@@ -25,6 +25,7 @@ from app.config import get_settings, get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Base
 from app.db.session import engine
+from app.db.optimize import optimize_database
 import sqlite3
 
 # Ensure data folders exist absolutely in backend/data/
@@ -305,6 +306,49 @@ def run_startup_migrations():
                 ''')
                 conn.commit()
                 print("Schema Migration: Created 'pair_codes' table.")
+
+            # Crime reports table migration (auto-create if missing)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='crime_reports'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE TABLE crime_reports (
+                        id VARCHAR PRIMARY KEY,
+                        report_type VARCHAR NOT NULL,
+                        alert_id INTEGER REFERENCES alerts(id),
+                        camera_id VARCHAR NOT NULL REFERENCES cameras(camera_id),
+                        video_id VARCHAR REFERENCES videos(id),
+                        title VARCHAR NOT NULL,
+                        description TEXT,
+                        severity VARCHAR DEFAULT 'medium',
+                        status VARCHAR DEFAULT 'pending',
+                        detection_confidence FLOAT,
+                        detected_objects TEXT DEFAULT '[]',
+                        frame_count INTEGER DEFAULT 0,
+                        incident_timestamp DATETIME NOT NULL,
+                        detection_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        report_generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        pdf_file_path VARCHAR,
+                        pdf_generated_at DATETIME,
+                        location VARCHAR,
+                        assigned_to VARCHAR,
+                        notes TEXT,
+                        report_data TEXT DEFAULT '{}',
+                        created_by VARCHAR
+                    )
+                ''')
+                conn.commit()
+                print("Schema Migration: Created 'crime_reports' table.")
+
+            # Create indexes on crime_reports for common queries
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_crime_reports_camera_id'")
+            if not cursor.fetchone():
+                cursor.execute("CREATE INDEX idx_crime_reports_camera_id ON crime_reports(camera_id)")
+                cursor.execute("CREATE INDEX idx_crime_reports_report_type ON crime_reports(report_type)")
+                cursor.execute("CREATE INDEX idx_crime_reports_severity ON crime_reports(severity)")
+                cursor.execute("CREATE INDEX idx_crime_reports_status ON crime_reports(status)")
+                conn.commit()
+                print("Schema Migration: Created indexes on 'crime_reports' table.")
+
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -315,9 +359,93 @@ run_startup_migrations()
 # Ensure tables are created
 Base.metadata.create_all(bind=engine)
 
+# Optimize database with indexes
+optimize_database()
+
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(
+    title="TraceNet & DRISHTI API",
+    description="Advanced Video Surveillance, Real-time Detection & Hybrid Search Intelligence (DRISHTI) - A comprehensive video retrieval and threat detection system",
+    version="1.0.0",
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    redoc_url="/api/redoc",
+    openapi_tags=[
+        {
+            "name": "Health",
+            "description": "System health and status checks"
+        },
+        {
+            "name": "Cameras",
+            "description": "Camera management and configuration"
+        },
+        {
+            "name": "Detection",
+            "description": "Object detection results and management"
+        },
+        {
+            "name": "Videos",
+            "description": "Video upload and management"
+        },
+        {
+            "name": "Models",
+            "description": "Detection model management"
+        },
+        {
+            "name": "Search",
+            "description": "Hybrid video search using CLIP embeddings"
+        },
+        {
+            "name": "Metrics",
+            "description": "System performance metrics"
+        },
+        {
+            "name": "Alerts",
+            "description": "Alert management and acknowledgment"
+        },
+        {
+            "name": "Analytics",
+            "description": "Detection analytics and statistics"
+        },
+        {
+            "name": "Audit",
+            "description": "Audit logging and compliance"
+        },
+        {
+            "name": "Assault Detection",
+            "description": "Violence and assault detection using deep learning"
+        },
+        {
+            "name": "Video Processing",
+            "description": "Real-time video processing pipeline"
+        },
+        {
+            "name": "Webhooks",
+            "description": "Webhook configuration and management"
+        },
+        {
+            "name": "Frame Inspection",
+            "description": "Frame-level analysis and visualization"
+        },
+        {
+            "name": "Fine-Tuning",
+            "description": "Model fine-tuning and transfer learning"
+        },
+        {
+            "name": "AI Assistant",
+            "description": "MCP-based AI assistant with analysis tools"
+        },
+        {
+            "name": "Multi-Camera Intelligence",
+            "description": "Advanced multi-camera tracking and analytics"
+        },
+        {
+            "name": "System Jobs",
+            "description": "Background job management"
+        }
+    ]
+)
 
 
 _mediamtx_process = None
@@ -374,29 +502,30 @@ if os.path.isdir(_camera_client_dir):
 
 from app.api.assistant import router as assistant_router
 from app.api.multicam import router as multicam_router
+from app.api.reports import router as reports_router
 
 # Register routes
-app.include_router(health_router, prefix=settings.api_prefix)
-app.include_router(cameras_router, prefix=settings.api_prefix)
-app.include_router(detections_router, prefix=settings.api_prefix)
-app.include_router(upload_router, prefix=settings.api_prefix)
-app.include_router(models_router, prefix=settings.api_prefix)
-app.include_router(embedding_models_router, prefix=settings.api_prefix)
-app.include_router(search_router, prefix=settings.api_prefix)
-app.include_router(metrics_router, prefix=settings.api_prefix)
-app.include_router(alerts_router, prefix=settings.api_prefix)
-app.include_router(analytics_router, prefix=settings.api_prefix)
-app.include_router(audit_router, prefix=settings.api_prefix)
-app.include_router(assault_detection_router, prefix=settings.api_prefix)
-app.include_router(processing_router, prefix=settings.api_prefix)
-app.include_router(webhooks_router, prefix=settings.api_prefix)
-app.include_router(frame_inspection_router, prefix=settings.api_prefix)
-app.include_router(finetuning_router, prefix=settings.api_prefix)
-app.include_router(assistant_router, prefix=settings.api_prefix)
-app.include_router(multicam_router)
-app.include_router(system_jobs_router, prefix=settings.api_prefix)
-app.include_router(streaming_router, prefix=settings.api_prefix)
-# app.include_router(multicam_router, prefix=settings.api_prefix)
+app.include_router(health_router, prefix=settings.api_prefix, tags=["Health"])
+app.include_router(cameras_router, prefix=settings.api_prefix, tags=["Cameras"])
+app.include_router(detections_router, prefix=settings.api_prefix, tags=["Detection"])
+app.include_router(upload_router, prefix=settings.api_prefix, tags=["Videos"])
+app.include_router(models_router, prefix=settings.api_prefix, tags=["Models"])
+app.include_router(embedding_models_router, prefix=settings.api_prefix, tags=["Models"])
+app.include_router(search_router, prefix=settings.api_prefix, tags=["Search"])
+app.include_router(metrics_router, prefix=settings.api_prefix, tags=["Metrics"])
+app.include_router(alerts_router, prefix=settings.api_prefix, tags=["Alerts"])
+app.include_router(analytics_router, prefix=settings.api_prefix, tags=["Analytics"])
+app.include_router(audit_router, prefix=settings.api_prefix, tags=["Audit"])
+app.include_router(assault_detection_router, prefix=settings.api_prefix, tags=["Assault Detection"])
+app.include_router(processing_router, prefix=settings.api_prefix, tags=["Video Processing"])
+app.include_router(webhooks_router, prefix=settings.api_prefix, tags=["Webhooks"])
+app.include_router(frame_inspection_router, prefix=settings.api_prefix, tags=["Frame Inspection"])
+app.include_router(finetuning_router, prefix=settings.api_prefix, tags=["Fine-Tuning"])
+app.include_router(reports_router, prefix=settings.api_prefix, tags=["Reports"])
+app.include_router(assistant_router, prefix=settings.api_prefix, tags=["AI Assistant"])
+app.include_router(multicam_router, tags=["Multi-Camera Intelligence"])
+app.include_router(system_jobs_router, prefix=settings.api_prefix, tags=["System Jobs"])
+app.include_router(streaming_router, prefix=settings.api_prefix, tags=["Streaming"])
 
 
 @app.get("/", include_in_schema=False)

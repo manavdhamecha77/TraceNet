@@ -45,3 +45,8 @@ requests
 # Testing
 pytest
 httpx
+
+# PDF Generation & Processing
+reportlab
+pdfplumber
+pypdf
