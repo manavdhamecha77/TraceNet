@@ -21,6 +21,7 @@ import LoiteringZoneEditor from './components/LoiteringZoneEditor'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { classColor } from './utils/colors'
 import LiveCameraView from './pages/LiveCameraView'
+import LiveConnect from './pages/LiveConnect'
 import { useToast } from './components/Toast'
 import {
   ExternalLink,
@@ -575,6 +576,8 @@ function App() {
         crumbs.push({ label: 'Embedding Config', link: '/embedding-models' })
       } else if (paths[0] === 'finetuning') {
         crumbs.push({ label: 'YOLO Retraining', link: '/finetuning' })
+      } else if (paths[0] === 'live-connect' || paths[0] === 'connect') {
+        crumbs.push({ label: 'Live Broadcast Console', link: '/live-connect' })
       } else if (paths[0] === 'frame-inspection') {
         crumbs.push({ label: 'Unified Alert Center', link: '/alerts' })
         crumbs.push({ label: `Frame Inspection #${paths[1] || ''}`, link: `/frame-inspection/${paths[1] || ''}` })
@@ -966,6 +969,24 @@ function App() {
                 {!isSidebarCollapsed && <span>Cameras</span>}
               </Link>
 
+              <Link
+                to="/live-connect"
+                className={navLinkClass(location.pathname === '/live-connect' || location.pathname === '/connect')}
+                title={isSidebarCollapsed ? 'Live Broadcaster Studio' : undefined}
+              >
+                <svg className="h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.828a5 5 0 010-7.072m7.072 0a5 5 0 010 7.072M13 12a1 1 0 11-2 0 1 1 0 012 0z" />
+                </svg>
+                {!isSidebarCollapsed && (
+                  <span className="flex items-center justify-between flex-1">
+                    <span>Live Broadcaster</span>
+                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      WHIP
+                    </span>
+                  </span>
+                )}
+              </Link>
+
 
 
             <Link
@@ -1246,6 +1267,8 @@ function App() {
               <Route path="/targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
               <Route path="/cameras/:camera_id/live" element={<LiveCameraView />} />
+              <Route path="/live-connect" element={<LiveConnect />} />
+              <Route path="/connect" element={<LiveConnect />} />
             </Routes>
           </ErrorBoundary>
 

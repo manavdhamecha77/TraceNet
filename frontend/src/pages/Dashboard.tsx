@@ -172,7 +172,7 @@ export default function Dashboard({ metrics }: DashboardProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <Link
             to="/cameras/CAM_001/live"
             className="px-3 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
@@ -181,6 +181,13 @@ export default function Dashboard({ metrics }: DashboardProps) {
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
             </svg>
+          </Link>
+          <Link
+            to="/live-connect"
+            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
+          >
+            <span>Broadcast Feed</span>
+            <span className="text-[9px] font-mono px-1 rounded bg-black/20">WHIP</span>
           </Link>
           <Link
             to="/cameras"

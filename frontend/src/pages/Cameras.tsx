@@ -413,20 +413,29 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
     <div className="space-y-5 pb-16">
 
       {/* ── PAGE HEADER ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">Camera Nodes</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Geographic grid, node statuses, and video archive registry.</p>
         </div>
-        <button
-          onClick={onOpenRegisterModal}
-          className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-          Register Camera
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/live-connect"
+            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded text-xs font-semibold transition-colors"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Live Broadcaster</span>
+          </Link>
+          <button
+            onClick={onOpenRegisterModal}
+            className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            Register Camera
+          </button>
+        </div>
       </div>
 
       {/* ── LEAFLET MAP ── */}

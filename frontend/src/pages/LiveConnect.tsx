@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Video, Copy, Play, Square, Settings, RefreshCw } from 'lucide-react'
-
+import { useToast } from '../components/Toast'
 import { API_BASE } from '../config/api'
 
 interface Camera {
@@ -11,6 +11,7 @@ interface Camera {
 }
 
 export default function LiveConnect() {
+  const toast = useToast()
   
   // Step 1 State
   const [cameras, setCameras] = useState<Camera[]>([])
@@ -69,7 +70,10 @@ export default function LiveConnect() {
   }
 
   const handleGenerateToken = async () => {
-    if (!selectedCameraId) return alert('Please select a camera')
+    if (!selectedCameraId) {
+      toast.warning('Select Camera', 'Please select a camera node to broadcast stream to.')
+      return
+    }
     setLoadingToken(true)
     try {
       const res = await fetch(`${API_BASE}/api/v1/stream/start`, {
@@ -88,8 +92,9 @@ export default function LiveConnect() {
       if (!res.ok) throw new Error(await res.text())
       const data = await res.json()
       setStreamInfo(data)
+      toast.success('Token Generated', `WHIP Stream token ready for ${selectedCameraId}.`)
     } catch (err: any) {
-      alert(`Failed to generate token: ${err.message}`)
+      toast.error('Token Error', err.message || 'Failed to generate token.')
     } finally {
       setLoadingToken(false)
     }
@@ -168,7 +173,7 @@ export default function LiveConnect() {
       
     } catch (err: any) {
       console.error(err)
-      alert(`Streaming failed: ${err.message}`)
+      toast.error('Streaming Failed', err.message || 'WebRTC broadcast connection failed.')
       handleEndStream()
     }
   }

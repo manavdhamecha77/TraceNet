@@ -562,7 +562,7 @@ export default function LiveCameraView() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
                     <button
                       onClick={generatePairCode}
                       disabled={pairLoading}
@@ -571,13 +571,19 @@ export default function LiveCameraView() {
                       <RefreshCw className={`w-3.5 h-3.5 ${pairLoading ? 'animate-spin' : ''}`} />
                       New Code
                     </button>
+                    <Link
+                      to="/live-connect"
+                      className="text-xs font-semibold text-emerald-300 hover:text-white flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-700 px-3 py-1.5 rounded transition-colors shadow-sm"
+                    >
+                      Web Broadcaster
+                    </Link>
                     <a
                       href="http://localhost:8000/camera-app"
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs font-semibold text-teal-200 hover:text-white flex items-center gap-1.5 bg-teal-800 hover:bg-teal-700 px-3 py-1.5 rounded transition-colors shadow-sm"
                     >
-                      Open Camera App <ExternalLink className="w-3.5 h-3.5" />
+                      Open Mobile App <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
                 </div>
