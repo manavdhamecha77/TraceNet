@@ -1,6 +1,7 @@
 """API endpoints for crime report generation and management."""
 
-from fastapi import APIRouter, Depends, HTTPException, status, FileResponse
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
@@ -10,7 +11,7 @@ import uuid
 from loguru import logger
 
 from app.db.session import get_db
-from app.db.models import CrimeReport, Alert, Camera, VideoAsset
+from app.db.models import CrimeReport, Alert, CameraProfile, VideoAsset
 from app.config import get_data_path
 from app.reporting.report_generator import CrimeReportGenerator
 
@@ -68,7 +69,7 @@ async def generate_report(
     """
     try:
         # Validate camera exists
-        camera = db.query(Camera).filter(Camera.camera_id == request.camera_id).first()
+        camera = db.query(CameraProfile).filter(CameraProfile.camera_id == request.camera_id).first()
         if not camera:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

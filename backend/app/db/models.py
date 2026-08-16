@@ -91,8 +91,10 @@ class CameraProfile(Base):
             "stream_key": self.stream_key,
             "stream_auth_token": self.stream_auth_token,
             "stream_token_expires_at": self.stream_token_expires_at.isoformat() if self.stream_token_expires_at else None,
-            "stream_started_at": self.stream_started_at.isoformat() if self.stream_started_at else None
         }
+
+# Backward-compatibility alias for test files and reporting routers
+Camera = CameraProfile
 
 
 class VideoAsset(Base):
