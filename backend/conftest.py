@@ -13,26 +13,35 @@ from app.db.session import get_db
 
 
 @pytest.fixture(scope="session")
-def test_db():
+def engine():
     """Create an in-memory SQLite database for testing."""
-    engine = create_engine("sqlite:///:memory:")
+    from sqlalchemy.pool import StaticPool
+    eng = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
+    Base.metadata.create_all(bind=eng)
+    return eng
+
+
+@pytest.fixture(autouse=True)
+def clean_tables(engine):
+    """Ensure clean database tables for every test."""
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    return SessionLocal
+    yield
 
 
 @pytest.fixture
-def db(test_db):
+def db(engine):
     """Get a new database session for each test."""
-    connection = test_db.get_bind().connect()
-    transaction = connection.begin()
-    session = test_db(bind=connection)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = SessionLocal()
 
     yield session
 
     session.close()
-    transaction.rollback()
-    connection.close()
 
 
 @pytest.fixture
@@ -65,7 +74,7 @@ def sample_camera_data():
     return {
         "camera_id": "CAM_001",
         "name": "Test Camera 1",
-        "location": "Test Location",
+        "corridor_group": "Zone-A",
         "latitude": 0.0,
         "longitude": 0.0,
         "altitude": 10.0,

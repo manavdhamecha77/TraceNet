@@ -148,6 +148,57 @@ def list_alerts(
     return [a.to_dict() for a in alerts]
 
 
+class AlertCreate(BaseModel):
+    alert_type: str
+    camera_id: str
+    tracklet_id: Optional[str] = None
+    video_id: Optional[str] = None
+    object_tracklet_id: Optional[str] = None
+    reid_match_tracklet_id: Optional[str] = None
+    abandon_duration_seconds: Optional[float] = None
+    analysis_log: Optional[str] = None
+    acknowledged: bool = False
+
+
+@router.post("/alerts", response_model=AlertResponse)
+def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
+    from datetime import datetime, timezone
+    alert = Alert(
+        alert_type=payload.alert_type,
+        camera_id=payload.camera_id,
+        tracklet_id=payload.tracklet_id or "",
+        video_id=payload.video_id,
+        object_tracklet_id=payload.object_tracklet_id,
+        reid_match_tracklet_id=payload.reid_match_tracklet_id,
+        abandon_duration_seconds=payload.abandon_duration_seconds,
+        analysis_log=payload.analysis_log,
+        acknowledged=payload.acknowledged,
+        timestamp=datetime.now(timezone.utc),
+    )
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+    return alert.to_dict()
+
+
+@router.get("/alerts/{alert_id}", response_model=AlertResponse)
+def get_alert(alert_id: int, db: Session = Depends(get_db)):
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    return alert.to_dict()
+
+
+@router.delete("/alerts/{alert_id}")
+def delete_alert(alert_id: int, db: Session = Depends(get_db)):
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    db.delete(alert)
+    db.commit()
+    return {"status": "success", "message": f"Alert {alert_id} deleted."}
+
+
 from datetime import datetime, timezone
 
 @router.put("/alerts/{alert_id}/acknowledge")

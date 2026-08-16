@@ -505,7 +505,7 @@ from app.api.multicam import router as multicam_router
 from app.api.reports import router as reports_router
 
 # Register routes
-app.include_router(health_router, prefix=settings.api_prefix, tags=["Health"])
+app.include_router(health_router, tags=["Health"])
 app.include_router(cameras_router, prefix=settings.api_prefix, tags=["Cameras"])
 app.include_router(detections_router, prefix=settings.api_prefix, tags=["Detection"])
 app.include_router(upload_router, prefix=settings.api_prefix, tags=["Videos"])

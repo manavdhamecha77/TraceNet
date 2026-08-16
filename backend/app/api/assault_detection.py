@@ -199,9 +199,9 @@ def get_assault_detection_statistics(
 
     response = AssaultAnalysisResponse(
         total_videos_analyzed=len(db.query(VideoAsset).filter(
-            VideoAsset.timestamp >= start_date
+            VideoAsset.upload_timestamp >= start_date
         ).all() if camera_id else db.query(VideoAsset).filter(
-            VideoAsset.timestamp >= start_date
+            VideoAsset.upload_timestamp >= start_date
         ).all()),
         assaults_detected=total_analyzed,
         high_confidence_assaults=high_confidence_count,
@@ -220,15 +220,18 @@ def get_assault_alerts(
     limit: int = 50,
     offset: int = 0,
     camera_id: Optional[str] = None,
+    acknowledged: Optional[bool] = None,
     db: Session = Depends(get_db)
 ):
     """Get all assault-related alerts."""
-    query = db.query(Alert).filter(Alert.alert_type == "assault").order_by(
-        Alert.timestamp.desc()
-    )
+    query = db.query(Alert).filter(Alert.alert_type == "assault")
 
     if camera_id:
         query = query.filter(Alert.camera_id == camera_id)
+    if acknowledged is not None:
+        query = query.filter(Alert.acknowledged == acknowledged)
+
+    query = query.order_by(Alert.timestamp.desc())
 
     total = query.count()
     alerts = query.limit(limit).offset(offset).all()
@@ -250,6 +253,7 @@ def get_assault_alerts(
     }
 
 
+@router.get("/assault-detection/model/status")
 @router.post("/assault-detection/model/status")
 def get_model_status():
     """Check if assault detection model is loaded and ready."""

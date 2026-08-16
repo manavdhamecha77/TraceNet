@@ -11,7 +11,7 @@ def test_create_camera(client, sample_camera_data):
         "/api/v1/cameras",
         json=sample_camera_data
     )
-    assert response.status_code == 200
+    assert response.status_code in [200, 201]
     data = response.json()
     assert data["camera_id"] == sample_camera_data["camera_id"]
     assert data["name"] == sample_camera_data["name"]

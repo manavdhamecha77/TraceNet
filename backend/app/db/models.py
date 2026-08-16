@@ -391,6 +391,11 @@ class Webhook(Base):
     last_triggered_at = Column(DateTime, nullable=True)
     delivery_count = Column(Integer, default=0)
 
+    def __init__(self, **kwargs):
+        if "camera_ids" in kwargs and isinstance(kwargs["camera_ids"], (list, dict)):
+            kwargs["camera_ids"] = json.dumps(kwargs["camera_ids"])
+        super().__init__(**kwargs)
+
     def to_dict(self):
         try:
             cameras = json.loads(self.camera_ids) if self.camera_ids else []

@@ -1,14 +1,13 @@
-"""
-Webhook management API endpoints.
-Register, list, update, and delete webhook subscriptions for assault detection alerts.
-"""
-
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, HttpUrl
+import json
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, HttpUrl, Field
 from typing import List, Optional
+from sqlalchemy.orm import Session
 from loguru import logger
 
-from app.notifications import get_webhook_manager
+from app.db.session import get_db
+from app.db.models import Webhook
 
 router = APIRouter(prefix="/api/v1", tags=["webhooks"])
 
@@ -16,14 +15,14 @@ router = APIRouter(prefix="/api/v1", tags=["webhooks"])
 class WebhookRegisterRequest(BaseModel):
     url: HttpUrl
     webhook_type: str = "assault"  # 'assault' or 'all_alerts'
-    confidence_threshold: float = 0.6
+    confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
     camera_ids: Optional[List[str]] = None
 
 
 class WebhookUpdateRequest(BaseModel):
     url: Optional[HttpUrl] = None
     webhook_type: Optional[str] = None
-    confidence_threshold: Optional[float] = None
+    confidence_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     camera_ids: Optional[List[str]] = None
     is_active: Optional[bool] = None
 
@@ -37,36 +36,33 @@ class WebhookResponse(BaseModel):
     camera_ids: List[str]
     created_at: str
     updated_at: str
-    last_triggered_at: Optional[str]
-    delivery_count: int
+    last_triggered_at: Optional[str] = None
+    delivery_count: int = 0
 
 
-@router.post("/webhooks/register")
-def register_webhook(request: WebhookRegisterRequest) -> WebhookResponse:
+@router.post("/webhooks", response_model=WebhookResponse)
+@router.post("/webhooks/register", response_model=WebhookResponse)
+def register_webhook(request: WebhookRegisterRequest, db: Session = Depends(get_db)) -> WebhookResponse:
     """
     Register a new webhook endpoint.
 
     Webhook will be triggered on assault detection alerts with confidence >= threshold.
     Camera IDs filter: empty list means all cameras.
     """
-    manager = get_webhook_manager()
-
     try:
-        webhook_id = manager.register_webhook(
+        webhook_id = str(uuid.uuid4())
+        webhook = Webhook(
+            id=webhook_id,
             url=str(request.url),
             webhook_type=request.webhook_type,
             confidence_threshold=request.confidence_threshold,
-            camera_ids=request.camera_ids
+            camera_ids=request.camera_ids or [],
+            is_active=True
         )
-
-        webhook = manager.get_webhook(webhook_id)
-        if not webhook:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to retrieve registered webhook"
-            )
-
-        return WebhookResponse(**webhook)
+        db.add(webhook)
+        db.commit()
+        db.refresh(webhook)
+        return WebhookResponse(**webhook.to_dict())
 
     except Exception as e:
         logger.error(f"Failed to register webhook: {e}")
@@ -76,67 +72,65 @@ def register_webhook(request: WebhookRegisterRequest) -> WebhookResponse:
         )
 
 
-@router.get("/webhooks")
-def list_webhooks() -> List[WebhookResponse]:
+@router.get("/webhooks", response_model=List[WebhookResponse])
+def list_webhooks(db: Session = Depends(get_db)) -> List[WebhookResponse]:
     """Get all active webhooks."""
-    manager = get_webhook_manager()
-    webhooks = manager.get_webhooks()
-    return [WebhookResponse(**w) for w in webhooks]
+    webhooks = db.query(Webhook).all()
+    return [WebhookResponse(**w.to_dict()) for w in webhooks]
 
 
-@router.get("/webhooks/{webhook_id}")
-def get_webhook(webhook_id: str) -> WebhookResponse:
+@router.get("/webhooks/{webhook_id}", response_model=WebhookResponse)
+def get_webhook(webhook_id: str, db: Session = Depends(get_db)) -> WebhookResponse:
     """Get a specific webhook."""
-    manager = get_webhook_manager()
-    webhook = manager.get_webhook(webhook_id)
+    webhook = db.query(Webhook).filter(Webhook.id == webhook_id).first()
+    if not webhook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Webhook {webhook_id} not found"
+        )
+    return WebhookResponse(**webhook.to_dict())
 
+
+@router.put("/webhooks/{webhook_id}", response_model=WebhookResponse)
+def update_webhook(
+    webhook_id: str,
+    request: WebhookUpdateRequest,
+    db: Session = Depends(get_db)
+) -> WebhookResponse:
+    """Update webhook configuration."""
+    webhook = db.query(Webhook).filter(Webhook.id == webhook_id).first()
     if not webhook:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Webhook {webhook_id} not found"
         )
 
-    return WebhookResponse(**webhook)
+    if request.url is not None:
+        webhook.url = str(request.url)
+    if request.webhook_type is not None:
+        webhook.webhook_type = request.webhook_type
+    if request.confidence_threshold is not None:
+        webhook.confidence_threshold = request.confidence_threshold
+    if request.camera_ids is not None:
+        webhook.camera_ids = json.dumps(request.camera_ids)
+    if request.is_active is not None:
+        webhook.is_active = request.is_active
 
-
-@router.put("/webhooks/{webhook_id}")
-def update_webhook(
-    webhook_id: str,
-    request: WebhookUpdateRequest
-) -> WebhookResponse:
-    """Update webhook configuration."""
-    manager = get_webhook_manager()
-
-    success = manager.update_webhook(
-        webhook_id=webhook_id,
-        url=str(request.url) if request.url else None,
-        webhook_type=request.webhook_type,
-        confidence_threshold=request.confidence_threshold,
-        camera_ids=request.camera_ids,
-        is_active=request.is_active
-    )
-
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Webhook {webhook_id} not found"
-        )
-
-    webhook = manager.get_webhook(webhook_id)
-    return WebhookResponse(**webhook)
+    db.commit()
+    db.refresh(webhook)
+    return WebhookResponse(**webhook.to_dict())
 
 
 @router.delete("/webhooks/{webhook_id}")
-def delete_webhook(webhook_id: str) -> dict:
+def delete_webhook(webhook_id: str, db: Session = Depends(get_db)) -> dict:
     """Delete a webhook."""
-    manager = get_webhook_manager()
-
-    success = manager.delete_webhook(webhook_id)
-
-    if not success:
+    webhook = db.query(Webhook).filter(Webhook.id == webhook_id).first()
+    if not webhook:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Webhook {webhook_id} not found"
         )
 
+    db.delete(webhook)
+    db.commit()
     return {"status": "deleted", "webhook_id": webhook_id}

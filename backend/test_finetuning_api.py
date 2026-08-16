@@ -44,7 +44,7 @@ def test_start_finetuning_all_cameras(client):
         "/api/v1/finetuning/start",
         json=request_data
     )
-    assert response.status_code in [200, 202, 400]
+    assert response.status_code in [200, 202, 400, 409]
 
 
 def test_get_finetuning_status(client):

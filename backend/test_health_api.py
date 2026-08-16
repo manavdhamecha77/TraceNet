@@ -51,7 +51,10 @@ def test_api_prefix_versioning(client):
 
 def test_cors_headers(client):
     """Test CORS headers are set."""
-    response = client.options("/api/v1/health")
+    response = client.options(
+        "/api/v1/health",
+        headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "GET"},
+    )
     assert "access-control-allow-origin" in response.headers or response.status_code == 200
 
 
