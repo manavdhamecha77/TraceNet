@@ -260,6 +260,18 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+### WebRTC Server Setup (For real-time stream)
+
+```bash
+cd backend
+
+# Go to mediaMTX dir
+cd \data\mediamtx
+
+# Execute the file with the config file
+.\mediamtx.exe .\mediamtx.yml
+```
+
 **URLs:**
 | Endpoint | URL |
 |---|---|
@@ -313,6 +325,18 @@ On any search result → **Tag as Hot Target** → assign label and priority →
 ### 6. Live Monitoring
 - **Watch Live** — `/cameras/:id/live` — real-time WebRTC stream with bounding-box overlays and performance telemetry.
 - **Broadcast from Browser** — `/live-connect` — broadcast from this device's camera into the inference pipeline via WebRTC WHIP.
+
+---
+
+### 🎥 Sample Detection Videos
+
+>  **See TraceNet in action:** sample CCTV footage showcasing **Abandoned Object Detection** , **Assault Detection** and **Chain Snatching / Theft Detection**.
+
+[🎬 Watch Sample Detection Videos](https://drive.google.com/drive/folders/1j2ivZ9bf55G7SaY5At8q7BuILYkZ_TA_?usp=drive_link)
+
+### 🤖 Trained Detection Models
+
+[📦 Download Abandoned Object, Assault & Theft Detection Models](https://drive.google.com/drive/folders/1ytxcXFvbVjLLVhIEhmi3PPsY2xSkWx9y?usp=sharing)
 
 ---
 
