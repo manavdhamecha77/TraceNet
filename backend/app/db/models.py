@@ -723,6 +723,65 @@ class CrimeReport(Base):
         }
 
 
+class FaceTracklet(Base):
+    __tablename__ = "face_tracklets"
+
+    id = Column(String, primary_key=True, index=True)
+    video_id = Column(String, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False)
+    tracker_id = Column(Integer, nullable=False)
+    camera_id = Column(String, nullable=False)
+    frame_start = Column(Integer, nullable=False)
+    frame_end = Column(Integer, nullable=False)
+    timestamp_start_seconds = Column(Float, nullable=False)
+    timestamp_end_seconds = Column(Float, nullable=False)
+    detection_count = Column(Integer, nullable=False)
+    mean_confidence = Column(Float, nullable=False)
+    best_bbox = Column(Text, nullable=False)
+    best_crop_path = Column(String, nullable=True)
+    label = Column(String, nullable=True)
+    qdrant_point_id = Column(String, nullable=True)
+    embedding_dim = Column(Integer, default=512)
+    embedding_backend = Column(String, default="clip")
+    indexed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    video = relationship("VideoAsset", backref="face_tracklets")
+
+    def to_dict(self):
+        try:
+            bbox = json.loads(self.best_bbox) if self.best_bbox else []
+        except Exception:
+            bbox = []
+
+        crop_path = self.best_crop_path or ""
+        normalized = crop_path.replace("\\", "/")
+        crop_url = ""
+        data_index = normalized.find("/data/")
+        if data_index != -1:
+            crop_url = normalized[data_index:]
+        elif normalized:
+            crop_url = f"/data/{normalized.lstrip('/')}"
+
+        return {
+            "id": self.id,
+            "video_id": self.video_id,
+            "tracker_id": self.tracker_id,
+            "camera_id": self.camera_id,
+            "frame_start": self.frame_start,
+            "frame_end": self.frame_end,
+            "timestamp_start_seconds": self.timestamp_start_seconds,
+            "timestamp_end_seconds": self.timestamp_end_seconds,
+            "detection_count": self.detection_count,
+            "mean_confidence": self.mean_confidence,
+            "best_bbox": bbox,
+            "best_crop_path": crop_url,
+            "label": self.label,
+            "qdrant_point_id": self.qdrant_point_id,
+            "embedding_dim": self.embedding_dim,
+            "embedding_backend": self.embedding_backend,
+            "indexed_at": self.indexed_at.isoformat() if self.indexed_at else None,
+        }
+
+
 class LicensePlateDetection(Base):
     __tablename__ = "license_plate_detections"
 

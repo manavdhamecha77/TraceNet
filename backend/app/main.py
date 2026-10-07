@@ -23,6 +23,7 @@ from app.api.finetuning import router as finetuning_router
 from app.api.system_jobs import router as system_jobs_router
 from app.api.streaming import router as streaming_router
 from app.api.plate_detection import router as plate_detection_router
+from app.api.face_detection import router as face_detection_router
 from app.config import get_settings, get_data_path
 from app.db.models import Area, Base
 from app.db.session import SessionLocal, engine
@@ -34,6 +35,7 @@ os.makedirs(get_data_path(""), exist_ok=True)
 os.makedirs(get_data_path("minio_mock"), exist_ok=True)
 os.makedirs(get_data_path("cameras"), exist_ok=True)
 os.makedirs(get_data_path("processed/detections"), exist_ok=True)
+os.makedirs(get_data_path("processed/faces"), exist_ok=True)
 os.makedirs(get_data_path("models"), exist_ok=True)
 os.makedirs(get_data_path("audit_logs"), exist_ok=True)
 os.makedirs(get_data_path("streams"), exist_ok=True)
@@ -386,6 +388,34 @@ def run_startup_migrations():
             if cursor.fetchone():
                 cursor.execute("UPDATE cameras SET area_id = ? WHERE area_id IS NULL", default_area)
                 conn.commit()
+
+            # Check if face_tracklets table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='face_tracklets'")
+            if not cursor.fetchone():
+                cursor.execute('''
+                    CREATE TABLE face_tracklets (
+                        id VARCHAR PRIMARY KEY,
+                        video_id VARCHAR REFERENCES videos(id),
+                        tracker_id INTEGER,
+                        camera_id VARCHAR,
+                        frame_start INTEGER,
+                        frame_end INTEGER,
+                        timestamp_start_seconds FLOAT,
+                        timestamp_end_seconds FLOAT,
+                        detection_count INTEGER,
+                        mean_confidence FLOAT,
+                        best_bbox TEXT,
+                        best_crop_path VARCHAR,
+                        label VARCHAR,
+                        qdrant_point_id VARCHAR,
+                        embedding_dim INTEGER DEFAULT 512,
+                        embedding_backend VARCHAR DEFAULT 'clip',
+                        indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                conn.commit()
+                print("Schema Migration: Created 'face_tracklets' table.")
+
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -570,6 +600,7 @@ app.include_router(analytics_router, prefix=settings.api_prefix, tags=["Analytic
 app.include_router(audit_router, prefix=settings.api_prefix, tags=["Audit"])
 app.include_router(assault_detection_router, prefix=settings.api_prefix, tags=["Assault Detection"])
 app.include_router(plate_detection_router, prefix=settings.api_prefix, tags=["ANPR"])
+app.include_router(face_detection_router, prefix=settings.api_prefix, tags=["Face Detection"])
 app.include_router(processing_router, prefix=settings.api_prefix, tags=["Video Processing"])
 app.include_router(webhooks_router, prefix=settings.api_prefix, tags=["Webhooks"])
 app.include_router(frame_inspection_router, prefix=settings.api_prefix, tags=["Frame Inspection"])

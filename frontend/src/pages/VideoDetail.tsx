@@ -86,6 +86,15 @@ export default function VideoDetail() {
   const [error, setError]     = useState('')
 
   // Player
+  const [detectionMode, setDetectionMode] = useState<'objects' | 'faces'>('objects')
+  const [faceData, setFaceData] = useState<any>(null)
+  const [faceDataLoading, setFaceDataLoading] = useState(false)
+  const [localFaceResults, setLocalFaceResults] = useState<any[]>([])
+  const [faceSearchQuery, setFaceSearchQuery] = useState('')
+  const [faceSearching, setFaceSearching] = useState(false)
+  const [labelingFaceId, setLabelingFaceId] = useState<string | null>(null)
+  const [faceLabel, setFaceLabel] = useState('')
+
   const [playerView, setPlayerView]           = useState<'clean' | 'annotated'>('annotated')
   const [playerDetections, setPlayerDetections] = useState<DetectionData | null>(null)
   const [playerDetectionsLoading, setPlayerDetectionsLoading] = useState(false)
@@ -165,16 +174,79 @@ export default function VideoDetail() {
     }
   }, [playerView, loadPlayerDetections])
 
+  const loadFaceData = useCallback(async () => {
+    if (!video_id) return
+    setFaceDataLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/videos/${video_id}/faces`)
+      if (res.ok) setFaceData(await res.json())
+    } catch (_) { /* silent */ }
+    setFaceDataLoading(false)
+  }, [video_id])
+
+  useEffect(() => {
+    if (detectionMode === 'faces' && playerView === 'annotated') {
+      loadFaceData()
+    }
+  }, [detectionMode, playerView, loadFaceData])
+
+  const handleRunFaceDetection = async () => {
+    if (!video_id) return
+    setFaceDataLoading(true)
+    try {
+      await fetch(`${API_BASE}/api/v1/videos/${video_id}/faces/run`, { method: 'POST' })
+      loadFaceData()
+    } catch (_) {
+      setFaceDataLoading(false)
+    }
+  }
+
+  const handleFaceSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!faceSearchQuery.trim()) return
+    setFaceSearching(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/face-search/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: faceSearchQuery, top_k: topK })
+      })
+      if (res.ok) {
+        const results = await res.json()
+        setLocalFaceResults(results.filter((r: any) => r.video_id === video_id))
+      }
+    } catch (_) { }
+    setFaceSearching(false)
+  }
+
+  const handleLabelFace = async (id: string) => {
+    if (!faceLabel.trim()) return
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/face-tracklets/${id}/label`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: faceLabel.trim() })
+      })
+      if (res.ok) {
+        setLocalFaceResults(prev => prev.map(r => r.face_tracklet_id === id ? { ...r, label: faceLabel.trim() } : r))
+        setLabelingFaceId(null)
+        setFaceLabel('')
+      }
+    } catch (_) { }
+  }
+
   // ─── Precision Canvas Alignment & Draw ──────────────────────────────────────
 
   const drawBoundingBoxes = useCallback(() => {
     const video  = videoRef.current
     const canvas = canvasRef.current
-    if (!video || !canvas || !playerDetections) return
+    if (!video || !canvas) return
+    const activeData = detectionMode === 'faces' ? faceData : playerDetections
+    if (!activeData) return
 
-    const fps        = playerDetections.fps || 10
+    const fps        = activeData.fps || 10
     const frameIndex = Math.round(video.currentTime * fps)
-    const frameData  = (playerDetections.frame_detections ?? []).find(fd => fd.frame_index === frameIndex)
+    const frameData  = (activeData.frame_detections ?? []).find((fd: any) => fd.frame_index === frameIndex)
 
     // Canvas physical size matches video element client dimensions
     const cWidth  = video.clientWidth
@@ -223,10 +295,10 @@ export default function VideoDetail() {
     const toCanvasY = (y: number) => offsetY + (y * scaleY)
 
     // 1. Draw Motion Trajectories (Centroid Paths) up to current frameIndex
-    if (showMotionPaths && playerDetections.frame_detections) {
+    if (showMotionPaths && activeData.frame_detections) {
       const trajectories: Record<number, Array<{ x: number; y: number; frame: number }>> = {}
 
-      for (const fd of playerDetections.frame_detections) {
+      for (const fd of activeData.frame_detections) {
         if (fd.frame_index > frameIndex) break
         for (const det of fd.detections) {
           if (det.tracker_id == null) continue
@@ -249,7 +321,7 @@ export default function VideoDetail() {
         const currentId = extractTrackerId(tid)
         const isSeeked = targetId !== null && currentId !== null && targetId === currentId
 
-        const sampleDet = frameData?.detections.find(d => extractTrackerId(d.tracker_id) === currentId)
+        const sampleDet = frameData?.detections.find((d: any) => extractTrackerId(d.tracker_id) === currentId)
         const color = isSeeked ? '#00FF41' : (sampleDet ? classColor(sampleDet.class_name) : '#14B8A6')
 
         ctx.save()
@@ -294,12 +366,25 @@ export default function VideoDetail() {
         const cw  = cx2 - cx1
         const ch  = cy2 - cy1
 
-        const color = classColor(cn)
+        let color = classColor(cn)
         const conf  = ((det.confidence ?? 0) * 100).toFixed(0)
         const tid   = det.tracker_id != null ? ` #${det.tracker_id}` : ''
         const activeColor = seekedColor || '#00FF41'
         const tagPrefix = seekedTag ? `[${seekedTag}] ` : ''
-        const label = `${tagPrefix}${cn}${tid} ${conf}%`
+        
+        let label = `${tagPrefix}${cn}${tid} ${conf}%`
+        let lineWidth = 1.5
+
+        if (detectionMode === 'faces') {
+          color = '#00FF41'
+          lineWidth = 3.5
+          const matchingResult = localFaceResults.find((r: any) => extractTrackerId(r.tracker_id) === detId)
+          if (matchingResult?.label) {
+            label = `[${matchingResult.label}] face${tid} ${conf}%`
+          } else {
+            label = `face${tid} ${conf}%`
+          }
+        }
 
         if (isSeeked) {
           // Thinner bright highlight for seeked tracklet (DYNAMIC as video plays!)
@@ -323,7 +408,7 @@ export default function VideoDetail() {
           ctx.fillText(label, cx1 + 4, cy1 - 4)
         } else {
           ctx.strokeStyle = color
-          ctx.lineWidth   = 1.5
+          ctx.lineWidth   = lineWidth
           ctx.strokeRect(cx1, cy1, cw, ch)
 
           ctx.font = 'bold 10px monospace'
@@ -340,7 +425,7 @@ export default function VideoDetail() {
     if (seekedBbox && seekedTrackletId) {
       const targetId = extractTrackerId(seekedTrackletId)
       const hasSeekedInFrame = frameData?.detections.some(
-        d => {
+        (d: any) => {
           const detId = extractTrackerId(d.tracker_id)
           return targetId !== null && detId !== null && targetId === detId
         }
@@ -419,7 +504,7 @@ export default function VideoDetail() {
     seekToastTimerRef.current = setTimeout(() => setSeekToast(null), 2800)
   }
 
-  const seekAndPause = (seconds: number, tracklet?: TrackletItem) => {
+  const seekAndPause = (seconds: number, tracklet?: any) => {
     if (playerView !== 'annotated') setPlayerView('annotated')
 
     if (tracklet) {
@@ -1051,9 +1136,37 @@ export default function VideoDetail() {
         </div>
       )}
 
-      {/* ── 5. CLIP SEARCH + TRACKLET GRID ──────────────────────────────────── */}
-      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-md space-y-3">
 
+      {/* ── Detection Mode Tab Switcher ──────────────────────────────────── */}
+      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-0.5 rounded border border-slate-200 dark:border-slate-700 w-fit mb-4">
+        <button
+          onClick={() => setDetectionMode('objects')}
+          className={`px-3 py-1.5 text-xs font-bold rounded transition-all flex items-center gap-1.5 ${
+            detectionMode === 'objects'
+              ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-400 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Crosshair className="h-3.5 w-3.5" />
+          Vehicle & Person
+        </button>
+        <button
+          onClick={() => { setDetectionMode('faces'); if (playerView === 'annotated') loadFaceData() }}
+          className={`px-3 py-1.5 text-xs font-bold rounded transition-all flex items-center gap-1.5 ${
+            detectionMode === 'faces'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          Facial Intelligence
+        </button>
+      </div>
+
+      {/* ── 5. SEARCH + TRACKLET GRID ──────────────────────────────────── */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-md space-y-3">
+        {detectionMode === 'objects' ? (
+        <>
         {/* Header row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -1261,6 +1374,97 @@ export default function VideoDetail() {
             </div>
           )}
         </div>
+        </>
+        ) : (
+          <>
+          {/* Header row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Local Face Search</h3>
+            </div>
+            
+            {(!faceData || (faceData.frame_detections?.length === 0)) && (
+              <button onClick={handleRunFaceDetection} disabled={faceDataLoading} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition-colors flex items-center gap-1">
+                {faceDataLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
+                Run Face Detection
+              </button>
+            )}
+          </div>
+
+          <form onSubmit={handleFaceSearch} className="flex gap-2 items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search faces by description..."
+                value={faceSearchQuery}
+                onChange={e => setFaceSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <button type="submit" disabled={faceSearching} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded transition-colors flex items-center gap-1.5 shrink-0">
+              {faceSearching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+              Search
+            </button>
+          </form>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {localFaceResults.map((r, i) => {
+              const cp = r.best_crop_path
+              const cropUrl = cp ? (cp.startsWith('http') ? cp : `${API_BASE}${cp.startsWith('/data/') ? cp : '/' + cp}`) : ''
+              const tid = r.face_tracklet_id || i
+              
+              const targetTid = extractTrackerId(seekedTrackletId)
+              const itemTid = extractTrackerId(tid)
+              const isHighlighted = targetTid !== null && itemTid !== null && targetTid === itemTid
+
+              return (
+                <div key={tid} className={`flex flex-col rounded-md overflow-hidden border transition-all ${isHighlighted ? 'border-[#00FF41] ring-2 ring-[#00FF41]/50 bg-emerald-500/5 shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                  <div className="relative aspect-square bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
+                    {cropUrl ? <img src={cropUrl} alt="face" className="w-full h-full object-contain" /> : <FileText className="h-8 w-8 text-slate-400 opacity-40" />}
+                    {r.label && (
+                      <div className="absolute bottom-1 left-1 bg-emerald-600/90 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm">
+                        {r.label}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-2 space-y-1.5 flex flex-col justify-between flex-1">
+                    <div className="text-[10px] text-slate-500 font-mono">
+                      {new Date(r.timestamp_start_seconds * 1000).toISOString().substr(11, 8)}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-1 mt-auto font-sans">
+                      <button onClick={() => { setSeekedTrackletId(tid); seekAndPause(r.timestamp_start_seconds, { tracker_id: tid }) }} className="py-1 font-bold text-[10px] rounded flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200">
+                        <Play className="h-3 w-3 fill-current" /> Seek
+                      </button>
+                      
+                      {labelingFaceId === tid ? (
+                        <div className="flex items-center">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={faceLabel}
+                            onChange={e => setFaceLabel(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleLabelFace(tid)}
+                            className="w-full h-full px-1 py-1 text-[10px] border border-emerald-500 rounded outline-none"
+                            placeholder="Name"
+                          />
+                        </div>
+                      ) : (
+                        <button onClick={() => { setLabelingFaceId(tid); setFaceLabel(r.label || '') }} className="flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 py-1 rounded text-[10px] font-bold">
+                          Tag
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          </>
+        )}
       </div>
 
     </div>

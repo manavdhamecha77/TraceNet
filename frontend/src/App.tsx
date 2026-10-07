@@ -16,6 +16,7 @@ import FineTuning from './pages/FineTuning'
 import TheftAlerts from './pages/TheftAlerts'
 import AlertsDashboard from './pages/AlertsDashboard'
 import HotTargets from './pages/HotTargets'
+import FaceSearch from './pages/FaceSearch'
 import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
@@ -578,6 +579,8 @@ function App() {
         }
       } else if (paths[0] === 'search') {
         crumbs.push({ label: 'Search', link: '/search' })
+      } else if (paths[0] === 'face-search') {
+        crumbs.push({ label: 'Facial Intelligence', link: '/face-search' })
       } else if (paths[0] === 'alerts') {
         crumbs.push({ label: 'Unified Alert Center', link: '/alerts' })
         if (paths[1] === 'abandoned') {
@@ -1055,6 +1058,17 @@ function App() {
             </Link>
 
             <Link
+              to="/face-search"
+              className={navLinkClass(location.pathname === '/face-search')}
+              title={isSidebarCollapsed ? 'Facial Intelligence' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5s-3 1.343-3 3 1.343 3 3 3zm0 2c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z" />
+              </svg>
+              {!isSidebarCollapsed && <span>Facial Intelligence</span>}
+            </Link>
+
+            <Link
               to="/targets"
               className={navLinkClass(location.pathname.startsWith('/targets') || location.pathname.startsWith('/hot-targets') || location.pathname === '/multicam')}
               title={isSidebarCollapsed ? 'Pursuit & Tracking' : undefined}
@@ -1311,6 +1325,7 @@ function App() {
               <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
               <Route path="/finetuning" element={<FineTuning />} />
               <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
+              <Route path="/face-search" element={<FaceSearch />} />
               <Route path="/multicam" element={<MultiCameraTracking />} />
               <Route path="/targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
