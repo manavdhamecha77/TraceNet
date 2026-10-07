@@ -1,4 +1,5 @@
 import os
+import uuid
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -21,10 +22,10 @@ from app.api.frame_inspection import router as frame_inspection_router
 from app.api.finetuning import router as finetuning_router
 from app.api.system_jobs import router as system_jobs_router
 from app.api.streaming import router as streaming_router
+from app.api.plate_detection import router as plate_detection_router
 from app.config import get_settings, get_data_path
-from app.embeddings.clip_encoder import get_clip_encoder
-from app.db.models import Base
-from app.db.session import engine
+from app.db.models import Area, Base
+from app.db.session import SessionLocal, engine
 from app.db.optimize import optimize_database
 import sqlite3
 
@@ -34,7 +35,6 @@ os.makedirs(get_data_path("minio_mock"), exist_ok=True)
 os.makedirs(get_data_path("cameras"), exist_ok=True)
 os.makedirs(get_data_path("processed/detections"), exist_ok=True)
 os.makedirs(get_data_path("models"), exist_ok=True)
-os.makedirs(get_data_path("finetuned_models"), exist_ok=True)
 os.makedirs(get_data_path("audit_logs"), exist_ok=True)
 os.makedirs(get_data_path("streams"), exist_ok=True)
 # Run schema migrations for SQLite dynamically to prevent OperationalError
@@ -44,11 +44,33 @@ def run_startup_migrations():
         conn = sqlite3.connect(db_path)
         try:
             cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='areas'")
+            if not cursor.fetchone():
+                cursor.execute(
+                    """
+                    CREATE TABLE areas (
+                        id VARCHAR PRIMARY KEY,
+                        name VARCHAR NOT NULL UNIQUE,
+                        description TEXT,
+                        thumbnail_path VARCHAR,
+                        thumbnail_url VARCHAR,
+                        created_at DATETIME
+                    )
+                    """
+                )
+                conn.commit()
+                print("Schema Migration: Created 'areas' table.")
+
             # Check if cameras table exists first
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cameras'")
             if cursor.fetchone():
                 cursor.execute("PRAGMA table_info(cameras)")
                 columns = [c[1] for c in cursor.fetchall()]
+
+                if "area_id" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN area_id VARCHAR REFERENCES areas(id)")
+                    conn.commit()
+                    print("Schema Migration: Added 'area_id' column to cameras.")
                 
                 if "status" not in columns:
                     cursor.execute("ALTER TABLE cameras ADD COLUMN status VARCHAR DEFAULT 'active'")
@@ -349,6 +371,21 @@ def run_startup_migrations():
                 conn.commit()
                 print("Schema Migration: Created indexes on 'crime_reports' table.")
 
+            cursor.execute("SELECT id FROM areas WHERE name = 'General'")
+            default_area = cursor.fetchone()
+            if not default_area:
+                default_area_id = str(uuid.uuid4())
+                cursor.execute(
+                    "INSERT INTO areas (id, name, description, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                    (default_area_id, "General", "Default Area for existing camera nodes"),
+                )
+                default_area = (default_area_id,)
+                conn.commit()
+                print("Schema Migration: Created default 'General' Area.")
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cameras'")
+            if cursor.fetchone():
+                cursor.execute("UPDATE cameras SET area_id = ? WHERE area_id IS NULL", default_area)
+                conn.commit()
         except Exception as e:
             print("Startup Migration Error:", str(e))
         finally:
@@ -358,6 +395,20 @@ run_startup_migrations()
 
 # Ensure tables are created
 Base.metadata.create_all(bind=engine)
+
+# New installations do not have a SQLite file for the migration pass. Seed the
+# same default Area after SQLAlchemy creates the tables so new cameras follow
+# the same hierarchy as migrated installations.
+with SessionLocal() as _startup_db:
+    if not _startup_db.query(Area).filter(Area.name == "General").first():
+        _startup_db.add(
+            Area(
+                id=str(uuid.uuid4()),
+                name="General",
+                description="Default Area for camera nodes",
+            )
+        )
+        _startup_db.commit()
 
 # Optimize database with indexes
 optimize_database()
@@ -417,6 +468,10 @@ app = FastAPI(
             "description": "Violence and assault detection using deep learning"
         },
         {
+            "name": "ANPR",
+            "description": "Automatic license plate detection, recognition, and watchlist alerting"
+        },
+        {
             "name": "Video Processing",
             "description": "Real-time video processing pipeline"
         },
@@ -473,13 +528,8 @@ def start_mediamtx_server():
 
 @app.on_event("startup")
 def load_startup_singletons() -> None:
-    """Load shared ML models and MediaMTX server at app startup."""
-    clip_encoder = get_clip_encoder()
-    app.state.clip_encoder = clip_encoder
-    print(
-        "Startup: CLIP encoder loaded "
-        f"(model={clip_encoder.model_name}, pretrained={clip_encoder.pretrained}, device={clip_encoder.device})."
-    )
+    """Start infrastructure without blocking API readiness on optional ML downloads."""
+    print("Startup: CLIP encoder will load lazily when search or embedding work begins.")
     start_mediamtx_server()
 
 # Enable CORS for frontend integration (allow all origins for LAN / multi-device access)
@@ -503,10 +553,12 @@ if os.path.isdir(_camera_client_dir):
 from app.api.assistant import router as assistant_router
 from app.api.multicam import router as multicam_router
 from app.api.reports import router as reports_router
+from app.api.areas import router as areas_router
 
 # Register routes
 app.include_router(health_router, tags=["Health"])
 app.include_router(cameras_router, prefix=settings.api_prefix, tags=["Cameras"])
+app.include_router(areas_router, tags=["Areas"])
 app.include_router(detections_router, prefix=settings.api_prefix, tags=["Detection"])
 app.include_router(upload_router, prefix=settings.api_prefix, tags=["Videos"])
 app.include_router(models_router, prefix=settings.api_prefix, tags=["Models"])
@@ -517,6 +569,7 @@ app.include_router(alerts_router, prefix=settings.api_prefix, tags=["Alerts"])
 app.include_router(analytics_router, prefix=settings.api_prefix, tags=["Analytics"])
 app.include_router(audit_router, prefix=settings.api_prefix, tags=["Audit"])
 app.include_router(assault_detection_router, prefix=settings.api_prefix, tags=["Assault Detection"])
+app.include_router(plate_detection_router, prefix=settings.api_prefix, tags=["ANPR"])
 app.include_router(processing_router, prefix=settings.api_prefix, tags=["Video Processing"])
 app.include_router(webhooks_router, prefix=settings.api_prefix, tags=["Webhooks"])
 app.include_router(frame_inspection_router, prefix=settings.api_prefix, tags=["Frame Inspection"])

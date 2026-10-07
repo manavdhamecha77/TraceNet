@@ -181,42 +181,6 @@ def create_alert(payload: AlertCreate, db: Session = Depends(get_db)):
     return alert.to_dict()
 
 
-@router.get("/alerts/{alert_id}", response_model=AlertResponse)
-def get_alert(alert_id: int, db: Session = Depends(get_db)):
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found.")
-    return alert.to_dict()
-
-
-@router.delete("/alerts/{alert_id}")
-def delete_alert(alert_id: int, db: Session = Depends(get_db)):
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found.")
-    db.delete(alert)
-    db.commit()
-    return {"status": "success", "message": f"Alert {alert_id} deleted."}
-
-
-from datetime import datetime, timezone
-
-@router.put("/alerts/{alert_id}/acknowledge")
-def acknowledge_alert(
-    alert_id: int,
-    acknowledged_by: Optional[str] = "Operator (Badge #4082)",
-    db: Session = Depends(get_db)
-):
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found.")
-    alert.acknowledged = True
-    alert.acknowledged_by = acknowledged_by
-    alert.acknowledged_at = datetime.now(timezone.utc)
-    db.commit()
-    return alert.to_dict()
-
-
 @router.get("/alerts/summary")
 def get_alerts_summary(db: Session = Depends(get_db)):
     total = db.query(Alert).count()
@@ -664,3 +628,46 @@ def clear_alerts_artifacts(db: Session = Depends(get_db)):
         db.rollback()
         logger.error(f"Failed to clear alert artifacts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------------------------------------------------------
+# Single-alert CRUD (registered last: the "/{alert_id}" pattern
+# would otherwise shadow every literal-path route above it, since
+# FastAPI/Starlette match routes in registration order)
+# -------------------------------------------------------
+
+from datetime import datetime, timezone
+
+
+@router.get("/alerts/{alert_id}", response_model=AlertResponse)
+def get_alert(alert_id: int, db: Session = Depends(get_db)):
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    return alert.to_dict()
+
+
+@router.delete("/alerts/{alert_id}")
+def delete_alert(alert_id: int, db: Session = Depends(get_db)):
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    db.delete(alert)
+    db.commit()
+    return {"status": "success", "message": f"Alert {alert_id} deleted."}
+
+
+@router.put("/alerts/{alert_id}/acknowledge")
+def acknowledge_alert(
+    alert_id: int,
+    acknowledged_by: Optional[str] = "Operator (Badge #4082)",
+    db: Session = Depends(get_db)
+):
+    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    alert.acknowledged = True
+    alert.acknowledged_by = acknowledged_by
+    alert.acknowledged_at = datetime.now(timezone.utc)
+    db.commit()
+    return alert.to_dict()

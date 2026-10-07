@@ -192,7 +192,7 @@ class WebhookManager:
             for webhook in webhooks:
                 try:
                     # Skip if confidence below threshold
-                    if alert_type == "assault" and confidence < webhook.confidence_threshold:
+                    if confidence < webhook.confidence_threshold:
                         continue
 
                     # Skip if camera not in filter list
@@ -213,8 +213,8 @@ class WebhookManager:
                         "event": alert_type,
                         "camera_id": camera_id,
                         "video_id": video_id,
-                        "assault_type": assault_type if alert_type == "assault" else None,
-                        "confidence": confidence if alert_type == "assault" else None,
+                        "assault_type": assault_type,
+                        "confidence": confidence,
                         "timestamp": timestamp,
                         "alert_id": alert_id
                     }

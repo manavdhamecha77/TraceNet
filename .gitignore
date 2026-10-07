@@ -16,3 +16,8 @@ backend/finetuned_models/
 *.avi
 *.mov
 *.mkv
+
+# Test outputs
+test/predict_results/
+test/ocr_results.txt
+test/Sample_videos/

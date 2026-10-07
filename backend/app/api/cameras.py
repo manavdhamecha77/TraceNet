@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.db.models import CameraProfile, VideoAsset
+from app.db.models import Area, CameraProfile, VideoAsset
 
 router = APIRouter(prefix="/api/v1", tags=["cameras"])
 
@@ -16,6 +16,7 @@ class CameraCreate(BaseModel):
     latitude: Optional[float] = Field(None, example=23.0225)
     longitude: Optional[float] = Field(None, example=72.5714)
     corridor_group: Optional[str] = Field(None, example="Zone-A")
+    area_id: Optional[str] = None
     adjacency: List[str] = Field(default_factory=list, example=["CAM_041", "CAM_043"])
     status: Optional[str] = Field("active", example="active")
     altitude: Optional[float] = Field(None, example=45.2)
@@ -26,6 +27,7 @@ class CameraUpdate(BaseModel):
     latitude: Optional[float] = Field(None, example=23.0225)
     longitude: Optional[float] = Field(None, example=72.5714)
     corridor_group: Optional[str] = Field(None, example="Zone-A")
+    area_id: Optional[str] = None
     adjacency: Optional[List[str]] = Field(None, example=["CAM_041", "CAM_043"])
     status: Optional[str] = Field(None, example="active")
     altitude: Optional[float] = Field(None, example=45.2)
@@ -41,6 +43,7 @@ class CameraResponse(BaseModel):
     latitude: Optional[float]
     longitude: Optional[float]
     corridor_group: Optional[str]
+    area_id: Optional[str]
     adjacency: List[str]
     is_active: bool
     status: str
@@ -91,6 +94,12 @@ def create_camera(payload: CameraCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Camera with ID '{payload.camera_id}' is already registered."
         )
+    area_id = payload.area_id
+    if area_id and not db.query(Area).filter(Area.id == area_id).first():
+        raise HTTPException(status_code=404, detail=f"Area '{payload.area_id}' does not exist.")
+    if not area_id:
+        default_area = db.query(Area).filter(Area.name == "General").first()
+        area_id = default_area.id if default_area else None
         
     try:
         camera = CameraProfile(
@@ -99,6 +108,7 @@ def create_camera(payload: CameraCreate, db: Session = Depends(get_db)):
             latitude=payload.latitude,
             longitude=payload.longitude,
             corridor_group=payload.corridor_group,
+            area_id=area_id,
             adjacency=json.dumps(payload.adjacency),
             is_active=True,
             status=payload.status or "active",
@@ -197,6 +207,10 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
             camera.longitude = payload.longitude
         if payload.corridor_group is not None:
             camera.corridor_group = payload.corridor_group
+        if "area_id" in payload.model_fields_set:
+            if payload.area_id and not db.query(Area).filter(Area.id == payload.area_id).first():
+                raise HTTPException(status_code=404, detail=f"Area '{payload.area_id}' does not exist.")
+            camera.area_id = payload.area_id
         if payload.adjacency is not None:
             camera.adjacency = json.dumps(payload.adjacency)
         if payload.status is not None:

@@ -6,6 +6,42 @@ from sqlalchemy.orm import declarative_base, relationship
 Base = declarative_base()
 
 
+class Area(Base):
+    __tablename__ = "areas"
+
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    thumbnail_path = Column(String, nullable=True)
+    thumbnail_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    cameras = relationship("CameraProfile", back_populates="area")
+
+    def to_dict(self):
+        camera_list = self.cameras or []
+        first_camera_thumbnail = next(
+            (
+                video.thumbnail_path
+                for camera in camera_list
+                for video in (camera.videos or [])
+                if video.thumbnail_path
+            ),
+            None,
+        )
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "thumbnail_path": self.thumbnail_path,
+            "thumbnail_url": self.thumbnail_url,
+            "default_thumbnail_path": first_camera_thumbnail,
+            "camera_count": len(camera_list),
+            "camera_ids": [camera.camera_id for camera in camera_list],
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class MLModel(Base):
     __tablename__ = "models"
 
@@ -48,6 +84,7 @@ class CameraProfile(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     corridor_group = Column(String, nullable=True)
+    area_id = Column(String, ForeignKey("areas.id"), nullable=True, index=True)
     adjacency = Column(Text, default="[]")  # JSON string of neighboring camera IDs
     is_active = Column(Boolean, default=True)
     status = Column(String, default="active")  # 'active' | 'maintenance' | 'not-working'
@@ -64,6 +101,7 @@ class CameraProfile(Base):
     stream_started_at = Column(DateTime, nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
+    area = relationship("Area", back_populates="cameras")
     assigned_model = relationship("MLModel", foreign_keys=[model_id], back_populates="cameras")
 
     def to_dict(self):
@@ -77,6 +115,7 @@ class CameraProfile(Base):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "corridor_group": self.corridor_group,
+            "area_id": self.area_id,
             "adjacency": adj,
             "is_active": self.is_active,
             "status": self.status,
@@ -681,4 +720,70 @@ class CrimeReport(Base):
             "notes": self.notes,
             "report_data": data,
             "created_by": self.created_by,
+        }
+
+
+class LicensePlateDetection(Base):
+    __tablename__ = "license_plate_detections"
+
+    id = Column(String, primary_key=True, index=True)  # uuid string
+    video_id = Column(String, nullable=True)
+    camera_id = Column(String, nullable=False)
+    frame_number = Column(Integer, nullable=True)
+    timestamp_seconds = Column(Float, nullable=True)
+    plate_text = Column(String, nullable=False, index=True)
+    confidence = Column(Float, default=0.0)
+    bbox = Column(Text, default="[]")  # JSON [x1, y1, x2, y2]
+    cutout_path = Column(String, nullable=True)
+    is_watchlisted = Column(Boolean, default=False)
+    alert_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        try:
+            box = json.loads(self.bbox) if self.bbox else []
+        except Exception:
+            box = []
+        return {
+            "id": self.id,
+            "video_id": self.video_id,
+            "camera_id": self.camera_id,
+            "frame_number": self.frame_number,
+            "timestamp_seconds": self.timestamp_seconds,
+            "plate_text": self.plate_text,
+            "confidence": self.confidence,
+            "bbox": box,
+            "cutout_path": self.cutout_path,
+            "is_watchlisted": self.is_watchlisted,
+            "alert_id": self.alert_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class PlateWatchlistEntry(Base):
+    __tablename__ = "plate_watchlist"
+
+    id = Column(String, primary_key=True, index=True)  # uuid string
+    plate_number = Column(String, nullable=False, index=True)  # normalized uppercase alphanumeric
+    reason = Column(String, nullable=True)
+    priority = Column(String, default="HIGH")  # 'NORMAL' | 'HIGH' | 'CRITICAL'
+    status = Column(String, default="active")  # 'active' | 'resolved' | 'archived'
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_by = Column(String, nullable=True)
+    last_matched_at = Column(DateTime, nullable=True)
+    match_count = Column(Integer, default=0)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "plate_number": self.plate_number,
+            "reason": self.reason,
+            "priority": self.priority,
+            "status": self.status,
+            "notes": self.notes,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by,
+            "last_matched_at": self.last_matched_at.isoformat() if self.last_matched_at else None,
+            "match_count": self.match_count,
         }

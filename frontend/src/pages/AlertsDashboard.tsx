@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   AlertTriangle, ShieldAlert, Package, CheckCheck,
   RefreshCw, Filter, ChevronRight,
-  ShieldCheck, Loader2, ArrowUpRight, CheckSquare, Square
+  ShieldCheck, Loader2, ArrowUpRight, CheckSquare, Square, Car
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useToast } from '../components/Toast'
@@ -228,7 +228,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
       </div>
 
       {/* Dedicated Execution Banners */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <Link
           to="/alerts/abandoned"
           className="p-4 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-900 hover:border-amber-500/60 transition-all group flex items-center justify-between"
@@ -278,6 +278,24 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
             </p>
           </div>
           <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-bold shrink-0 group-hover:bg-violet-700 transition-colors ml-4">
+            <span>Open Page</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </div>
+        </Link>
+
+        <Link
+          to="/alerts/plates"
+          className="p-4 rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-50/80 to-white dark:from-cyan-950/20 dark:to-slate-900 hover:border-cyan-500/60 transition-all group flex items-center justify-between"
+        >
+          <div className="space-y-1">
+            <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Car className="w-4 h-4" /> Dedicated Page: Number Plate Detection
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Scan videos for license plates, review OCR sightings, and manage the plate watchlist.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-xs font-bold shrink-0 group-hover:bg-cyan-700 transition-colors ml-4">
             <span>Open Page</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
           </div>

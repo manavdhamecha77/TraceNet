@@ -37,6 +37,7 @@ const CATEGORY_LABELS: Record<string, { label: string; color: string; border: st
   theft: { label: 'Outdoor Theft', color: 'text-rose-700 dark:text-rose-300', border: 'border-rose-500/30', bg: 'bg-rose-500/10' },
   abandoned: { label: 'Abandoned Objects', color: 'text-amber-700 dark:text-amber-300', border: 'border-amber-500/30', bg: 'bg-amber-500/10' },
   assault: { label: 'Assault Detection', color: 'text-purple-700 dark:text-purple-300', border: 'border-purple-500/30', bg: 'bg-purple-500/10' },
+  anpr: { label: 'ANPR / License Plate', color: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-500/30', bg: 'bg-cyan-500/10' },
 }
 
 export default function Models({ models, onRefreshModels }: ModelsProps) {
@@ -360,6 +361,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
               <option value="theft">Outdoor Theft Detector</option>
               <option value="abandoned">Abandoned Object Detector</option>
               <option value="assault">Assault Detector</option>
+              <option value="anpr">ANPR / License Plate Detector</option>
             </select>
           </div>
 
@@ -789,6 +791,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
                   <option value="theft">Outdoor Theft Detector</option>
                   <option value="abandoned">Abandoned Object Detector</option>
                   <option value="assault">Assault Detector</option>
+                  <option value="anpr">ANPR / License Plate Detector</option>
                 </select>
               </div>
 

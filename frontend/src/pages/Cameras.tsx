@@ -11,6 +11,7 @@ interface Camera {
   latitude?: number
   longitude?: number
   corridor_group?: string
+  area_id?: string | null
   adjacency: string[]
   is_active: boolean
   status: string
@@ -20,8 +21,14 @@ interface Camera {
   is_streaming?: boolean
 }
 
+interface Area {
+  id: string
+  name: string
+}
+
 interface CamerasProps {
   cameras: Camera[]
+  areas: Area[]
   models: any[]
   onOpenRegisterModal: () => void
   onRefreshCameras?: () => void
@@ -114,7 +121,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const inputCls = "w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-[7px] text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-teal-600 dark:focus:border-teal-500 transition-colors"
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
-export default function Cameras({ cameras, models, onOpenRegisterModal, onRefreshCameras }: CamerasProps) {
+export default function Cameras({ cameras, areas, models, onOpenRegisterModal, onRefreshCameras }: CamerasProps) {
   const toast = useToast()
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({})
   const [localCameras, setLocalCameras] = useState<Camera[]>(cameras)
@@ -134,6 +141,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
   const [editCorridor, setEditCorridor] = useState('')
   const [editAdjacency, setEditAdjacency] = useState('')
   const [editStatus, setEditStatus] = useState('active')
+  const [editAreaId, setEditAreaId] = useState('')
   const [editAltitude, setEditAltitude] = useState('')
   const [editModelId, setEditModelId] = useState('')
   const [editTheftModelId, setEditTheftModelId] = useState('')
@@ -347,6 +355,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
     setEditCorridor(cam.corridor_group ?? '')
     setEditAdjacency(cam.adjacency.join(', '))
     setEditStatus(cam.status)
+    setEditAreaId(cam.area_id ?? '')
     setEditAltitude(cam.altitude?.toString() ?? '')
     setEditModelId(cam.model_id ?? '')
     setEditTheftModelId((cam as any).theft_model_id ?? '')
@@ -369,6 +378,7 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
       corridor_group: editCorridor.trim() || null,
       adjacency: editAdjacency ? editAdjacency.split(',').map(s => s.trim()).filter(Boolean) : [],
       status: editStatus,
+      area_id: editAreaId || null,
       altitude: editAltitude ? parseFloat(editAltitude) : null,
       model_id: editModelId || null,
       theft_model_id: editTheftModelId || null,
@@ -849,6 +859,13 @@ export default function Cameras({ cameras, models, onOpenRegisterModal, onRefres
                       <option value="active">Active</option>
                       <option value="maintenance">Maintenance</option>
                       <option value="not-working">Not Working</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Area">
+                    <select value={editAreaId} onChange={e => setEditAreaId(e.target.value)} className={inputCls}>
+                      <option value="">Unassigned</option>
+                      {areas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
                     </select>
                   </Field>
 

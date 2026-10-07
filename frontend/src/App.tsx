@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, Fragment } from 'react'
 import { Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Cameras from './pages/Cameras'
+import Areas from './pages/Areas'
 import CameraDetail from './pages/CameraDetail'
 import Search from './pages/Search'
 import Models from './pages/Models'
@@ -9,6 +10,7 @@ import EmbeddingModels from './pages/EmbeddingModels'
 import VideoDetail from './pages/VideoDetail'
 import Alerts from './pages/Alerts'
 import AssaultDetection from './pages/AssaultDetection'
+import PlateDetection from './pages/PlateDetection'
 import FrameInspection from './pages/FrameInspection'
 import FineTuning from './pages/FineTuning'
 import TheftAlerts from './pages/TheftAlerts'
@@ -43,6 +45,7 @@ interface Camera {
   latitude?: number
   longitude?: number
   corridor_group?: string
+  area_id?: string | null
   adjacency: string[]
   is_active: boolean
   status: string
@@ -65,6 +68,12 @@ interface Video {
   start_time?: string
   end_time?: string
   thumbnail_path?: string
+}
+
+interface Area {
+  id: string
+  name: string
+  camera_count: number
 }
 
 const extractTrackerId = (val: any): string | null => {
@@ -110,6 +119,7 @@ function App() {
 
   // Data state
   const [cameras, setCameras] = useState<Camera[]>([])
+  const [areas, setAreas] = useState<Area[]>([])
   const [models, setModels] = useState<any[]>([])
   const [selectedCamera, setSelectedCamera] = useState<Camera | null>(null)
   const [cameraVideos, setCameraVideos] = useState<Video[]>([])
@@ -146,6 +156,7 @@ function App() {
   const [newCameraLon, setNewCameraLon] = useState('')
   const [newCameraAltitude, setNewCameraAltitude] = useState('')
   const [newCameraCorridor, setNewCameraCorridor] = useState('')
+  const [newCameraAreaId, setNewCameraAreaId] = useState('')
   const [newCameraAdjacency, setNewCameraAdjacency] = useState('')
   const [newCameraStatus, setNewCameraStatus] = useState('active')
   const [newCameraModelId, setNewCameraModelId] = useState('')
@@ -203,8 +214,18 @@ function App() {
         const data = await res.json()
         setModels(data)
       }
+
     } catch (err) {
       console.error('Failed to fetch models:', err)
+    }
+  }
+
+  const fetchAreas = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/areas`)
+      if (res.ok) setAreas(await res.json())
+    } catch (err) {
+      console.error('Failed to fetch areas:', err)
     }
   }
 
@@ -212,9 +233,11 @@ function App() {
   useEffect(() => {
     fetchCameras()
     fetchModels()
+    fetchAreas()
     const timer = setInterval(() => {
       fetchCameras()
       fetchModels()
+      fetchAreas()
     }, 5000)
     return () => clearInterval(timer)
   }, [])
@@ -360,6 +383,7 @@ function App() {
       latitude: newCameraLat ? parseFloat(newCameraLat) : null,
       longitude: newCameraLon ? parseFloat(newCameraLon) : null,
       corridor_group: newCameraCorridor.trim() || null,
+      area_id: newCameraAreaId || null,
       adjacency: adjacencyList,
       status: newCameraStatus,
       altitude: newCameraAltitude ? parseFloat(newCameraAltitude) : null,
@@ -376,12 +400,14 @@ function App() {
       if (res.status === 201) {
         setIsCameraModalOpen(false)
         fetchCameras()
+        fetchAreas()
         // Reset form
         setNewCameraId('')
         setNewCameraName('')
         setNewCameraLat('')
         setNewCameraLon('')
         setNewCameraCorridor('')
+        setNewCameraAreaId('')
         setNewCameraAdjacency('')
         setNewCameraStatus('active')
         setNewCameraAltitude('')
@@ -539,7 +565,9 @@ function App() {
     const crumbs = [{ label: 'DRISHTI', link: '/' }]
 
     if (paths.length > 0) {
-      if (paths[0] === 'cameras') {
+      if (paths[0] === 'areas') {
+        crumbs.push({ label: 'Areas', link: '/areas' })
+      } else if (paths[0] === 'cameras') {
         crumbs.push({ label: 'Cameras', link: '/cameras' })
         if (paths[1]) {
           const camLabel = selectedCamera ? selectedCamera.name : paths[1]
@@ -558,11 +586,15 @@ function App() {
           crumbs.push({ label: 'Outdoor Theft', link: '/alerts/theft' })
         } else if (paths[1] === 'assault') {
           crumbs.push({ label: 'Assault Detection', link: '/alerts/assault' })
+        } else if (paths[1] === 'plates') {
+          crumbs.push({ label: 'Number Plate Detection', link: '/alerts/plates' })
         }
       } else if (paths[0] === 'theft-alerts') {
         crumbs.push({ label: 'Outdoor Theft', link: '/alerts/theft' })
       } else if (paths[0] === 'assault-detection' || paths[0] === 'assault-alerts') {
         crumbs.push({ label: 'Assault Detection', link: '/alerts/assault' })
+      } else if (paths[0] === 'plate-detection' || paths[0] === 'anpr-alerts') {
+        crumbs.push({ label: 'Number Plate Detection', link: '/alerts/plates' })
       } else if (paths[0] === 'targets' || paths[0] === 'hot-targets') {
         crumbs.push({ label: 'Pursuit & Hot Targets', link: '/targets' })
       } else if (paths[0] === 'multicam') {
@@ -970,6 +1002,17 @@ function App() {
               </Link>
 
               <Link
+                to="/areas"
+                className={navLinkClass(location.pathname === '/areas')}
+                title={isSidebarCollapsed ? 'Areas' : undefined}
+              >
+                <svg className="h-4 w-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6.5A2.5 2.5 0 016.5 4h4A2.5 2.5 0 0113 6.5v4a2.5 2.5 0 01-2.5 2.5h-4A2.5 2.5 0 014 10.5v-4zM15 13.5a2.5 2.5 0 012.5-2.5h4a2.5 2.5 0 012.5 2.5v4a2.5 2.5 0 01-2.5 2.5h-4a2.5 2.5 0 01-2.5-2.5v-4z" />
+                </svg>
+                {!isSidebarCollapsed && <span>Areas</span>}
+              </Link>
+
+              <Link
                 to="/live-connect"
                 className={navLinkClass(location.pathname === '/live-connect' || location.pathname === '/connect')}
                 title={isSidebarCollapsed ? 'Live Broadcaster Studio' : undefined}
@@ -1025,7 +1068,7 @@ function App() {
 
             <Link
               to="/alerts"
-              className={navLinkClass(location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts' || location.pathname === '/assault-detection')}
+              className={navLinkClass(location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts' || location.pathname === '/assault-detection' || location.pathname === '/plate-detection')}
               title={isSidebarCollapsed ? 'Unified Alert Center' : undefined}
             >
               <svg className="h-4 w-4 shrink-0 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1225,11 +1268,13 @@ function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard metrics={metrics} />} />
+              <Route path="/areas" element={<Areas />} />
               <Route
                 path="/cameras"
                 element={
                   <Cameras
                     cameras={cameras}
+                    areas={areas}
                     models={models}
                     onOpenRegisterModal={() => setIsCameraModalOpen(true)}
                     onRefreshCameras={fetchCameras}
@@ -1260,6 +1305,9 @@ function App() {
               <Route path="/alerts/assault" element={<AssaultDetection cameras={cameras} />} />
               <Route path="/assault-alerts" element={<AssaultDetection cameras={cameras} />} />
               <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
+              <Route path="/alerts/plates" element={<PlateDetection cameras={cameras} />} />
+              <Route path="/anpr-alerts" element={<PlateDetection cameras={cameras} />} />
+              <Route path="/plate-detection" element={<PlateDetection cameras={cameras} />} />
               <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
               <Route path="/finetuning" element={<FineTuning />} />
               <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
@@ -1367,6 +1415,18 @@ function App() {
                     className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Area</label>
+                <select
+                  value={newCameraAreaId}
+                  onChange={(e) => setNewCameraAreaId(e.target.value)}
+                  className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                >
+                  <option value="">General (default)</option>
+                  {areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+                </select>
               </div>
 
               <div>

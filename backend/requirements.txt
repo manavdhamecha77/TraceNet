@@ -21,6 +21,9 @@ torchvision>=0.20.0
 ultralytics>=8.2.0
 supervision>=0.28.0
 
+# License Plate Recognition (ANPR)
+fast-plate-ocr>=1.1.0
+
 # Embeddings
 open-clip-torch
 transformers

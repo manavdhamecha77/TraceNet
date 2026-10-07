@@ -1,5 +1,10 @@
 # MediaMTX Configuration for DRISHTI Realtime WebRTC Streaming
 
+# RTSP is used only internally (chunker.py / inference_worker.py pull the
+# published stream back over "-rtsp_transport tcp"), so restrict to TCP —
+# this avoids opening/validating unused UDP RTP/RTCP ports.
+rtspTransports: [tcp]
+
 authMethod: http
 authHTTPAddress: http://localhost:8000/api/v1/stream/mediamtx-auth
 authHTTPExclude:
