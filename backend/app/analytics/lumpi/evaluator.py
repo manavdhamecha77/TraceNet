@@ -275,6 +275,11 @@ class LumpiEvaluator:
                 "Temporal bell-curve scoring successfully suppresses instantaneous camera hops and physical speed violations.",
                 "Ensure captured camera timestamps are accurate to within 2.0s to avoid speed-envelope false rejections."
             ],
+            "summary_text": (
+                f"LUMPI Benchmark Evaluation (Exp {experiment_id}): "
+                f"Precision={precision:.1%}, Recall={recall:.1%}, F1={f1_score:.4f}, "
+                f"ID Switches={identity_switches}, Time Error={mean_time_error:.2f}s across {len(cameras)} cameras."
+            ),
             "audited_examples": audited_examples
         }
 

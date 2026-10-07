@@ -90,7 +90,18 @@ class LumpiAdapter:
     def __init__(self, dataset_path: Optional[str] = None):
         self.default_data_dir = get_data_path("evaluation/lumpi")
         os.makedirs(self.default_data_dir, exist_ok=True)
-        self.dataset_path = dataset_path or os.path.join(self.default_data_dir, "sample_sequence")
+
+        if dataset_path:
+            self.dataset_path = dataset_path
+        else:
+            test_data_dir = os.path.join(self.default_data_dir, "test_data")
+            if os.path.exists(test_data_dir) and os.path.exists(os.path.join(test_data_dir, "meta.json")):
+                self.dataset_path = test_data_dir
+            elif os.path.exists(os.path.join(self.default_data_dir, "meta.json")) and os.path.exists(os.path.join(self.default_data_dir, "Measurement1")):
+                self.dataset_path = self.default_data_dir
+            else:
+                self.dataset_path = os.path.join(self.default_data_dir, "sample_sequence")
+
         self.cameras: Dict[str, LumpiCameraInfo] = {}
         self.observations: List[LumpiTrackletObservation] = []
         self.ground_truth_journeys: Dict[int, LumpiGroundTruthJourney] = {}
