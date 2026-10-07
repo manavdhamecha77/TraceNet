@@ -10,10 +10,12 @@ from PIL import Image
 import cv2
 from loguru import logger
 
+AutoImageProcessor = None
+TimesformerForVideoClassification = None
 try:
     from transformers import AutoImageProcessor, TimesformerForVideoClassification
-except ImportError:
-    logger.warning("transformers not installed, assault detection disabled")
+except Exception as e:
+    logger.warning(f"transformers or torchaudio dependency unavailable ({e}), assault detection disabled")
 
 
 class AssaultDetector:
@@ -42,8 +44,8 @@ class AssaultDetector:
 
     def load_model(self):
         """Download and load the VideoMAE model from HuggingFace."""
-        if self.model is not None:
-            return
+        if AutoImageProcessor is None or TimesformerForVideoClassification is None:
+            raise RuntimeError("transformers is not available or failed to load in this environment")
 
         try:
             logger.info(f"Loading assault detection model: {self.model_name}")

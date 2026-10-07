@@ -14,7 +14,14 @@ from enum import Enum
 from loguru import logger
 
 import torch
-from transformers import AutoImageProcessor, TimesformerForVideoClassification, Trainer, TrainingArguments
+try:
+    from transformers import AutoImageProcessor, TimesformerForVideoClassification, Trainer, TrainingArguments
+except Exception as e:
+    logger.warning(f"transformers or torchaudio dependency unavailable in fine_tuner ({e})")
+    AutoImageProcessor = None
+    TimesformerForVideoClassification = None
+    Trainer = None
+    TrainingArguments = None
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import cv2
