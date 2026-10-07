@@ -231,3 +231,66 @@ def get_camera_neighbors(camera_id: str, max_distance_meters: float = Query(3000
     graph = CameraSpatialGraph(db)
     neighbors = graph.get_downstream_neighbors(camera_id, max_distance_meters=max_distance_meters)
     return {"origin_camera_id": camera_id, "count": len(neighbors), "neighbors": neighbors}
+
+
+# ==============================================================================
+# LUMPI DATASET EVALUATION SUITE
+# ==============================================================================
+
+class LumpiEvaluationRequest(BaseModel):
+    dataset_path: Optional[str] = None
+    experiment_id: int = 1
+    min_visual_similarity: float = 0.45
+    visual_weight: float = 0.55
+    temporal_weight: float = 0.25
+    spatial_weight: float = 0.20
+
+
+@router.get("/evaluation/lumpi/status")
+def get_lumpi_status():
+    """
+    Check LUMPI evaluation benchmark dataset status and availability.
+    """
+    from app.analytics.lumpi.adapter import LumpiAdapter
+    adapter = LumpiAdapter()
+    return {
+        "status": "ready" if adapter.is_dataset_available() else "standby",
+        "dataset_path": adapter.dataset_path,
+        "is_available": adapter.is_dataset_available()
+    }
+
+
+@router.post("/evaluation/lumpi/run")
+def run_lumpi_evaluation(req: LumpiEvaluationRequest):
+    """
+    Execute benchmark evaluation against LUMPI multi-camera ground truth.
+    Measures cross-camera link precision, recall, F1, identity switches, and transit time errors.
+    """
+    from app.analytics.lumpi.adapter import LumpiAdapter
+    from app.analytics.lumpi.evaluator import LumpiEvaluator
+
+    adapter = LumpiAdapter(dataset_path=req.dataset_path)
+    evaluator = LumpiEvaluator(adapter=adapter)
+
+    report = evaluator.run_evaluation(
+        experiment_id=req.experiment_id,
+        min_visual_similarity=req.min_visual_similarity,
+        visual_weight=req.visual_weight,
+        temporal_weight=req.temporal_weight,
+        spatial_weight=req.spatial_weight
+    )
+    return report
+
+
+@router.get("/evaluation/lumpi/report")
+def get_lumpi_evaluation_report():
+    """
+    Retrieve the latest computed LUMPI multi-camera evaluation report.
+    """
+    from app.analytics.lumpi.evaluator import LumpiEvaluator
+    evaluator = LumpiEvaluator()
+    report = evaluator.get_latest_report()
+    if not report:
+        # Run default evaluation if no report exists yet
+        report = evaluator.run_evaluation()
+    return report
