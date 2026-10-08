@@ -21,3 +21,7 @@ backend/finetuned_models/
 test/predict_results/
 test/ocr_results.txt
 test/Sample_videos/
+# Secrets (AWS / API keys)
+.env
+.env.*
+!.env.example
