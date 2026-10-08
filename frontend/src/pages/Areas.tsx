@@ -157,7 +157,7 @@ export default function Areas() {
                   </div>
                 </div>
                 {area.description && <p className="mt-2 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{area.description}</p>}
-                <Link to="/cameras" className="mt-3 inline-block text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">View camera directory →</Link>
+                <Link to={`/cameras?area=${encodeURIComponent(area.id)}`} className="mt-3 inline-block text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">View camera directory ({area.camera_count}) →</Link>
               </div>
             </article>
           )

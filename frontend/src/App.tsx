@@ -1022,17 +1022,6 @@ function App() {
             </button>
 
               <Link
-                to="/cameras"
-                className={navLinkClass(location.pathname.startsWith('/cameras') && !location.pathname.includes('/live'))}
-                title={isSidebarCollapsed ? 'Cameras' : undefined}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                {!isSidebarCollapsed && <span>Cameras</span>}
-              </Link>
-
-              <Link
                 to="/areas"
                 className={navLinkClass(location.pathname === '/areas')}
                 title={isSidebarCollapsed ? 'Areas' : undefined}
@@ -1041,6 +1030,17 @@ function App() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6.5A2.5 2.5 0 016.5 4h4A2.5 2.5 0 0113 6.5v4a2.5 2.5 0 01-2.5 2.5h-4A2.5 2.5 0 014 10.5v-4zM15 13.5a2.5 2.5 0 012.5-2.5h4a2.5 2.5 0 012.5 2.5v4a2.5 2.5 0 01-2.5 2.5h-4a2.5 2.5 0 01-2.5-2.5v-4z" />
                 </svg>
                 {!isSidebarCollapsed && <span>Areas</span>}
+              </Link>
+
+              <Link
+                to="/cameras"
+                className={navLinkClass(location.pathname.startsWith('/cameras') && !location.pathname.includes('/live'))}
+                title={isSidebarCollapsed ? 'Cameras' : undefined}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                {!isSidebarCollapsed && <span>Cameras</span>}
               </Link>
 
               <Link

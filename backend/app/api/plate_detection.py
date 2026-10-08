@@ -385,8 +385,8 @@ def switch_ocr_engine(request: OcrSwitchRequest):
         engine.load()  # surface download / load problems now rather than during the next ingest
     except Exception as exc:
         try:
-            set_active_engine(previous)
-        except ValueError:
+            set_active_engine(previous, force=True)
+        except Exception:
             pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1,4 +1,4 @@
-﻿import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Bell, Boxes, Camera, ChevronLeft, FolderKanban, Map, Plus, Radio, ScanSearch, Settings, Sparkles, UsersRound } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -19,8 +19,8 @@ export default function Sidebar({ collapsed, onToggle, onOpenAgents, onStartNewC
   const links: { to: string; label: string; icon: LucideIcon; active: boolean }[] = [
     { to: '/dashboard', label: 'Situation Overview', icon: FolderKanban, active: location.pathname === '/dashboard' || location.pathname === '/' },
     { to: '/areas', label: 'Areas', icon: Map, active: location.pathname === '/areas' },
-    { to: '/live-connect', label: 'Live Broadcaster', icon: Radio, active: location.pathname === '/live-connect' || location.pathname === '/connect' },
     { to: '/cameras', label: 'Cameras', icon: Camera, active: location.pathname.startsWith('/cameras') && !location.pathname.includes('/live') },
+    { to: '/live-connect', label: 'Live Broadcaster', icon: Radio, active: location.pathname === '/live-connect' || location.pathname === '/connect' },
     { to: '/multicam', label: 'Multi-Cam Intelligence', icon: Boxes, active: location.pathname === '/multicam' },
     { to: '/search', label: 'Search & Investigate', icon: ScanSearch, active: location.pathname === '/search' },
     { to: '/face-search', label: 'Facial Intelligence', icon: UsersRound, active: location.pathname === '/face-search' },
@@ -52,11 +52,11 @@ export default function Sidebar({ collapsed, onToggle, onOpenAgents, onStartNewC
             <button onClick={onStartNewChat} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white hover:bg-white/10"><Plus className="h-3.5 w-3.5 text-white"/>Start New Chat</button>
           </div>
         </div>
-        {links.slice(0, 2).map(renderLink)}
+        {links.slice(0, 3).map(renderLink)}
         <div className="my-2 border-t border-white/25" />
-        {links.slice(2, 3).map(renderLink)}
+        {links.slice(3, 4).map(renderLink)}
         {adminMode && <Link to="/models" className={itemClass(location.pathname.startsWith('/models'))} title={collapsed ? 'Models' : undefined}><Boxes className="h-[17px] w-[17px] shrink-0 text-slate-400" />{!collapsed && <span>Models</span>}</Link>}
-        {links.slice(3).map(renderLink)}
+        {links.slice(4).map(renderLink)}
         {!collapsed && <div className="mt-3 border-t border-white/[0.08] pt-3">
           <div className="mb-1 flex items-center justify-between px-2.5"><span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">ML Admin</span><button onClick={onToggleAdmin} className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ${adminMode ? 'bg-violet-400/15 text-violet-200' : 'bg-white/[0.06] text-slate-400 hover:text-white'}`}>{adminMode ? 'ON' : 'OFF'}</button></div>
           {adminMode && <div className="space-y-1">{[['/models', 'Detector Models'], ['/embedding-models', 'Embedding Config'], ['/finetuning', 'Fine-Tuning']].map(([to, label]) => <Link key={to} to={to} className={itemClass(location.pathname === to)}><Settings className="h-4 w-4 shrink-0 text-slate-400"/><span>{label}</span></Link>)}</div>}
