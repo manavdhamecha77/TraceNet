@@ -29,7 +29,8 @@ def get_data_path(relative_path: str) -> str:
 class Settings(BaseSettings):
     """Runtime settings for the TraceNet backend."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # Absolute path so backend/.env is found regardless of the launch directory
+    model_config = SettingsConfigDict(env_file=str(BACKEND_DIR / ".env"), env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "TraceNet API"
     api_prefix: str = ""
@@ -49,6 +50,12 @@ class Settings(BaseSettings):
     detection_confidence_threshold: float = 0.25
     detection_iou_threshold: float = 0.45
     detection_max_frames: int = 0
+
+    # Shared S3 storage (golden data snapshot); values come from backend/.env
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_region: str = "ap-southeast-2"
+    s3_bucket: str | None = None
 
 
 @lru_cache(maxsize=1)

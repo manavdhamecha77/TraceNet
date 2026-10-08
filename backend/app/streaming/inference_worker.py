@@ -36,13 +36,23 @@ class InferenceWorker(threading.Thread):
             cam = db.query(CameraProfile).filter(CameraProfile.camera_id == self.camera_id).first()
             
             model_path = None
-            if cam and cam.model_id:
+            # Live scope: by default the live loop runs ONLY the fixed vehicle/pedestrian detector.
+            # Everything heavier (CLIP, plates, faces, assault/theft/abandoned engines) runs when a
+            # recorded chunk is checked into the camera's archive, exactly like an uploaded video.
+            if self.config.live_detector == "vehicle":
+                fixed = get_data_path("models/vehicle_detector.pt")
+                if os.path.exists(fixed):
+                    model_path = fixed
+                else:
+                    logger.warning("InferenceWorker: data/models/vehicle_detector.pt missing; falling back to the camera's model")
+            if not model_path and cam and cam.model_id:
                 model_db = db.query(MLModel).filter(MLModel.id == cam.model_id).first()
                 if model_db:
-                    candidate = get_data_path(model_db.file_path)
-                    if os.path.exists(candidate):
-                        model_path = candidate
-                        
+                    for candidate in (model_db.file_path, get_data_path(model_db.file_path),
+                                      get_data_path(f"models/{os.path.basename(model_db.file_path)}")):
+                        if candidate and os.path.exists(candidate):
+                            model_path = candidate
+                            break
             if not model_path:
                 from app.config import BACKEND_DIR
                 app_weights = os.path.join(BACKEND_DIR, "app", "detection", "weights", "best.pt")
@@ -50,7 +60,6 @@ class InferenceWorker(threading.Thread):
                     model_path = app_weights
                 else:
                     model_path = "yolo11n.pt"
-                    
             logger.info(f"InferenceWorker loading detection model: {model_path}")
             model = YOLO(model_path)
             
@@ -158,7 +167,7 @@ class InferenceWorker(threading.Thread):
                                         person_kps.append([x, y, conf])
                                     det_item["keypoints"] = person_kps
                 
-                alerts = self.alert_evaluator.evaluate(eval_dets, self.frame_count)
+                alerts = self.alert_evaluator.evaluate(eval_dets, self.frame_count) if self.config.live_alert_rules else []
                 
                 for alert in alerts:
                     db_alert = LiveAlert(
@@ -184,7 +193,9 @@ class InferenceWorker(threading.Thread):
                     "fps": round(self.fps, 1),
                     "e2e_latency_ms": e2e_latency_ms,
                     "detections": payload_dets,
-                    "alerts": alerts
+                    "alerts": alerts,
+                    "live_scope": self.config.live_detector,
+                    "model": os.path.basename(str(model_path)),
                 }
                 
                 self.manager.broadcast_to_clients(self.camera_id, payload)

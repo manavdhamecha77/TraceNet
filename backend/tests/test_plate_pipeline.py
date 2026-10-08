@@ -14,7 +14,7 @@ import app.detection.vehicle_plates as vp
 from app.db.models import Alert, Camera, LicensePlateDetection, Tracklet, VideoAsset
 from app.detection.plate_detector import PlateDetector
 from app.search.plate_matching import levenshtein, match_distance, normalize, substring_distance
-from test_plate_ocr import _Box, _Result, _plate_image
+from tests.test_plate_ocr import _Box, _Result, _plate_image
 
 PLATE_TEXT = "GJ05AB1234"
 

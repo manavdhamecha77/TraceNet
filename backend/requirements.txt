@@ -52,6 +52,10 @@ python-dateutil
 orjson
 requests
 
+# Shared S3 storage (golden data snapshot sync)
+boto3
+certifi
+
 # Testing
 pytest
 httpx

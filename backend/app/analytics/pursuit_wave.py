@@ -4,20 +4,20 @@ import numpy as np
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from app.db.models import SentinelSession, Tracklet, CameraProfile, VideoAsset
+from app.db.models import PursuitSession, Tracklet, CameraProfile, VideoAsset
 from app.analytics.camera_graph import CameraSpatialGraph, SPEED_BOUNDS
 from app.search.vector_index import get_vector_index
 
 
-class SentinelWaveManager:
-    """Predictive Downstream Sentinel Search Wave Pursuit Manager."""
+class PursuitWaveManager:
+    """Predictive Downstream Pursuit Wave Manager."""
 
     def __init__(self, db_session: Session):
         self.db = db_session
         self.graph = CameraSpatialGraph(db_session)
         self.vector_index = get_vector_index()
 
-    def activate_sentinel_wave(
+    def activate_pursuit_wave(
         self,
         origin_camera_id: str,
         target_tracklet_id: Optional[str] = None,
@@ -25,7 +25,7 @@ class SentinelWaveManager:
         speed_mode: str = "pedestrian"
     ) -> Dict[str, Any]:
         """
-        Calculates predicted downstream ETAs and initializes an active Sentinel pursuit session.
+        Calculates predicted downstream ETAs and initializes an active pursuit session.
         """
         origin_cam = self.db.query(CameraProfile).filter(CameraProfile.camera_id == origin_camera_id).first()
         if not origin_cam:
@@ -112,7 +112,7 @@ class SentinelWaveManager:
 
         # Save session to DB
         session_id = str(uuid.uuid4())
-        new_session = SentinelSession(
+        new_session = PursuitSession(
             id=session_id,
             target_tracklet_id=target_tracklet_id,
             target_embedding=json.dumps(target_vec) if target_vec else None,
@@ -130,19 +130,19 @@ class SentinelWaveManager:
             "origin_camera": origin_cam.to_dict(),
             "target_tracklet": target_trk.to_dict() if target_trk else None,
             "speed_mode": speed_mode,
-            "sentinel_cameras_count": len(downstream_nodes),
+            "pursuit_cameras_count": len(downstream_nodes),
             "downstream_nodes": downstream_nodes
         }
 
     def get_active_sessions(self) -> List[Dict[str, Any]]:
-        sessions = self.db.query(SentinelSession).filter(SentinelSession.status == "active").all()
+        sessions = self.db.query(PursuitSession).filter(PursuitSession.status == "active").all()
         return [s.to_dict() for s in sessions]
 
     def evaluate_incoming_tracklet(self, incoming_trk: Tracklet) -> List[Dict[str, Any]]:
         """
-        Checks if a newly ingested tracklet matches any active Sentinel Wave sessions.
+        Checks if a newly ingested tracklet matches any active Pursuit Wave sessions.
         """
-        active_sessions = self.db.query(SentinelSession).filter(SentinelSession.status == "active").all()
+        active_sessions = self.db.query(PursuitSession).filter(PursuitSession.status == "active").all()
         matches = []
 
         if not active_sessions or not incoming_trk.qdrant_point_id:

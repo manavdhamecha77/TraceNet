@@ -31,7 +31,7 @@
   <div class="w-full max-w-sm flex flex-col gap-4">
     <div>
       <label class="text-slate-400 text-xs uppercase tracking-wider mb-1 block">Backend Server URL</label>
-      <input id="backendUrl" type="url" value="" placeholder="http://192.168.x.x:8000"
+      <input id="backendUrl" type="url" value="" placeholder="https://192.168.x.x:8443"
         class="w-full bg-slate-800 border border-slate-600 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-sky-500" />
     </div>
 
@@ -281,9 +281,9 @@ async function handleStartStream() {
       }
       if (backendUrl) {
         const b = new URL(backendUrl);
-        u.hostname = b.hostname;
+        u.protocol = b.protocol; u.host = b.host;
       } else {
-        u.hostname = window.location.hostname;
+        u.protocol = window.location.protocol; u.host = window.location.host;
       }
       whipTarget = u.href;
     } catch(e) {}

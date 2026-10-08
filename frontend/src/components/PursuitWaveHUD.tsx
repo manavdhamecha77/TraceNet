@@ -1,7 +1,7 @@
 import React from 'react'
 import { Radar, Clock, MapPin, XCircle, CheckCircle2, Flame } from 'lucide-react'
 
-export interface SentinelNode {
+export interface PursuitNode {
   camera_id: string
   name: string
   latitude?: number
@@ -15,24 +15,24 @@ export interface SentinelNode {
   status: 'watching' | 'matched' | 'passed'
 }
 
-export interface SentinelSession {
+export interface PursuitSession {
   id: string
   target_tracklet_id?: string
   status: string
   origin_camera_id: string
   speed_mode: string
-  downstream_nodes: SentinelNode[]
+  downstream_nodes: PursuitNode[]
   created_at: string
   matched_camera_id?: string
   matched_tracklet_id?: string
 }
 
-interface SentinelWaveHUDProps {
-  activeSession: SentinelSession | null
+interface PursuitWaveHUDProps {
+  activeSession: PursuitSession | null
   onTerminateSession: (sessionId: string) => void
 }
 
-export const SentinelWaveHUD: React.FC<SentinelWaveHUDProps> = ({
+export const PursuitWaveHUD: React.FC<PursuitWaveHUDProps> = ({
   activeSession,
   onTerminateSession
 }) => {
@@ -54,7 +54,7 @@ export const SentinelWaveHUD: React.FC<SentinelWaveHUDProps> = ({
           </div>
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-teal-800 dark:text-teal-300">
-              Sentinel Pursuit Wave
+              Pursuit Wave
             </h3>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">ID: {activeSession.id.slice(0, 8)}</p>
           </div>
@@ -64,7 +64,7 @@ export const SentinelWaveHUD: React.FC<SentinelWaveHUDProps> = ({
           type="button"
           onClick={() => onTerminateSession(activeSession.id)}
           className="text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 transition-colors p-1"
-          title="Terminate Sentinel Session"
+          title="Terminate Pursuit Session"
         >
           <XCircle className="w-5 h-5" />
         </button>
@@ -93,7 +93,7 @@ export const SentinelWaveHUD: React.FC<SentinelWaveHUDProps> = ({
         </div>
       )}
 
-      {/* Downstream Sentinel Camera List */}
+      {/* Downstream Pursuit Camera List */}
       <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
         <span>Active Downstream Watch Nodes ({activeSession.downstream_nodes?.length || 0})</span>
         <span className="text-[10px] text-teal-800 dark:text-teal-300">Realtime scanning</span>

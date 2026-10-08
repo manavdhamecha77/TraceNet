@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
 import {
   Search as SearchIcon,
   Download,
@@ -626,8 +625,6 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           </form>
         </div>
 
-      </div>{/* end SEARCH INTERFACE PANEL */}
-
       {searchError && (
         <div className="rounded border border-red-200 bg-red-50 text-red-800 dark:border-red-950/20 dark:bg-red-950/30 dark:text-red-400 p-3.5 text-xs text-center">
           {searchError}
@@ -927,16 +924,16 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       </div>
 
       {/* ── FILTER MODAL ──────────────────────────────────────── */}
-      {filterModalOpen && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-          {/* Backdrop — covers full viewport including topbar */}
+      {filterModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setFilterModalOpen(false)}
           />
 
           {/* Panel */}
-          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] mx-4 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
             
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
@@ -1163,7 +1160,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
             </div>
           </div>
         </div>
-      , document.body)}
+      )}
 
       <ExportDialog
         open={exportOpen}
@@ -1175,5 +1172,6 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       />
 
     </div>
+  </div>
   )
 }
