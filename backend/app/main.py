@@ -140,6 +140,16 @@ def run_startup_migrations():
                     conn.commit()
                     print("Schema Migration: Added 'stream_started_at' column to cameras.")
 
+                if "thumbnail_path" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN thumbnail_path VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'thumbnail_path' column to cameras.")
+
+                if "thumbnail_url" not in columns:
+                    cursor.execute("ALTER TABLE cameras ADD COLUMN thumbnail_url VARCHAR")
+                    conn.commit()
+                    print("Schema Migration: Added 'thumbnail_url' column to cameras.")
+
             # Check if videos table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
             if cursor.fetchone():

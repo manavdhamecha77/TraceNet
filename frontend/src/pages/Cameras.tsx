@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Filter, RefreshCw, X } from 'lucide-react'
+import { Filter, RefreshCw, X, Upload, RotateCcw, Image as ImageIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/Toast'
 
@@ -20,6 +20,8 @@ interface Camera {
   model_id?: string | null
   video_count: number
   is_streaming?: boolean
+  thumbnail_path?: string | null
+  thumbnail_url?: string | null
 }
 
 interface Area {
@@ -188,6 +190,12 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
   const editMapContainerRef = useRef<HTMLDivElement>(null)
   const editMapRef = useRef<any>(null)
 
+  // ── Edit Thumbnail state
+  const [editThumbnailFile, setEditThumbnailFile] = useState<File | null>(null)
+  const [editThumbnailUrl, setEditThumbnailUrl] = useState('')
+  const [editThumbnailPreview, setEditThumbnailPreview] = useState<string | null>(null)
+  const [editThumbnailRemove, setEditThumbnailRemove] = useState(false)
+
   const [deleteCamera, setDeleteCamera] = useState<Camera | null>(null)
   const [confirmName, setConfirmName] = useState('')
   const [deleteError, setDeleteError] = useState('')
@@ -263,6 +271,16 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
   // ── thumbnails
   useEffect(() => {
     localCameras.forEach(async (cam) => {
+      if (cam.thumbnail_url) {
+        setThumbnails(p => ({ ...p, [cam.camera_id]: cam.thumbnail_url! }))
+        return
+      }
+      if (cam.thumbnail_path) {
+        let rel = cam.thumbnail_path.replace(/\\/g, '/')
+        rel = rel.replace(/^(\.\/)?(backend\/)?data\//, '').replace(/^\//, '')
+        setThumbnails(p => ({ ...p, [cam.camera_id]: `${API_BASE}/data/${rel}` }))
+        return
+      }
       try {
         const r = await fetch(`${API_BASE}/api/v1/cameras/${cam.camera_id}/videos`)
         if (!r.ok) return
@@ -417,6 +435,10 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
     setEditParticipateAlerts((cam as any).participate_in_alerts ?? true)
     setSyncDetections(false)
     setEditFormError('')
+    setEditThumbnailFile(null)
+    setEditThumbnailUrl(cam.thumbnail_url ?? '')
+    setEditThumbnailPreview(null)
+    setEditThumbnailRemove(false)
     setActiveMenuId(null)
   }
 
@@ -424,7 +446,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
     e.preventDefault()
     if (!editCamera) return
     if (!editName.trim()) { setEditFormError('Camera name is required.'); return }
-    const payload = {
+    const payload: any = {
       name: editName.trim(),
       latitude: editLat ? parseFloat(editLat) : null,
       longitude: editLon ? parseFloat(editLon) : null,
@@ -439,14 +461,50 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
       assault_model_id: editAssaultModelId || null,
       participate_in_alerts: editParticipateAlerts,
     }
+
+    if (editThumbnailRemove) {
+      payload.thumbnail_url = null
+      payload.thumbnail_path = null
+    } else if (editThumbnailUrl.trim()) {
+      payload.thumbnail_url = editThumbnailUrl.trim()
+    }
+
     try {
       const r = await fetch(`${API_BASE}/api/v1/cameras/${editCamera.camera_id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
       if (r.ok) {
+        if (editThumbnailFile) {
+          const form = new FormData()
+          form.append('file', editThumbnailFile)
+          const uploadRes = await fetch(`${API_BASE}/api/v1/cameras/${editCamera.camera_id}/thumbnail`, {
+            method: 'POST',
+            body: form,
+          })
+          if (uploadRes.ok) {
+            const uploadedData = await uploadRes.json()
+            if (uploadedData.thumbnail_path) {
+              let rel = uploadedData.thumbnail_path.replace(/\\/g, '/').replace(/^(\.\/)?(backend\/)?data\//, '').replace(/^\//, '')
+              setThumbnails(p => ({ ...p, [editCamera.camera_id]: `${API_BASE}/data/${rel}?t=${Date.now()}` }))
+            }
+          }
+        } else if (editThumbnailRemove) {
+          await fetch(`${API_BASE}/api/v1/cameras/${editCamera.camera_id}/thumbnail`, {
+            method: 'DELETE',
+          })
+          setThumbnails(p => {
+            const next = { ...p }
+            delete next[editCamera.camera_id]
+            return next
+          })
+        } else if (editThumbnailUrl.trim()) {
+          setThumbnails(p => ({ ...p, [editCamera.camera_id]: editThumbnailUrl.trim() }))
+        }
+
         if (syncDetections) {
           await fetch(`${API_BASE}/api/v1/cameras/${editCamera.camera_id}/sync-detection`, { method: 'POST' })
         }
+        toast.success('Camera Updated', `Node ${editName.trim()} updated successfully.`)
         setEditCamera(null)
         setSyncDetections(false)
         refreshCameras()
@@ -1089,15 +1147,93 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                     <p className="text-[10px] text-slate-400 dark:text-slate-600">Map updates ~0.4 s after you stop typing.</p>
                   </div>
 
-                  {/* Camera thumbnail preview — fixed 16:9 */}
-                  <div className="flex flex-col gap-1.5 shrink-0">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Thumbnail</p>
-                    <div className="w-full aspect-video rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-900">
+                  {/* Camera thumbnail preview & editing — fixed 16:9 */}
+                  <div className="flex flex-col gap-2 shrink-0 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Camera Thumbnail
+                      </p>
+                      {(editThumbnailFile || editThumbnailPreview || editThumbnailUrl || editThumbnailRemove) && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
+                          {editThumbnailRemove ? 'Reset to Default' : editThumbnailFile ? 'New File Selected' : 'Custom Image'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="relative group w-full aspect-video rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-900 shadow-inner">
                       <img
-                        src={thumbnails[editCamera.camera_id] || '/images/defaults/default_camera_thumbnail.webp'}
+                        src={
+                          editThumbnailRemove
+                            ? '/images/defaults/default_camera_thumbnail.webp'
+                            : editThumbnailPreview
+                            ? editThumbnailPreview
+                            : editThumbnailUrl.trim()
+                            ? editThumbnailUrl.trim()
+                            : (thumbnails[editCamera.camera_id] || '/images/defaults/default_camera_thumbnail.webp')
+                        }
                         alt="Node thumbnail"
                         onError={e => { e.currentTarget.src = SVG_FALLBACK }}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-opacity duration-200"
+                      />
+
+                      {/* Overlay action pill */}
+                      <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/85 via-black/50 to-transparent flex items-center justify-between gap-2">
+                        <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-teal-700 hover:bg-teal-600 text-white text-[11px] font-bold cursor-pointer transition-colors shadow">
+                          <Upload className="h-3 w-3" />
+                          <span>{editThumbnailFile ? 'Replace File' : 'Upload Image'}</span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            onChange={e => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                setEditThumbnailFile(file)
+                                setEditThumbnailPreview(URL.createObjectURL(file))
+                                setEditThumbnailRemove(false)
+                              }
+                            }}
+                          />
+                        </label>
+
+                        {(editThumbnailFile || editThumbnailPreview || editThumbnailUrl || thumbnails[editCamera.camera_id]) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditThumbnailFile(null)
+                              setEditThumbnailPreview(null)
+                              setEditThumbnailUrl('')
+                              setEditThumbnailRemove(true)
+                            }}
+                            title="Reset to default feed frame"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800/90 hover:bg-rose-600/90 text-slate-200 hover:text-white text-[11px] font-medium transition-colors border border-white/10"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            <span>Reset</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Optional URL input for direct web or static URLs */}
+                    <div className="mt-0.5">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <ImageIcon className="h-3 w-3 text-slate-400" />
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
+                          Or Thumbnail Image URL
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={editThumbnailUrl}
+                        onChange={e => {
+                          setEditThumbnailUrl(e.target.value)
+                          if (e.target.value) {
+                            setEditThumbnailRemove(false)
+                          }
+                        }}
+                        placeholder="https://... or /data/cameras/..."
+                        className={inputCls}
                       />
                     </div>
                   </div>
