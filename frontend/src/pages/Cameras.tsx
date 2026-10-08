@@ -43,6 +43,13 @@ declare global {
 const SVG_FALLBACK =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%230F766E'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z'/></svg>"
 
+function truncateMiddle(str: string | null | undefined, maxLen = 28): string {
+  if (!str) return ''
+  if (str.length <= maxLen) return str
+  const keep = Math.max(4, Math.floor((maxLen - 3) / 2))
+  return `${str.slice(0, keep)}...${str.slice(-keep)}`
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cfg =
     status === 'active'
@@ -545,24 +552,23 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
           </div>
         </div>
 
-        {/* Table must NOT be overflow-x-auto — dropdown would clip */}
-        <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-700 text-left">
+        {/* Table uses table-fixed to fit viewport without horizontal scrolling */}
+        <table className="w-full table-fixed divide-y divide-slate-100 dark:divide-slate-700 text-left">
           <thead className="bg-slate-50 dark:bg-slate-700/60 text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider font-semibold">
             <tr>
-              <th className="px-4 py-2.5 w-[72px]">Preview</th>
-              <th className="px-4 py-2.5">{t('cameras.colCamera')} / ID</th>
-              <th className="px-4 py-2.5">{t('cameras.colArea')}</th>
-              <th className="px-4 py-2.5">Neighbors</th>
-              <th className="px-4 py-2.5">{t('cameras.colStatus')}</th>
-              <th className="px-4 py-2.5">Assigned Model</th>
-              <th className="px-4 py-2.5 text-center">{t('cameras.colVideos')}</th>
-              <th className="px-4 py-2.5 text-right w-[110px]">{t('cameras.colActions')}</th>
+              <th className="px-3 py-2.5 w-[72px]">Preview</th>
+              <th className="px-3 py-2.5 w-[26%]">{t('cameras.colCamera')} / ID</th>
+              <th className="px-3 py-2.5 w-[26%]">{t('cameras.colArea')}</th>
+              <th className="px-2 py-2.5 w-[90px]">{t('cameras.colStatus')}</th>
+              <th className="px-3 py-2.5 w-[15%]">Assigned Model</th>
+              <th className="px-2 py-2.5 w-[60px] text-center">{t('cameras.colVideos')}</th>
+              <th className="pl-2 pr-6 py-2.5 w-[180px] text-right">{t('cameras.colActions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
             {displayedCameras.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-16 text-xs text-slate-500 dark:text-slate-400">
+                <td colSpan={7} className="text-center py-16 text-xs text-slate-500 dark:text-slate-400">
                   {areaFilter ? (
                     <div className="space-y-2">
                       <p>No camera nodes found in area <strong>{activeArea?.name || areaFilter}</strong>.</p>
@@ -584,7 +590,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                 <tr key={cam.camera_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors">
 
                   {/* THUMBNAIL — 16:9 inside fixed box */}
-                  <td className="px-4 py-2.5">
+                  <td className="px-3 py-2.5">
                     <div className="w-[64px] h-[36px] rounded border border-slate-200 dark:border-slate-600 overflow-hidden bg-slate-100 dark:bg-slate-900 shrink-0">
                       <img
                         src={thumb || '/images/defaults/default_camera_thumbnail.webp'}
@@ -596,22 +602,24 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                   </td>
 
                   {/* NAME / ID */}
-                  <td className="px-4 py-2.5 whitespace-nowrap">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
-                      {cam.name}
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 truncate" title={cam.name}>
+                      <span className="truncate">{truncateMiddle(cam.name, 32)}</span>
                       {cam.is_streaming && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-1.5 py-0.5 rounded">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-1 py-0.2 rounded shrink-0">
                           <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
                           LIVE
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] font-mono text-teal-700 dark:text-teal-400 mt-0.5">{cam.camera_id}</div>
+                    <div className="text-[10px] font-mono text-teal-700 dark:text-teal-400 mt-0.5 truncate" title={cam.camera_id}>
+                      {truncateMiddle(cam.camera_id, 24)}
+                    </div>
                   </td>
 
                   {/* AREA & ZONE */}
-                  <td className="px-4 py-2.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
-                    <div className="flex flex-col">
+                  <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300">
+                    <div className="flex flex-col truncate">
                       {(() => {
                         const camArea = areas.find(a => a.id === cam.area_id)
                         return (
@@ -619,16 +627,16 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                             {camArea ? (
                               <button
                                 onClick={() => handleSelectAreaFilter(camArea.id)}
-                                className="font-semibold text-teal-700 dark:text-teal-400 hover:underline text-left text-xs"
+                                className="font-semibold text-teal-700 dark:text-teal-400 hover:underline text-left text-xs truncate"
                                 title={`Filter by ${camArea.name}`}
                               >
-                                {camArea.name}
+                                {truncateMiddle(camArea.name, 32)}
                               </button>
                             ) : (
                               <span className="text-slate-400 dark:text-slate-600 italic">No Area</span>
                             )}
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                              {cam.corridor_group ? `Zone: ${cam.corridor_group}` : '—'}
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate" title={cam.corridor_group || ''}>
+                              {cam.corridor_group ? `Zone: ${truncateMiddle(cam.corridor_group, 26)}` : '—'}
                             </span>
                           </>
                         )
@@ -636,24 +644,19 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                     </div>
                   </td>
 
-                  {/* NEIGHBORS */}
-                  <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 max-w-[160px] truncate" title={cam.adjacency.join(', ')}>
-                    {cam.adjacency.length > 0 ? cam.adjacency.join(', ') : <span className="text-slate-400 dark:text-slate-600 italic">None</span>}
-                  </td>
-
                   {/* STATUS */}
-                  <td className="px-4 py-2.5 whitespace-nowrap">
+                  <td className="px-3 py-2.5 whitespace-nowrap">
                     <StatusBadge status={cam.status} />
                   </td>
 
                   {/* ASSIGNED MODEL */}
-                  <td className="px-4 py-2.5 whitespace-nowrap text-xs">
+                  <td className="px-3 py-2.5 text-xs truncate">
                     {(() => {
                       const model = models.find(m => m.id === cam.model_id)
                       return model ? (
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-slate-800 dark:text-slate-100">{model.name}</span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">{model.model_type}</span>
+                        <div className="flex flex-col truncate" title={model.name}>
+                          <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">{truncateMiddle(model.name, 22)}</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 truncate">{model.model_type}</span>
                         </div>
                       ) : (
                         <span className="text-slate-400 dark:text-slate-500 italic">None (Default)</span>
@@ -667,7 +670,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                   </td>
 
                   {/* ACTIONS — Open + Kebab menu */}
-                  <td className="px-3 py-2.5 whitespace-nowrap text-right">
+                  <td className="pl-2 pr-6 py-2.5 whitespace-nowrap text-right">
                     <div className="inline-flex items-center gap-2 justify-end">
                       <Link
                         to={`/cameras/${cam.camera_id}/live`}
