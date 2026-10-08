@@ -11,7 +11,11 @@ sqlalchemy
 alembic
 
 # Image & Video Processing
-opencv-python
+# Pinned together: PaddleOCR (via PaddleX) requires opencv-contrib-python, and mixing OpenCV
+# versions across these packages corrupts the shared cv2 module.
+opencv-python==4.10.0.84
+opencv-contrib-python==4.10.0.84
+opencv-python-headless==4.10.0.84
 ffmpeg-python
 Pillow
 
@@ -22,7 +26,10 @@ ultralytics>=8.2.0
 supervision>=0.28.0
 
 # License Plate Recognition (ANPR)
-fast-plate-ocr>=1.1.0
+# Plate text recognition: PaddleOCR PP-OCRv5 (weights download to ~/.paddlex on first use)
+paddlepaddle==3.3.1
+paddleocr==3.7.0
+pypdfium2
 
 # Embeddings
 open-clip-torch

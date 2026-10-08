@@ -101,6 +101,11 @@ def _get_class_name(names: Any, class_id: int | None) -> str:
 
 
 def _normalize_object_type(class_name: str) -> str:
+    from app.attributes.color_extractor import canonical_object_type
+
+    canonical = canonical_object_type(class_name)
+    if canonical != "object":
+        return canonical
     name = class_name.lower().strip()
     if name in ("person", "pedestrian"):
         return "person"
@@ -387,11 +392,6 @@ def resolve_standardized_video_path(video_asset: VideoAsset) -> str:
     camera_name = sanitize_filename(video_asset.camera.name if video_asset.camera else video_asset.camera_id)
     camera_dir = f"{video_asset.camera_id}_{camera_name}"
     standardized_filename = video_asset.standardized_filename
-    return os.path.join(
-        ".",
-        "data",
-        "cameras",
-        camera_dir,
-        "original_assets",
-        standardized_filename,
-    )
+    from app.config import get_data_path
+
+    return get_data_path(os.path.join("cameras", camera_dir, "original_assets", standardized_filename))

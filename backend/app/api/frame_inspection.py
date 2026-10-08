@@ -3,13 +3,14 @@ Frame-level inspection API for assault detection results.
 Provides detailed frame-by-frame analysis and visualization for detected assaults.
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from loguru import logger
 
-from app.db.session import SessionLocal
+from app.db.session import get_db
 from app.db.models import Alert, VideoAsset
 from app.detection.assault_detector import get_assault_detector
 from app.cache import get_cache
@@ -39,7 +40,7 @@ class FrameInspectionResponse(BaseModel):
 
 
 @router.get("/frame-inspection/alert/{alert_id}")
-def get_frame_inspection(alert_id: int) -> FrameInspectionResponse:
+def get_frame_inspection(alert_id: int, db: Session = Depends(get_db)) -> FrameInspectionResponse:
     """
     Get detailed frame-level inspection data for an assault alert.
     Shows which frames triggered detection and confidence scores.
@@ -53,18 +54,15 @@ def get_frame_inspection(alert_id: int) -> FrameInspectionResponse:
         return FrameInspectionResponse(**cached)
 
     try:
-        db = SessionLocal()
         alert = db.query(Alert).filter(Alert.id == alert_id).first()
 
         if not alert:
-            db.close()
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Alert {alert_id} not found"
             )
 
         if alert.alert_type != "assault":
-            db.close()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Alert is not an assault detection"
@@ -73,13 +71,10 @@ def get_frame_inspection(alert_id: int) -> FrameInspectionResponse:
         # Get video details
         video = db.query(VideoAsset).filter(VideoAsset.id == alert.video_id).first()
         if not video:
-            db.close()
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Video {alert.video_id} not found"
             )
-
-        db.close()
 
         # Run frame-level analysis
         detector = get_assault_detector()
@@ -133,27 +128,23 @@ def get_frame_inspection(alert_id: int) -> FrameInspectionResponse:
 
 
 @router.get("/frame-inspection/video/{video_id}")
-def get_video_frame_analysis(video_id: str) -> List[FrameInspectionResponse]:
+def get_video_frame_analysis(video_id: str, db: Session = Depends(get_db)) -> List[FrameInspectionResponse]:
     """
     Get frame-level analysis for all assault alerts in a video.
     """
     try:
-        db = SessionLocal()
         alerts = db.query(Alert).filter(
             Alert.video_id == video_id,
             Alert.alert_type == "assault"
         ).all()
 
         if not alerts:
-            db.close()
             return []
-
-        db.close()
 
         results = []
         for alert in alerts:
             try:
-                response = get_frame_inspection(alert.id)
+                response = get_frame_inspection(alert.id, db)
                 results.append(response)
             except Exception as e:
                 logger.warning(f"Failed to get frame inspection for alert {alert.id}: {e}")
@@ -172,24 +163,22 @@ def get_video_frame_analysis(video_id: str) -> List[FrameInspectionResponse]:
 def get_camera_frame_alerts(
     camera_id: str,
     limit: int = 10,
-    offset: int = 0
+    offset: int = 0,
+    db: Session = Depends(get_db)
 ) -> List[FrameInspectionResponse]:
     """
     Get recent frame-level alerts for a specific camera.
     """
     try:
-        db = SessionLocal()
         alerts = db.query(Alert).filter(
             Alert.camera_id == camera_id,
             Alert.alert_type == "assault"
         ).order_by(Alert.timestamp.desc()).offset(offset).limit(limit).all()
 
-        db.close()
-
         results = []
         for alert in alerts:
             try:
-                response = get_frame_inspection(alert.id)
+                response = get_frame_inspection(alert.id, db)
                 results.append(response)
             except Exception as e:
                 logger.warning(f"Failed to get frame inspection for alert {alert.id}: {e}")

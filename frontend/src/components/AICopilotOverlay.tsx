@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 
 import { API_BASE } from '../config/api'
+import { PlateBadge } from './PlateBadge'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -1116,6 +1117,8 @@ const SLASH_COMMANDS = [
                                       <Clock className="h-3 w-3 text-slate-500 shrink-0" />
                                       <span className="truncate">{item.camera_name || item.camera_id}</span>
                                     </div>
+
+                                    <PlateBadge plate={item.plate} />
 
                                     <div className="text-[10px] text-slate-400 font-mono">
                                       {item.timestamp_start_seconds !== undefined

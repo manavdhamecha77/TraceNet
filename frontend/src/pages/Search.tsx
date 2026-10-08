@@ -38,8 +38,44 @@ interface ExplanationEvidence {
   value_percent: number | null
 }
 
+interface AttributeCheck {
+  kind: string
+  value: string
+  region: string | null
+  text: string
+  verifiable: boolean
+  verdict: 'matched' | 'mismatched' | 'unverified'
+  detail: string
+}
+
+interface ParsedConstraint {
+  kind: string
+  value: string
+  region: string | null
+  text: string
+  verifiable: boolean
+}
+
+type AttributeMode = 'boost' | 'strict' | 'off'
+
+const COLOR_SWATCHES: { name: string; hex: string }[] = [
+  { name: 'black', hex: '#111827' }, { name: 'white', hex: '#f9fafb' }, { name: 'gray', hex: '#9ca3af' },
+  { name: 'red', hex: '#dc2626' }, { name: 'orange', hex: '#f97316' }, { name: 'yellow', hex: '#facc15' },
+  { name: 'green', hex: '#16a34a' }, { name: 'blue', hex: '#2563eb' }, { name: 'purple', hex: '#9333ea' },
+  { name: 'pink', hex: '#ec4899' }, { name: 'brown', hex: '#92400e' },
+]
+
+const VERDICT_STYLE: Record<string, string> = {
+  matched: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
+  mismatched: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 line-through decoration-rose-400/60',
+  unverified: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30',
+}
+
 interface SearchExplanation {
   retrieval_method: string
+  attribute_mode?: string
+  attribute_checks?: AttributeCheck[]
+  final_score_percent?: number
   evidence: ExplanationEvidence[]
   matched_query_terms: string[]
   unknown_or_unverified_terms: string[]
@@ -69,6 +105,7 @@ interface SearchResult {
   tracker_id?: number
   caption?: string
   attributes?: Record<string, unknown>
+  plate?: PlateInfo | null
   explanation?: SearchExplanation
 }
 
@@ -94,6 +131,8 @@ interface SearchProps {
 }
 
 import { useToast } from '../components/Toast'
+import ExportDialog from '../components/ExportDialog'
+import { PlateBadge, type PlateInfo } from '../components/PlateBadge'
 
 export default function Search({ onPlayVideoAtTime }: SearchProps) {
   const toast = useToast()
@@ -118,7 +157,13 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
   const [loadingMetadata, setLoadingMetadata] = useState(true)
   const [searchError, setSearchError]         = useState('')
   const [exportHash, setExportHash]           = useState<string | null>(null)
-  const [isExporting, setIsExporting]         = useState(false)
+  const [exportOpen, setExportOpen]           = useState(false)
+
+  // Attribute (colour / vehicle type) filtering
+  const [attributeMode, setAttributeMode]     = useState<AttributeMode>('boost')
+  const [selectedColors, setSelectedColors]   = useState<string[]>([])
+  const [parsedConstraints, setParsedConstraints] = useState<ParsedConstraint[]>([])
+  const [lastSearch, setLastSearch]           = useState<{ query: string; filters: Record<string, unknown> }>({ query: '', filters: {} })
 
   const loadMetadata = async () => {
     try {
@@ -143,6 +188,27 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
   useEffect(() => {
     loadMetadata()
   }, [])
+
+  // Live preview of which attributes the system will verify for the typed query
+  useEffect(() => {
+    const text = query.trim()
+    if (text.length < 3) {
+      setParsedConstraints([])
+      return
+    }
+    const handle = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/search/parse?q=${encodeURIComponent(text)}`)
+        if (res.ok) {
+          const data = await res.json()
+          setParsedConstraints([...(data.verifiable || []), ...(data.unverifiable || [])])
+        }
+      } catch {
+        setParsedConstraints([])
+      }
+    }, 350)
+    return () => window.clearTimeout(handle)
+  }, [query])
 
   const isCameraDisabled = (cam: Camera): boolean => {
     if (selectedModels.length === 0) return false
@@ -188,7 +254,9 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       time_start: timeStart ? new Date(timeStart).toISOString() : null,
       time_end: timeEnd ? new Date(timeEnd).toISOString() : null,
       object_type: objectType,
-      top_k: topK
+      top_k: topK,
+      colors: selectedColors.length > 0 ? selectedColors : null,
+      attribute_mode: attributeMode,
     }
 
     try {
@@ -205,7 +273,14 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
       const data = await res.json()
       setResults(data)
-      
+      setLastSearch({
+        query: payload.query,
+        filters: {
+          camera_ids: payload.camera_ids, time_start: payload.time_start, time_end: payload.time_end,
+          object_type: payload.object_type, colors: payload.colors, attribute_mode: payload.attribute_mode,
+        },
+      })
+
       const logRes = await fetch(`${API_BASE}/api/v1/search/logs`)
       if (logRes.ok) setSearchLogs(await logRes.json())
     } catch (err: unknown) {
@@ -255,6 +330,15 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       const data = await res.json()
       setResults(data)
       setLastSearchWasImage(true)
+      setLastSearch({
+        query: `[IMAGE SEARCH] ${referenceFile.name}`,
+        filters: {
+          camera_ids: activeCameraIds.length > 0 ? activeCameraIds : null,
+          time_start: timeStart ? new Date(timeStart).toISOString() : null,
+          time_end: timeEnd ? new Date(timeEnd).toISOString() : null,
+          object_type: objectType,
+        },
+      })
       
       const logRes = await fetch(`${API_BASE}/api/v1/search/logs`)
       if (logRes.ok) setSearchLogs(await logRes.json())
@@ -265,56 +349,13 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     }
   }
 
-  const handleExportResults = async () => {
-    if (results.length === 0) return
-    setIsExporting(true)
-    
-    const reportHeader = `TRACENET EVIDENCE RECORD - SEARCH LOG REPORT\n` +
-      `Generated: ${new Date().toISOString()}\n` +
-      `Query descriptor: "${query}"\n` +
-      `Matched tracklet counts: ${results.length}\n` +
-      `========================================================================\n\n`
-      
-    const reportBody = results.map((r, i) => {
-      const dwell = Math.max(0.1, (r.timestamp_end_seconds || 0) - (r.timestamp_start_seconds || 0)).toFixed(1)
-      return (
-        `Result #${i+1} [Similarity Score: ${(r.score * 100).toFixed(1)}%]\n` +
-        `- Tracklet ID: ${r.tracklet_id}\n` +
-        `- Camera node: ${r.camera_id} (${r.camera_name})\n` +
-        `- Classification: ${r.class_name} (${r.object_type})\n` +
-        `- Absolute timeline: ${formatDisplayDate(r.video_start_time)}\n` +
-        `- Relative start: ${r.timestamp_start_seconds.toFixed(2)}s (Dwell: ${dwell}s)\n` +
-        `- Frame start relative: ${r.frame_start}\n` +
-        `- Standardized file alignment: ${r.video_standardized_filename}\n` +
-        `------------------------------------------------------------------------\n`
-      )
-    }).join('\n')
-
-    const reportContent = reportHeader + reportBody
-
-    try {
-      const msgBuffer = new TextEncoder().encode(reportContent)
-      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
-      const hashArray = Array.from(new Uint8Array(hashBuffer))
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-      
-      setExportHash(hashHex)
-
-      const blob = new Blob([reportContent + `\nVerification SHA-256 Hash: ${hashHex}\n`], { type: 'text/plain' })
-      const objectUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objectUrl
-      a.download = `evidence_log_${Date.now()}.txt`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(objectUrl)
-    } catch (_) {
-      toast.error('Export Error', 'Integrity hashing failed.')
-    } finally {
-      setIsExporting(false)
-    }
+  const handleExportResults = () => {
+    if (visibleResults.length === 0) return
+    setExportOpen(true)
   }
+
+  const toggleColor = (name: string) =>
+    setSelectedColors(prev => (prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name]))
 
   const handleCameraToggle = (camId: string) => {
     setSelectedCameras(prev =>
@@ -559,6 +600,67 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
               )}
             </div>
 
+            {/* Attribute filters: explicit colour / type checks, not just visual similarity */}
+            {searchMode === 'text' && (
+              <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Attribute filters (colour)</label>
+                  <select
+                    value={attributeMode}
+                    onChange={(e) => setAttributeMode(e.target.value as AttributeMode)}
+                    className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-[10px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700"
+                    title="How detected colours / vehicle types affect results"
+                  >
+                    <option value="boost">Boost: re-rank by verified attributes</option>
+                    <option value="strict">Strict: hide contradicted results</option>
+                    <option value="off">Off: visual similarity only</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {COLOR_SWATCHES.map(sw => {
+                    const active = selectedColors.includes(sw.name)
+                    return (
+                      <button
+                        key={sw.name}
+                        type="button"
+                        onClick={() => toggleColor(sw.name)}
+                        title={sw.name}
+                        aria-pressed={active}
+                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize transition-all ${
+                          active
+                            ? 'border-teal-600 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 ring-1 ring-teal-500'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-teal-500'
+                        }`}
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full border border-slate-300 dark:border-slate-600" style={{ backgroundColor: sw.hex }} />
+                        {sw.name}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {parsedConstraints.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                    <span className="text-slate-400 font-semibold">Detected in query:</span>
+                    {parsedConstraints.map((c, i) => (
+                      <span
+                        key={`${c.kind}-${c.value}-${c.region}-${i}`}
+                        className={`rounded border px-1.5 py-0.5 font-semibold ${
+                          c.verifiable
+                            ? 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                        }`}
+                        title={c.verifiable ? 'Will be verified against each candidate' : 'Cannot be verified automatically — review manually'}
+                      >
+                        {c.text}{c.region && c.region !== 'any' && c.region !== 'body' ? ` · ${c.region}` : ''}{c.verifiable ? '' : ' (unverifiable)'}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Filter sections */}
             <div className="grid md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
               
@@ -712,16 +814,15 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
               {exportHash && (
                 <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded flex items-center gap-1">
                   <ShieldCheck className="h-3 w-3" />
-                  Integrity code: {exportHash.substring(0, 16)}...
+                  Sealed SHA-256: {exportHash.substring(0, 16)}...
                 </span>
               )}
               <button
                 onClick={handleExportResults}
-                disabled={isExporting}
                 className="bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-250 dark:border-slate-650 text-slate-700 dark:text-slate-300 px-3.5 py-1.5 rounded text-[11px] font-bold transition-all inline-flex items-center gap-1.5 shadow-sm"
               >
                 <Download className="h-3.5 w-3.5" />
-                {isExporting ? 'Exporting...' : 'Export Results Set'}
+                Export Evidence Bundle
               </button>
             </div>
           </div>
@@ -822,9 +923,25 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                       <div>Mean Conf: <strong className="text-slate-850 dark:text-slate-200">{(result.mean_confidence * 100).toFixed(0)}%</strong></div>
                     </div>
 
+                    <PlateBadge plate={result.plate} />
+
                     {result.caption && (
                       <div className="text-[9.5px] italic text-teal-700 dark:text-teal-300 bg-teal-500/10 border border-teal-500/20 px-1.5 py-0.5 rounded leading-tight line-clamp-2" title={`BLIP Auto-Caption: ${result.caption}`}>
                         "{result.caption}"
+                      </div>
+                    )}
+
+                    {(result.explanation?.attribute_checks?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {result.explanation!.attribute_checks!.map((check, checkIdx) => (
+                          <span
+                            key={`${check.text}-${checkIdx}`}
+                            title={check.detail}
+                            className={`rounded border px-1 py-0.5 text-[9px] font-semibold ${VERDICT_STYLE[check.verdict]}`}
+                          >
+                            {check.verdict === 'matched' ? '✓' : check.verdict === 'mismatched' ? '✗' : '?'} {check.text}
+                          </span>
+                        ))}
                       </div>
                     )}
 
@@ -833,8 +950,8 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                         <Sparkles className="h-3 w-3" /> Why this matched
                       </summary>
                       <div className="border-t border-slate-200 dark:border-slate-700 px-2 py-2 space-y-1.5 text-slate-600 dark:text-slate-300">
-                        {(result.explanation?.evidence || []).map((evidence) => (
-                          <div key={evidence.label} className="flex gap-1.5">
+                        {(result.explanation?.evidence || []).map((evidence, evidenceIdx) => (
+                          <div key={`${evidence.label}-${evidenceIdx}`} className="flex gap-1.5">
                             <span className="font-semibold shrink-0">{evidence.label}:</span>
                             <span>
                               {evidence.detail}
@@ -966,6 +1083,15 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           </table>
         </div>
       </div>
+
+      <ExportDialog
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        candidates={visibleResults.map(r => ({ tracklet_id: r.tracklet_id, score: r.score }))}
+        query={lastSearch.query || query}
+        filters={lastSearch.filters}
+        onSealed={(sealed) => setExportHash(sealed.zip_sha256)}
+      />
 
     </div>
   )

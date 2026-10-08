@@ -154,6 +154,24 @@ def process_video_background(
             video_id=asset_id,
         )
 
+        # 4b. Vehicle number plates: read the plate of every detected vehicle (Car, Bus, HCV, LCV,
+        #     Two-wheeler, Three-wheeler). Runs right after vehicle detection/tracking and before
+        #     embedding/indexing and the facial pipeline. Failures never abort ingestion.
+        try:
+            from app.detection.vehicle_plates import VehiclePlateService
+
+            plate_summary = VehiclePlateService().process_video(
+                asset_id, db, video_path=pipeline_results["standardized_video_path"]
+            )
+            logger.info(
+                f"Plate pass for asset {asset_id}: {plate_summary['read']} read, "
+                f"{plate_summary['blurry']} blurry, {plate_summary['not_detected']} without plate "
+                f"(engine {plate_summary['engine']})"
+            )
+        except Exception as plate_err:
+            db.rollback()
+            logger.warning(f"Vehicle plate pass encountered an issue for asset {asset_id}: {str(plate_err)}")
+
         # 5. Embed and Index tracklets
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
@@ -203,6 +221,7 @@ def process_video_background(
                 f"{face_index_res.get('indexed', 0)} indexed to Qdrant collection 'tracenet_faces'."
             )
         except Exception as face_err:
+            db.rollback()
             logger.warning(f"Automated face detection/indexing encountered an issue for asset {asset_id}: {str(face_err)}")
 
         # 7. Automated Accident & Collision Detection
@@ -223,6 +242,7 @@ def process_video_background(
                 f"{accident_result.get('incidents_count', 0)} verified collision incidents found."
             )
         except Exception as acc_err:
+            db.rollback()
             logger.warning(f"Automated accident detection encountered an issue for asset {asset_id}: {str(acc_err)}")
 
         inference_duration = time.time() - start_inference
@@ -566,6 +586,15 @@ def delete_video_permanently(video_id: str, db: Session = Depends(get_db)):
         index_service.delete_video_tracklets(video_id, db)
     except Exception as qdrant_err:
         logger.warning(f"Error removing points from Qdrant: {qdrant_err}")
+
+    # 1b. Delete the video's number-plate rows and cutout images
+    try:
+        from app.detection.vehicle_plates import delete_plates_for_video
+        delete_plates_for_video(db, video_id)
+        db.commit()
+    except Exception as plate_err:
+        db.rollback()
+        logger.warning(f"Error removing plate records: {plate_err}")
 
     # 2. Delete files from disk
     # (a) Raw upload in minio_mock: data/minio_mock/{video_id}_{original_filename}

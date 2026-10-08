@@ -157,7 +157,11 @@ class FaceVectorIndexService:
                 continue
 
             point_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, tracklet_id))
-            db.query(FaceTracklet).filter(FaceTracklet.id == tracklet_id).delete()
+            previous = db.query(FaceTracklet).filter(FaceTracklet.id == tracklet_id).first()
+            existing_label = previous.label if previous else None
+            if previous:
+                db.delete(previous)
+                db.flush()
 
             db_tracklet = FaceTracklet(
                 id=tracklet_id,
@@ -172,7 +176,7 @@ class FaceVectorIndexService:
                 mean_confidence=item.get("mean_confidence", 0.0),
                 best_bbox=json.dumps(item.get("best_bbox", [0.0, 0.0, 0.0, 0.0])),
                 best_crop_path=best_crop_path,
-                label=None,
+                label=existing_label,
                 qdrant_point_id=point_uuid,
                 embedding_dim=len(embedding),
                 embedding_backend=active_backend,
@@ -191,7 +195,7 @@ class FaceVectorIndexService:
                         "camera_id": video.camera_id,
                         "timestamp_start_seconds": item.get("timestamp_start_seconds", 0.0),
                         "frame_start": item.get("frame_start", 0),
-                        "label": None,
+                        "label": existing_label,
                     }
                 )
             )

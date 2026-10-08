@@ -102,9 +102,9 @@ class AccidentDetectionService:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1280)
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 720)
 
+        model = self.model
         frame_index = 0
         raw_accident_frames: List[Dict[str, Any]] = []
-        recent_frames_buffer: List[Dict[str, Any]] = []  # Ring buffer of recent frames for pre-crash extraction
 
         logger.info(f"Starting accident detection on video {video_id} ({total_frames} frames @ {fps:.1f} FPS)...")
 
@@ -115,13 +115,8 @@ class AccidentDetectionService:
 
             timestamp_seconds = frame_index / fps if fps > 0 else float(frame_index)
 
-            # Keep a buffer of past frames for pre-impact extraction (up to 30 frames ~ 3 seconds)
-            if len(recent_frames_buffer) > 30:
-                recent_frames_buffer.pop(0)
-            recent_frames_buffer.append({"frame_index": frame_index, "frame": frame.copy(), "timestamp": timestamp_seconds})
-
             # Inference
-            results = self.model.predict(
+            results = model.predict(
                 frame,
                 conf=self.conf_threshold,
                 iou=self.iou_threshold,
@@ -139,7 +134,7 @@ class AccidentDetectionService:
                 clss = r.boxes.cls.cpu().numpy()
 
                 for box, conf, cls_id in zip(boxes, confs, clss):
-                    cls_name = self.model.names.get(int(cls_id), "unknown")
+                    cls_name = model.names.get(int(cls_id), "unknown")
                     bbox_list = [float(x) for x in box]
                     if cls_name == "accident" or int(cls_id) == 0:
                         accident_boxes.append({"bbox": bbox_list, "confidence": float(conf)})
@@ -159,7 +154,7 @@ class AccidentDetectionService:
                         "accident_box": acc["bbox"],
                         "confidence": acc["confidence"],
                         "vehicles_involved": max(1, len(overlapping_vehicles)),
-                        "frame": frame.copy(),
+                        "frame": frame,
                     })
 
             frame_index += 1
@@ -172,21 +167,27 @@ class AccidentDetectionService:
         if raw_accident_frames:
             current_cluster: List[Dict[str, Any]] = [raw_accident_frames[0]]
             
+            def _persistent(cluster: List[Dict[str, Any]]) -> bool:
+                # Count distinct frames, not boxes: several boxes in one frame is not persistence.
+                return len({c["frame_index"] for c in cluster}) >= 3
+
             for item in raw_accident_frames[1:]:
                 # If frame gap is <= 5 frames (0.5s), consider it the same incident event
                 if item["frame_index"] - current_cluster[-1]["frame_index"] <= 5:
                     current_cluster.append(item)
                 else:
-                    if len(current_cluster) >= 3:
+                    if _persistent(current_cluster):
                         incidents.append(self._process_incident_cluster(
-                            current_cluster, recent_frames_buffer, evidence_dir, video_id, camera_id
+                            current_cluster, evidence_dir, video_id, camera_id
                         ))
                     current_cluster = [item]
 
-            if len(current_cluster) >= 3:
+            if _persistent(current_cluster):
                 incidents.append(self._process_incident_cluster(
-                    current_cluster, recent_frames_buffer, evidence_dir, video_id, camera_id
+                    current_cluster, evidence_dir, video_id, camera_id
                 ))
+
+        raw_accident_frames.clear()
 
         # Write accidents.json artifact
         artifact = {
@@ -216,7 +217,6 @@ class AccidentDetectionService:
     def _process_incident_cluster(
         self,
         cluster: List[Dict[str, Any]],
-        recent_frames: List[Dict[str, Any]],
         evidence_dir: str,
         video_id: str,
         camera_id: str,
@@ -236,7 +236,7 @@ class AccidentDetectionService:
         # Severity determination
         if vehicles_count >= 2 or peak_conf >= 0.75:
             severity = "CRITICAL"
-        elif peak_conf >= 0.50 or vehicles_count >= 1:
+        elif peak_conf >= 0.50:
             severity = "HIGH"
         else:
             severity = "MODERATE"

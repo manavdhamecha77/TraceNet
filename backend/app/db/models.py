@@ -797,12 +797,23 @@ class LicensePlateDetection(Base):
     is_watchlisted = Column(Boolean, default=False)
     alert_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # Vehicle linkage (pipeline-read plates are one row per vehicle tracklet)
+    tracklet_id = Column(String, nullable=True, index=True)
+    ocr_confidence = Column(Float, nullable=True)
+    # 'read' = text recognised | 'blurry' = plate found but unreadable | 'not_detected' = no plate found
+    plate_status = Column(String, default="read", index=True)
+    ocr_engine = Column(String, nullable=True)  # OCR engine key that produced plate_text
 
     def to_dict(self):
         try:
             box = json.loads(self.bbox) if self.bbox else []
         except Exception:
             box = []
+
+        normalized = (self.cutout_path or "").replace("\\", "/")
+        data_index = normalized.find("/data/")
+        cutout_url = normalized[data_index:] if data_index != -1 else None
+
         return {
             "id": self.id,
             "video_id": self.video_id,
@@ -813,9 +824,14 @@ class LicensePlateDetection(Base):
             "confidence": self.confidence,
             "bbox": box,
             "cutout_path": self.cutout_path,
+            "cutout_url": cutout_url,
             "is_watchlisted": self.is_watchlisted,
             "alert_id": self.alert_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "tracklet_id": self.tracklet_id,
+            "ocr_confidence": self.ocr_confidence,
+            "plate_status": self.plate_status or "read",
+            "ocr_engine": self.ocr_engine,
         }
 
 
@@ -845,4 +861,53 @@ class PlateWatchlistEntry(Base):
             "created_by": self.created_by,
             "last_matched_at": self.last_matched_at.isoformat() if self.last_matched_at else None,
             "match_count": self.match_count,
+        }
+
+
+class ForensicExport(Base):
+    """Audit record for every sealed forensic evidence bundle produced by the system."""
+
+    __tablename__ = "forensic_exports"
+
+    id = Column(String, primary_key=True, index=True)          # e.g. EXP-20261008-101500-ab12cd
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_by = Column(String, nullable=False, default="demo")
+    case_reference = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    query_text = Column(Text, nullable=True)
+    filters = Column(Text, nullable=True)                      # JSON of search filters in effect
+    options = Column(Text, nullable=True)                      # JSON of export options (clips, blur, ...)
+    item_count = Column(Integer, default=0)
+    zip_path = Column(String, nullable=False)                  # relative to backend/data
+    zip_bytes = Column(Integer, default=0)
+    zip_sha256 = Column(String, nullable=False)
+    manifest_sha256 = Column(String, nullable=False)
+    search_log_id = Column(Integer, nullable=True)
+    last_verified_at = Column(DateTime, nullable=True)
+    last_verification = Column(String, nullable=True)          # VERIFIED | TAMPERED | MISSING
+
+    def to_dict(self):
+        def _load(raw):
+            try:
+                return json.loads(raw) if raw else {}
+            except Exception:
+                return {}
+
+        return {
+            "id": self.id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "created_by": self.created_by,
+            "case_reference": self.case_reference,
+            "notes": self.notes,
+            "query_text": self.query_text,
+            "filters": _load(self.filters),
+            "options": _load(self.options),
+            "item_count": self.item_count,
+            "zip_bytes": self.zip_bytes,
+            "zip_sha256": self.zip_sha256,
+            "manifest_sha256": self.manifest_sha256,
+            "search_log_id": self.search_log_id,
+            "last_verified_at": self.last_verified_at.isoformat() if self.last_verified_at else None,
+            "last_verification": self.last_verification,
+            "download_url": f"/api/v1/exports/{self.id}/download",
         }

@@ -6,6 +6,7 @@ import {
 import { useToast } from '../components/Toast'
 import { formatDisplayDate } from '../utils/dateFormatter'
 import { API_BASE } from '../config/api'
+import OcrEngineSelector from '../components/OcrEngineSelector'
 
 interface Camera {
   camera_id: string
@@ -280,7 +281,7 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
             </span>
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Fine-tuned YOLO plate detector + OCR reads vehicle license plates and flags watchlist matches.
+            Fine-tuned YOLO plate detector + PaddleOCR (PP-OCRv5) read vehicle license plates and flag watchlist matches.
           </p>
         </div>
 
@@ -292,6 +293,8 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
           Refresh
         </button>
       </div>
+
+      <OcrEngineSelector onBackfillFinished={() => refreshAll()} />
 
       {/* MODEL STATUS */}
       {modelStatus && (

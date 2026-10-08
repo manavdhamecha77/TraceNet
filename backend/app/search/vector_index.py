@@ -224,13 +224,25 @@ class VectorIndexService:
             db.query(Tracklet).filter(Tracklet.id == tracklet_id).delete()
 
             attr_payload = item.get("attributes") or {"caption": item.get("caption", ""), "class_name": det_info.get("class_name", "unknown")}
+            from app.attributes.color_extractor import canonical_object_type, extract_tracklet_attributes
+            raw_class = det_info.get("class_name", "unknown")
+            canonical_type = canonical_object_type(raw_class, item.get("object_type"))
+            if canonical_type == "object":
+                canonical_type = item.get("object_type", "unknown")
+            if "color_status" not in attr_payload:
+                attr_payload = {
+                    **attr_payload,
+                    **extract_tracklet_attributes(
+                        item.get("best_crop_path"), raw_class, item.get("object_type"), attr_payload.get("caption", "")
+                    ),
+                }
 
             db_tracklet = Tracklet(
                 id=tracklet_id,
                 video_id=video_id,
-                tracker_id=item.get("tracker_id", 0),
-                object_type=item.get("object_type", "unknown"),
-                class_name=det_info.get("class_name", "unknown"),
+                tracker_id=det_info.get("tracker_id", item.get("tracker_id", 0)),
+                object_type=canonical_type,
+                class_name=raw_class,
                 camera_id=video.camera_id,
                 frame_start=frame_start,
                 frame_end=frame_end,
@@ -257,8 +269,10 @@ class VectorIndexService:
                         "tracklet_id": tracklet_id,
                         "video_id": video_id,
                         "camera_id": video.camera_id,
-                        "object_type": item.get("object_type", "unknown"),
-                        "class_name": det_info.get("class_name", "unknown"),
+                        "object_type": canonical_type,
+                        "class_name": raw_class,
+                        "colors": attr_payload.get("colors", []),
+                        "vehicle_type": attr_payload.get("vehicle_type"),
                         "mean_confidence": mean_confidence,
                         "frame_start": frame_start,
                         "frame_end": frame_end,

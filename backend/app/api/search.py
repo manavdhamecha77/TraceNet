@@ -24,6 +24,12 @@ class SearchQueryRequest(BaseModel):
     object_type: Optional[str] = Field(default="all", description="'all' | 'person' | 'vehicle'")
     video_id: Optional[str] = Field(default=None, description="Scope search to a single video asset")
     top_k: int = Field(default=15, ge=1, le=50)
+    colors: Optional[List[str]] = Field(default=None, description="Require these colours (any body region)")
+    vehicle_type: Optional[str] = Field(default=None, description="Require this vehicle type, e.g. 'car', 'motorcycle'")
+    attribute_mode: str = Field(
+        default="boost",
+        description="'boost' re-ranks by verified attributes, 'strict' drops contradicted results, 'off' ignores attributes",
+    )
 
 
 class SearchQueryResultItem(BaseModel):
@@ -48,6 +54,7 @@ class SearchQueryResultItem(BaseModel):
     tracker_id: Optional[int] = None
     caption: str = ""
     attributes: dict[str, Any] = Field(default_factory=dict)
+    plate: Optional[dict[str, Any]] = None
     explanation: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -94,6 +101,12 @@ def search_footage(
                 detail=f"Malformed end time: '{payload.time_end}'. Must be ISO 8601 format."
             )
 
+    if payload.attribute_mode not in ("boost", "strict", "off"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="attribute_mode must be 'boost', 'strict' or 'off'",
+        )
+
     try:
         engine = QueryEngine()
         results = engine.search_tracklets(
@@ -104,7 +117,10 @@ def search_footage(
             time_end=parsed_end,
             object_type=payload.object_type,
             video_id=payload.video_id,
-            top_k=payload.top_k
+            top_k=payload.top_k,
+            colors=payload.colors,
+            vehicle_type=payload.vehicle_type,
+            attribute_mode=payload.attribute_mode,
         )
         return results
     except Exception as exc:

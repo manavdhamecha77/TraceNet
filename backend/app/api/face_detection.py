@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from typing import Optional
 from pathlib import Path
@@ -197,12 +198,21 @@ def switch_face_models(payload: ModelSwitchRequest):
 
 @router.post("/face-models/upload")
 def upload_face_model(name: str = Form(...), file: UploadFile = File(...)):
-    if not file.filename.endswith(".pt"):
+    if not (file.filename or "").lower().endswith(".pt"):
         raise HTTPException(status_code=400, detail="Model file must be a .pt file")
-        
+
+    name = name.strip()
+    if name.lower().endswith(".pt"):
+        name = name[:-3]
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", name) or name.startswith("."):
+        raise HTTPException(
+            status_code=400,
+            detail="Model name may only contain letters, digits, '_', '-' and '.'",
+        )
+
     models_dir = get_data_path("models/face_detection")
     os.makedirs(models_dir, exist_ok=True)
-    
+
     file_path = os.path.join(models_dir, f"{name}.pt")
     with open(file_path, "wb") as f:
         f.write(file.file.read())
@@ -213,7 +223,7 @@ def upload_face_model(name: str = Form(...), file: UploadFile = File(...)):
         if len(classes) != 1:
             os.remove(file_path)
             raise HTTPException(
-                status_code=400, 
+                status_code=400,
                 detail=f"Face model must have exactly 1 class. Found {len(classes)} classes: {classes}"
             )
         return {
@@ -221,6 +231,8 @@ def upload_face_model(name: str = Form(...), file: UploadFile = File(...)):
             "path": f"models/face_detection/{name}.pt",
             "classes": classes
         }
+    except HTTPException:
+        raise
     except Exception as e:
         if os.path.exists(file_path):
             os.remove(file_path)

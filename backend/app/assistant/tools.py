@@ -367,7 +367,9 @@ class ToolExecutor:
                         "class_name": r.get("class_name"),
                         "confidence": r.get("mean_confidence") or r.get("confidence"),
                         "timestamp_seconds": r.get("timestamp_start_seconds"),
-                        "score": r.get("score")
+                        "score": r.get("score"),
+                        "number_plate": (r.get("plate") or {}).get("text")
+                        or (r.get("plate") or {}).get("status"),
                     }
                     for r in results[:5]
                 ]

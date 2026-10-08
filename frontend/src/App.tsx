@@ -17,14 +17,16 @@ import TheftAlerts from './pages/TheftAlerts'
 import AlertsDashboard from './pages/AlertsDashboard'
 import HotTargets from './pages/HotTargets'
 import FaceSearch from './pages/FaceSearch'
+import EvidenceVault from './pages/EvidenceVault'
+import PlateSearch from './pages/PlateSearch'
 import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import LiveConnect from './pages/LiveConnect'
 import { classColor } from './utils/colors'
 import LiveCameraView from './pages/LiveCameraView'
-import LiveConnect from './pages/LiveConnect'
 import { useToast } from './components/Toast'
 import {
   ExternalLink,
@@ -581,6 +583,10 @@ function App() {
         }
       } else if (paths[0] === 'search') {
         crumbs.push({ label: 'Search', link: '/search' })
+      } else if (paths[0] === 'plates') {
+        crumbs.push({ label: 'Vehicle Plate Search', link: '/plates' })
+      } else if (paths[0] === 'evidence') {
+        crumbs.push({ label: 'Evidence Vault', link: '/evidence' })
       } else if (paths[0] === 'face-search') {
         crumbs.push({ label: 'Facial Intelligence', link: '/face-search' })
       } else if (paths[0] === 'alerts') {
@@ -608,13 +614,13 @@ function App() {
       } else if (paths[0] === 'dashboard') {
         crumbs.push({ label: 'Dashboard', link: '/dashboard' })
       } else if (paths[0] === 'models') {
+      } else if (paths[0] === 'live-connect' || paths[0] === 'connect') {
+        crumbs.push({ label: 'Live Broadcast Console', link: '/live-connect' })
         crumbs.push({ label: 'YOLO Detector Models', link: '/models' })
       } else if (paths[0] === 'embedding-models') {
         crumbs.push({ label: 'Embedding Config', link: '/embedding-models' })
       } else if (paths[0] === 'finetuning') {
         crumbs.push({ label: 'YOLO Retraining', link: '/finetuning' })
-      } else if (paths[0] === 'live-connect' || paths[0] === 'connect') {
-        crumbs.push({ label: 'Live Broadcast Console', link: '/live-connect' })
       } else if (paths[0] === 'frame-inspection') {
         crumbs.push({ label: 'Unified Alert Center', link: '/alerts' })
         crumbs.push({ label: `Frame Inspection #${paths[1] || ''}`, link: `/frame-inspection/${paths[1] || ''}` })
@@ -1014,9 +1020,6 @@ function App() {
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6.5A2.5 2.5 0 016.5 4h4A2.5 2.5 0 0113 6.5v4a2.5 2.5 0 01-2.5 2.5h-4A2.5 2.5 0 014 10.5v-4zM15 13.5a2.5 2.5 0 012.5-2.5h4a2.5 2.5 0 012.5 2.5v4a2.5 2.5 0 01-2.5 2.5h-4a2.5 2.5 0 01-2.5-2.5v-4z" />
                 </svg>
-                {!isSidebarCollapsed && <span>Areas</span>}
-              </Link>
-
               <Link
                 to="/live-connect"
                 className={navLinkClass(location.pathname === '/live-connect' || location.pathname === '/connect')}
@@ -1028,6 +1031,9 @@ function App() {
                 {!isSidebarCollapsed && (
                   <span>Live Broadcaster</span>
                 )}
+              </Link>
+
+                {!isSidebarCollapsed && <span>Areas</span>}
               </Link>
 
 
@@ -1052,6 +1058,28 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               {!isSidebarCollapsed && <span>Search &amp; Investigate</span>}
+            </Link>
+
+            <Link
+              to="/plates"
+              className={navLinkClass(location.pathname === '/plates')}
+              title={isSidebarCollapsed ? 'Vehicle Plate Search' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M3 8a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm4 3h2m2 0h2m2 0h2M7 14h10" />
+              </svg>
+              {!isSidebarCollapsed && <span>Vehicle Plate Search</span>}
+            </Link>
+
+            <Link
+              to="/evidence"
+              className={navLinkClass(location.pathname === '/evidence')}
+              title={isSidebarCollapsed ? 'Evidence Vault' : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              {!isSidebarCollapsed && <span>Evidence Vault</span>}
             </Link>
 
             <Link
@@ -1294,6 +1322,8 @@ function App() {
               <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/alerts/assault" element={<AssaultDetection cameras={cameras} />} />
               <Route path="/assault-alerts" element={<AssaultDetection cameras={cameras} />} />
+              <Route path="/live-connect" element={<LiveConnect />} />
+              <Route path="/connect" element={<LiveConnect />} />
               <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
               <Route path="/alerts/plates" element={<PlateDetection cameras={cameras} />} />
               <Route path="/anpr-alerts" element={<PlateDetection cameras={cameras} />} />
@@ -1302,12 +1332,12 @@ function App() {
               <Route path="/finetuning" element={<FineTuning />} />
               <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/face-search" element={<FaceSearch />} />
+              <Route path="/evidence" element={<EvidenceVault />} />
+              <Route path="/plates" element={<PlateSearch onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/multicam" element={<MultiCameraTracking />} />
               <Route path="/targets" element={<HotTargets onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/cameras/:camera_id/videos/:video_id" element={<VideoDetail />} />
               <Route path="/cameras/:camera_id/live" element={<LiveCameraView />} />
-              <Route path="/live-connect" element={<LiveConnect />} />
-              <Route path="/connect" element={<LiveConnect />} />
             </Routes>
           </ErrorBoundary>
 

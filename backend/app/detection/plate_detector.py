@@ -2,14 +2,14 @@
 Automatic License Plate Recognition (ANPR) module.
 Two-stage pipeline: a YOLO vehicle detector first localizes vehicles, then a
 fine-tuned YOLO plate detector finds the license plate within each vehicle
-crop, and fast-plate-ocr reads the plate text.
+crop, and PaddleOCR (PP-OCRv5) reads the plate text.
 
 If the vehicle detector weights aren't present, the pipeline falls back to
 running the plate detector directly on the full frame.
 """
 
 import os
-import re
+import threading
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,18 +19,16 @@ import torch
 from loguru import logger
 from ultralytics import YOLO
 
-try:
-    from fast_plate_ocr import LicensePlateRecognizer
-except ImportError:
-    LicensePlateRecognizer = None
-    logger.warning("fast-plate-ocr not installed, plate OCR disabled")
-
 from app.config import get_data_path
+from app.detection.plate_ocr import clean_plate_text, get_ocr_engine
 
 WEIGHTS_DIR = Path(__file__).resolve().parent / "weights"
 DATA_MODELS_DIR = Path(get_data_path("models"))
 DEFAULT_MODEL_PATH = str(DATA_MODELS_DIR / "license_plate_detector.pt")
 DEFAULT_VEHICLE_MODEL_PATH = str(DATA_MODELS_DIR / "vehicle_detector.pt")
+
+# A reading shorter than this is treated as garbage ('blurry plate'); nothing else is filtered or parsed.
+MIN_PLATE_CHARS = 3
 
 
 class PlateDetector:
@@ -39,28 +37,39 @@ class PlateDetector:
     Vehicle localization model: fine-tuned YOLO (Car/Bus/HCV/LCV/Two-wheeler/
     Three-wheeler/Pedestrian) — optional, narrows the search region.
     Plate detection model: fine-tuned YOLOv8n (single class: License_Plate).
-    OCR model: fast-plate-ocr (cct-s-v2-global-model).
+    OCR model: PaddleOCR PP-OCRv5 (text detection + English recognition), see plate_ocr.py.
     """
 
     def __init__(
         self,
         model_path: str = DEFAULT_MODEL_PATH,
         vehicle_model_path: str = DEFAULT_VEHICLE_MODEL_PATH,
-        ocr_model: str = "cct-s-v2-global-model",
+        ocr_min_confidence: float = 0.5,
         confidence_threshold: float = 0.35,
         vehicle_confidence_threshold: float = 0.35,
         vehicle_crop_padding: float = 0.10,
     ):
         self.model_path = model_path
         self.vehicle_model_path = vehicle_model_path
-        self.ocr_model_name = ocr_model
+        self.ocr_min_confidence = ocr_min_confidence
         self.confidence_threshold = confidence_threshold
         self.vehicle_confidence_threshold = vehicle_confidence_threshold
         self.vehicle_crop_padding = vehicle_crop_padding
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model: Optional[YOLO] = None
         self.vehicle_model: Optional[YOLO] = None
-        self.ocr_engine: Optional["LicensePlateRecognizer"] = None
+        # The detector is a process-wide singleton shared by request threads, the ingest pipeline and the
+        # plate backfill job; YOLO inference on one model object is not guaranteed thread-safe.
+        self._infer_lock = threading.RLock()
+
+    @property
+    def ocr_engine(self):
+        """The process-wide active OCR engine (switchable at runtime, see plate_ocr.set_active_engine)."""
+        return get_ocr_engine()
+
+    @property
+    def ocr_model_name(self) -> str:
+        return self.ocr_engine.engine_name
 
     def load_model(self):
         """Load the plate detector, vehicle detector, and OCR engine (idempotent)."""
@@ -95,29 +104,26 @@ class PlateDetector:
             )
             self.vehicle_model = None
 
-        if LicensePlateRecognizer is not None:
-            logger.info(f"Loading plate OCR engine: {self.ocr_model_name}")
-            self.ocr_engine = LicensePlateRecognizer(self.ocr_model_name)
-        else:
-            self.ocr_engine = None
+        self.ocr_engine.load()
 
         logger.info("License plate detector ready")
 
     @staticmethod
     def _clean_plate_text(raw_text: str) -> str:
-        return re.sub(r"[^A-Z0-9]", "", raw_text.upper()).strip()
+        return clean_plate_text(raw_text)
 
-    def _read_plate_text(self, cutout) -> str:
-        if self.ocr_engine is None or cutout is None or cutout.size == 0:
-            return ""
+    def _read_plate_text(self, cutout) -> Tuple[str, float]:
+        """Read a plate cutout with PaddleOCR. Returns (text, ocr_confidence); ("", 0.0) if unreadable."""
+        if cutout is None or cutout.size == 0:
+            return "", 0.0
         try:
-            predictions = self.ocr_engine.run(cutout)
-            if not predictions:
-                return ""
-            return self._clean_plate_text(predictions[0].plate)
+            text, score = self.ocr_engine.read(cutout)
         except Exception as e:
             logger.warning(f"Plate OCR failed: {e}")
-            return ""
+            return "", 0.0
+        if len(text) < MIN_PLATE_CHARS or score < self.ocr_min_confidence:
+            return "", 0.0
+        return text, score
 
     def _detect_vehicle_regions(self, frame) -> List[Tuple[int, int, int, int]]:
         """Detect vehicles in the frame and return padded crop regions (x1, y1, x2, y2)."""
@@ -139,6 +145,47 @@ class PlateDetector:
 
         return regions
 
+    def analyze_region(self, frame, region: Tuple[int, int, int, int]) -> List[Dict[str, Any]]:
+        """
+        Find and read plates inside one region of ``frame`` (e.g. a vehicle box).
+
+        Unlike ``_detect_plates_in_region`` this keeps plates whose text could not be read
+        (``plate_text == ""``), so callers can tell "plate seen but blurry" from "no plate".
+        Boxes are returned in full-frame coordinates together with the plate cutout image.
+        """
+        if self.model is None:
+            self.load_model()
+
+        rx1, ry1, rx2, ry2 = region
+        region_crop = frame[ry1:ry2, rx1:rx2]
+        if region_crop.size == 0:
+            return []
+
+        with self._infer_lock:
+            results = self.model.predict(
+                source=region_crop, conf=self.confidence_threshold, verbose=False, device=self.device
+            )
+        boxes = results[0].boxes if results and results[0].boxes is not None else []
+
+        candidates: List[Dict[str, Any]] = []
+        for box in boxes:
+            lx1, ly1, lx2, ly2 = box.xyxy[0].cpu().numpy().astype(int)
+            lx1, ly1 = max(0, lx1), max(0, ly1)
+            lx2 = min(region_crop.shape[1], lx2)
+            ly2 = min(region_crop.shape[0], ly2)
+            if lx2 <= lx1 or ly2 <= ly1:
+                continue
+            cutout = region_crop[ly1:ly2, lx1:lx2]
+            text, ocr_confidence = self._read_plate_text(cutout)
+            candidates.append({
+                "bbox": [int(rx1 + lx1), int(ry1 + ly1), int(rx1 + lx2), int(ry1 + ly2)],
+                "confidence": float(box.conf[0].cpu().numpy()),
+                "cutout": cutout.copy(),
+                "plate_text": text,
+                "ocr_confidence": float(ocr_confidence),
+            })
+        return candidates
+
     def _detect_plates_in_region(
         self,
         frame,
@@ -153,9 +200,10 @@ class PlateDetector:
         if region_crop.size == 0:
             return []
 
-        results = self.model.predict(
-            source=region_crop, conf=self.confidence_threshold, verbose=False, device=self.device
-        )
+        with self._infer_lock:
+            results = self.model.predict(
+                source=region_crop, conf=self.confidence_threshold, verbose=False, device=self.device
+            )
         boxes = results[0].boxes if results and results[0].boxes is not None else []
 
         detections: List[Dict[str, Any]] = []
@@ -169,7 +217,7 @@ class PlateDetector:
 
             confidence = float(box.conf[0].cpu().numpy())
             cutout = region_crop[ly1:ly2, lx1:lx2]
-            plate_text = self._read_plate_text(cutout)
+            plate_text, ocr_confidence = self._read_plate_text(cutout)
             if not plate_text:
                 continue
 
@@ -188,6 +236,7 @@ class PlateDetector:
                 "timestamp_seconds": round(timestamp_seconds, 2),
                 "plate_text": plate_text,
                 "confidence": round(confidence, 4),
+                "ocr_confidence": round(ocr_confidence, 4),
                 "bbox": [int(gx1), int(gy1), int(gx2), int(gy2)],
                 "cutout_path": cutout_path,
             })
@@ -225,6 +274,11 @@ class PlateDetector:
             )
 
         return detections
+
+    @staticmethod
+    def _sighting_score(det: Dict[str, Any]) -> float:
+        """Rank sightings by detector confidence x OCR confidence (a sharp box with a misread is not 'best')."""
+        return det["confidence"] * det.get("ocr_confidence", 1.0)
 
     def detect_video(
         self,
@@ -268,14 +322,14 @@ class PlateDetector:
                 for det in frame_detections:
                     text = det["plate_text"]
                     existing = best_by_plate.get(text)
-                    if existing is None or det["confidence"] > existing["confidence"]:
+                    if existing is None or self._sighting_score(det) > self._sighting_score(existing):
                         best_by_plate[text] = det
 
             frame_index += 1
 
         cap.release()
 
-        plates = sorted(best_by_plate.values(), key=lambda d: d["confidence"], reverse=True)
+        plates = sorted(best_by_plate.values(), key=self._sighting_score, reverse=True)
         return {
             "plates": plates,
             "frames_analyzed": frames_analyzed,

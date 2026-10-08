@@ -20,8 +20,9 @@ import {
 } from 'lucide-react'
 import { classColor } from '../utils/colors'
 import { useToast } from '../components/Toast'
+import { PlateBadge, type PlateInfo } from '../components/PlateBadge'
 
-const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
+import { API_BASE } from '../config/api'
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ interface TrackletItem {
   best_crop_path?: string
   score?: number
   tracklet_id?: string
+  plate?: PlateInfo | null
 }
 
 // ─── Color palette (matches App.tsx modal exactly) ───────────────────────────
@@ -129,6 +131,16 @@ export default function VideoDetail() {
   const [localResults, setLocalResults]     = useState<TrackletItem[]>([])
   const [searching, setSearching]           = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'person' | 'vehicle'>('all')
+
+  // Number plates of every vehicle in this video (search results carry their own copy)
+  const [plateMap, setPlateMap] = useState<Record<string, PlateInfo | null>>({})
+  useEffect(() => {
+    if (!video_id) return
+    fetch(`${API_BASE}/api/v1/videos/${video_id}/plates`)
+      .then(r => (r.ok ? r.json() : {}))
+      .then(setPlateMap)
+      .catch(() => setPlateMap({}))
+  }, [video_id])
 
   // Chart
   const [chartMode, setChartMode] = useState<'instantaneous' | 'cumulative'>('instantaneous')
@@ -1312,6 +1324,8 @@ export default function VideoDetail() {
 
                 {/* Footer metadata & actions */}
                 <div className="p-2 space-y-1.5">
+                  <PlateBadge plate={item.plate ?? plateMap[tid]} />
+
                   <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                     <span>Start: {item.timestamp_start_seconds.toFixed(1)}s</span>
                     <span className="font-bold text-teal-700 dark:text-teal-400">Dwell: {dwellSec}s</span>

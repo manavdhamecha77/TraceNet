@@ -10,6 +10,7 @@ from loguru import logger
 
 from app.embeddings.clip_encoder import ClipEncoder, get_clip_encoder
 from app.embeddings.captioner import get_blip_captioner
+from app.attributes.color_extractor import extract_tracklet_attributes
 
 
 @dataclass
@@ -92,6 +93,10 @@ class TrackletEmbeddingService:
                 "model": "Salesforce/blip-image-captioning-base",
                 "class_name": tracklet.get("class_name")
             }
+            # Structured colour / type attributes (explicit and filterable, not just CLIP similarity)
+            attr_payload.update(
+                extract_tracklet_attributes(crop_path, tracklet.get("class_name"), obj_type, caption)
+            )
 
             embedded_records.append(
                 TrackletEmbeddingRecord(

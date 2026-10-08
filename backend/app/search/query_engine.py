@@ -14,6 +14,24 @@ from app.config import get_data_path
 from app.embeddings.clip_encoder import get_clip_encoder
 from app.db.models import Tracklet, VideoAsset, SearchLog
 from app.search.vector_index import get_qdrant_client, COLLECTION_NAME
+from app.search.plate_lookup import plates_for_tracklets
+from app.search.attribute_parser import (
+    AttributeConstraint,
+    constraints_from_filters,
+    evaluate_constraints,
+    merge_constraints,
+    parse_query,
+    verdict_counts,
+)
+
+# Score adjustment applied per verified / contradicted attribute (CLIP cosine scores are ~0.15-0.35,
+# so +-0.08 is enough to reorder candidates without overwhelming the visual similarity).
+ATTRIBUTE_BONUS = 0.08
+ATTRIBUTE_PENALTY = 0.08
+# Cap the total adjustment so attributes re-rank candidates without inflating weak visual matches.
+ATTRIBUTE_MAX_BONUS = 0.12
+ATTRIBUTE_MAX_PENALTY = 0.20
+ATTRIBUTE_MODES = ("boost", "strict", "off")
 
 _QUERY_STOP_WORDS = {
     "a", "an", "and", "at", "by", "for", "from", "in", "near", "of", "on",
@@ -37,6 +55,8 @@ class QueryEngine:
         video_id: Optional[str] = None,
         top_k: int = 15,
         user_id: str = "demo",
+        constraints: Optional[Sequence[AttributeConstraint]] = None,
+        attribute_mode: str = "boost",
     ) -> list[dict]:
         """
         Hybrid semantic + metadata search:
@@ -47,6 +67,9 @@ class QueryEngine:
         """
         logger.info(f"QueryEngine: search query='{query_label}', camera_ids={camera_ids}, video_id={video_id}, type={object_type}")
         query_dim = len(query_vector)
+        if attribute_mode not in ATTRIBUTE_MODES:
+            attribute_mode = "boost"
+        active_constraints = list(constraints or []) if attribute_mode != "off" else []
 
         # Ensure collection exists and matches active query dimension
         try:
@@ -93,7 +116,9 @@ class QueryEngine:
         qdrant_filter = models.Filter(must=must_filters) if must_filters else None
 
         # Fetch more candidates to allow filtering by absolute datetime in SQLite
-        qdrant_limit = top_k * 4 if (time_start or time_end) else top_k
+        # Attribute re-ranking / filtering also needs headroom beyond the final top_k.
+        needs_headroom = bool(time_start or time_end or active_constraints)
+        qdrant_limit = top_k * 4 if needs_headroom else top_k
 
         try:
             qdrant_response = self.client.query_points(
@@ -127,6 +152,9 @@ class QueryEngine:
             .filter(VideoAsset.is_bin == False)
             .all()
         )
+
+        # Number plates of the matched vehicles (None for people)
+        plate_map = plates_for_tracklets(db, tracklets)
 
         # Filter by absolute timeline window
         filtered_results = []
@@ -162,7 +190,7 @@ class QueryEngine:
             except Exception:
                 best_bbox = []
 
-            score = scores_by_tracklet.get(tracklet.id, 0.0)
+            similarity = scores_by_tracklet.get(tracklet.id, 0.0)
 
             # Resolve crop URL path
             crop_path = tracklet.best_crop_path or ""
@@ -179,9 +207,26 @@ class QueryEngine:
             except Exception:
                 pass
 
+            attribute_verdicts: list[dict] = []
+            score = similarity
+            if active_constraints:
+                attribute_verdicts = evaluate_constraints(
+                    active_constraints, attr_dict, tracklet.class_name, tracklet.object_type
+                )
+                matched_n, mismatched_n, _ = verdict_counts(attribute_verdicts)
+                if attribute_mode == "strict" and mismatched_n:
+                    continue
+                adjustment = min(ATTRIBUTE_MAX_BONUS, ATTRIBUTE_BONUS * matched_n) - min(
+                    ATTRIBUTE_MAX_PENALTY, ATTRIBUTE_PENALTY * mismatched_n
+                )
+                score = max(0.0, min(1.0, similarity + adjustment))
+
             explanation = self._build_explanation(
                 query_label=query_label,
-                score=score,
+                score=similarity,
+                attribute_verdicts=attribute_verdicts,
+                attribute_mode=attribute_mode if active_constraints else "off",
+                final_score=score,
                 mean_confidence=tracklet.mean_confidence,
                 class_name=tracklet.class_name,
                 caption=attr_dict.get("caption", ""),
@@ -210,6 +255,7 @@ class QueryEngine:
                 "best_bbox": best_bbox,
                 "caption": attr_dict.get("caption", ""),
                 "attributes": attr_dict,
+                "plate": plate_map.get(tracklet.id),
                 "explanation": explanation,
                 "video_original_filename": video.original_filename,
                 "video_start_time": video_ref_time.isoformat(),
@@ -245,6 +291,9 @@ class QueryEngine:
         video_id: Optional[str] = None,
         top_k: int = 15,
         user_id: str = "demo",
+        colors: Optional[Sequence[str]] = None,
+        vehicle_type: Optional[str] = None,
+        attribute_mode: str = "boost",
     ) -> list[dict]:
         """
         Text search wrapper:
@@ -252,6 +301,12 @@ class QueryEngine:
         """
         logger.info(f"QueryEngine: text search query='{query_text}'")
         query_vector = get_clip_encoder().embed_text(query_text)
+        constraints = None
+        if attribute_mode != "off":
+            constraints = merge_constraints(
+                parse_query(query_text),
+                constraints_from_filters(colors, vehicle_type),
+            )
         return self.search_by_vector(
             db=db,
             query_vector=query_vector,
@@ -263,6 +318,8 @@ class QueryEngine:
             video_id=video_id,
             top_k=top_k,
             user_id=user_id,
+            constraints=constraints,
+            attribute_mode=attribute_mode,
         )
 
     @staticmethod
@@ -277,8 +334,12 @@ class QueryEngine:
         time_end: Optional[datetime],
         object_type: Optional[str],
         video_id: Optional[str],
+        attribute_verdicts: Optional[list[dict]] = None,
+        attribute_mode: str = "off",
+        final_score: Optional[float] = None,
     ) -> dict:
         """Return transparent retrieval evidence; it is not an identity determination."""
+        attribute_verdicts = attribute_verdicts or []
         is_image_search = query_label.startswith("[IMAGE SEARCH]")
         query_terms = [] if is_image_search else [
             token for token in re.findall(r"[a-z0-9-]+", query_label.lower())
@@ -297,6 +358,18 @@ class QueryEngine:
             "detail": f"Detected as {class_name}",
             "value_percent": round(max(0.0, min(mean_confidence or 0.0, 1.0)) * 100, 1),
         }]
+        for v in attribute_verdicts:
+            label = {
+                "matched": "Attribute verified",
+                "mismatched": "Attribute contradicted",
+                "unverified": "Attribute not verifiable",
+            }[v["verdict"]]
+            where = f" ({v['region']})" if v.get("region") and v["region"] != "any" else ""
+            evidence.append({
+                "label": label,
+                "detail": f"{v['text']}{where}: {v['detail']}".strip(": "),
+                "value_percent": None,
+            })
         if caption:
             evidence.append({
                 "label": "Generated visual description",
@@ -314,8 +387,16 @@ class QueryEngine:
         if video_id:
             applied_filters.append("Single video applied")
 
+        # Attribute phrases are handled by the structured check above, not by caption keyword overlap.
+        attribute_terms = {t for v in attribute_verdicts for t in re.findall(r"[a-z0-9-]+", v["text"].lower())}
+        unknown_terms = [t for t in unknown_terms if t not in attribute_terms]
+        matched_terms = [t for t in matched_terms if t not in attribute_terms]
+
         return {
             "retrieval_method": "reference-image similarity" if is_image_search else "text-to-image semantic similarity",
+            "attribute_mode": attribute_mode,
+            "attribute_checks": attribute_verdicts,
+            "final_score_percent": round((final_score if final_score is not None else score) * 100, 1),
             "evidence": evidence,
             "matched_query_terms": matched_terms,
             "unknown_or_unverified_terms": unknown_terms,

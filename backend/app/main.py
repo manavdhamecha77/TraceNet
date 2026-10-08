@@ -25,6 +25,8 @@ from app.api.streaming import router as streaming_router
 from app.api.plate_detection import router as plate_detection_router
 from app.api.face_detection import router as face_detection_router
 from app.api.accident_detection import router as accident_detection_router
+from app.api.attributes import router as attributes_router
+from app.api.exports import router as exports_router
 from app.config import get_settings, get_data_path
 from app.db.models import Area, Base
 from app.db.session import SessionLocal, engine
@@ -38,6 +40,7 @@ os.makedirs(get_data_path("cameras"), exist_ok=True)
 os.makedirs(get_data_path("processed/detections"), exist_ok=True)
 os.makedirs(get_data_path("processed/faces"), exist_ok=True)
 os.makedirs(get_data_path("processed/accidents"), exist_ok=True)
+os.makedirs(get_data_path("exports"), exist_ok=True)
 os.makedirs(get_data_path("models"), exist_ok=True)
 os.makedirs(get_data_path("models/accident_detection"), exist_ok=True)
 os.makedirs(get_data_path("audit_logs"), exist_ok=True)
@@ -392,6 +395,28 @@ def run_startup_migrations():
                 cursor.execute("UPDATE cameras SET area_id = ? WHERE area_id IS NULL", default_area)
                 conn.commit()
 
+            # Vehicle-linked plate columns on license_plate_detections (table itself is created by create_all)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='license_plate_detections'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(license_plate_detections)")
+                plate_cols = [row[1] for row in cursor.fetchall()]
+                for col_name, ddl in (
+                    ("tracklet_id", "ALTER TABLE license_plate_detections ADD COLUMN tracklet_id VARCHAR"),
+                    ("ocr_confidence", "ALTER TABLE license_plate_detections ADD COLUMN ocr_confidence FLOAT"),
+                    ("plate_status", "ALTER TABLE license_plate_detections ADD COLUMN plate_status VARCHAR DEFAULT 'read'"),
+                    ("ocr_engine", "ALTER TABLE license_plate_detections ADD COLUMN ocr_engine VARCHAR"),
+                ):
+                    if col_name not in plate_cols:
+                        cursor.execute(ddl)
+                        print(f"Schema Migration: Added '{col_name}' to license_plate_detections.")
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_plate_tracklet_id ON license_plate_detections(tracklet_id)"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_plate_status ON license_plate_detections(plate_status)"
+                )
+                conn.commit()
+
             # Check if face_tracklets table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='face_tracklets'")
             if not cursor.fetchone():
@@ -605,6 +630,8 @@ app.include_router(assault_detection_router, prefix=settings.api_prefix, tags=["
 app.include_router(plate_detection_router, prefix=settings.api_prefix, tags=["ANPR"])
 app.include_router(face_detection_router, prefix=settings.api_prefix, tags=["Face Detection"])
 app.include_router(accident_detection_router, prefix=settings.api_prefix, tags=["Accident Detection"])
+app.include_router(attributes_router, prefix=settings.api_prefix, tags=["Attributes"])
+app.include_router(exports_router, prefix=settings.api_prefix, tags=["Forensic Export"])
 app.include_router(processing_router, prefix=settings.api_prefix, tags=["Video Processing"])
 app.include_router(webhooks_router, prefix=settings.api_prefix, tags=["Webhooks"])
 app.include_router(frame_inspection_router, prefix=settings.api_prefix, tags=["Frame Inspection"])
