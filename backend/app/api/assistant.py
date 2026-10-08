@@ -15,7 +15,9 @@ from loguru import logger
 from app.db.session import get_db
 from app.db.models import ChatSession
 from app.config import get_data_path
+from app.assistant import confirmations
 from app.assistant.agent import AssistantAgent
+from app.assistant.tools import ToolExecutor
 from app.assistant.llm_provider import OllamaProvider, CloudOpenAIProvider
 from app.search.image_search import ImageSearchService
 
@@ -47,6 +49,7 @@ class ChatMessage(BaseModel):
     image_b64: Optional[str] = None
     executed_tools: Optional[List[Dict[str, Any]]] = None
     attachments: Optional[List[Dict[str, Any]]] = None
+    pending_action: Optional[Dict[str, Any]] = None
 
 
 class ChatRequest(BaseModel):
@@ -257,6 +260,8 @@ async def chat_with_assistant(payload: ChatRequest, db: Session = Depends(get_db
                 m_dict["executed_tools"] = m.executed_tools
             if m.attachments:
                 m_dict["attachments"] = m.attachments
+            if m.pending_action:
+                m_dict["pending_action"] = m.pending_action
             session_messages.append(m_dict)
 
         # Append final assistant message
@@ -266,6 +271,8 @@ async def chat_with_assistant(payload: ChatRequest, db: Session = Depends(get_db
             "executed_tools": response.get("executed_tools", []),
             "attachments": response.get("attachments", [])
         }
+        if response.get("pending_action"):
+            assistant_msg["pending_action"] = response["pending_action"]
         session_messages.append(assistant_msg)
 
         # Auto-update session title if default
@@ -280,6 +287,8 @@ async def chat_with_assistant(payload: ChatRequest, db: Session = Depends(get_db
 
         response["session_id"] = session_obj.id
         response["session_title"] = session_obj.title
+        if response.get("pending_action"):
+            confirmations.attach_session(response["pending_action"]["id"], session_obj.id)
         return response
 
     except Exception as e:
@@ -288,3 +297,85 @@ async def chat_with_assistant(payload: ChatRequest, db: Session = Depends(get_db
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"AI Copilot execution failure: {e}"
         ) from e
+
+
+# -------------------------------------------------------
+# Confirmation of Copilot write actions
+# -------------------------------------------------------
+
+class ActionDecision(BaseModel):
+    decided_by: Optional[str] = Field(default="Operator", description="Officer confirming or cancelling")
+
+
+def _record_decision(db: Session, action: Dict[str, Any], status_: str, message: str, decided_by: str,
+                     result: Optional[Dict[str, Any]] = None) -> None:
+    """Audit-log the decision and record it in the chat session the proposal came from."""
+    from app.api.audit import AuditLogEntry, write_audit_log
+
+    try:
+        write_audit_log(AuditLogEntry(
+            event_type="copilot_action",
+            user_id=decided_by or "Operator",
+            action=status_,
+            resource_type="copilot_tool",
+            resource_id=action["tool"],
+            details={"action_id": action["id"], "summary": action["summary"], "args": action["args"],
+                     "result_status": (result or {}).get("status")},
+        ))
+    except Exception as exc:
+        logger.warning(f"Failed to write Copilot action audit log: {exc}")
+
+    session_id = action.get("session_id")
+    session_obj = db.query(ChatSession).filter(ChatSession.id == session_id).first() if session_id else None
+    if not session_obj:
+        return
+    try:
+        history = json.loads(session_obj.messages or "[]")
+    except ValueError:
+        history = []
+    for msg in history:
+        pending = msg.get("pending_action")
+        if pending and pending.get("id") == action["id"]:
+            pending["status"] = status_
+    history.append({"role": "assistant", "content": message, "executed_tools": [], "attachments": []})
+    session_obj.messages = json.dumps(history)
+    session_obj.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+@router.post("/actions/{action_id}/confirm")
+def confirm_copilot_action(action_id: str, payload: ActionDecision, db: Session = Depends(get_db)):
+    """Run a write action the Copilot proposed. Only the server-stored proposal is executed, at most once."""
+    action = confirmations.take(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="This action has expired or was already decided. Ask the Copilot again.")
+    result = ToolExecutor(db).execute_tool(action["tool"], action["args"])
+    ok = result.get("status") == "success"
+    status_ = "confirmed" if ok else "failed"
+    detail = result.get("message") or ""
+    message = f"Done: {action['summary']}." if ok else f"Could not complete: {action['summary']}. {detail}".strip()
+    if ok and detail:
+        message += f" {detail}"
+    _record_decision(db, action, status_, message, payload.decided_by, result)
+    return {
+        "status": status_,
+        "action": {**confirmations.public(action), "status": status_},
+        "result": result,
+        "message": {"role": "assistant", "content": message,
+                    "executed_tools": [{"name": action["tool"], "args": action["args"], "status": result.get("status")}]},
+    }
+
+
+@router.post("/actions/{action_id}/cancel")
+def cancel_copilot_action(action_id: str, payload: ActionDecision, db: Session = Depends(get_db)):
+    """Discard a write action the Copilot proposed; nothing is executed."""
+    action = confirmations.take(action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="This action has expired or was already decided.")
+    message = f"Cancelled: {action['summary']}. Nothing was changed."
+    _record_decision(db, action, "cancelled", message, payload.decided_by)
+    return {
+        "status": "cancelled",
+        "action": {**confirmations.public(action), "status": "cancelled"},
+        "message": {"role": "assistant", "content": message, "executed_tools": []},
+    }

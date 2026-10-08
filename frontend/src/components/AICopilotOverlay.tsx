@@ -20,10 +20,30 @@ import {
   Moon,
   Square,
   AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react'
 
 import { API_BASE } from '../config/api'
+import { DEMO_OPERATOR } from '../config/operator'
 import { PlateBadge } from './PlateBadge'
+
+// A write action the Copilot proposed; it only runs after the officer confirms it.
+interface PendingAction {
+  id: string
+  tool: string
+  summary: string
+  effect: string
+  status: 'pending' | 'confirmed' | 'cancelled' | 'failed' | 'expired'
+  expires_at?: string
+}
+
+const ACTION_STATUS_TEXT: Record<PendingAction['status'], string> = {
+  pending: '',
+  confirmed: 'Confirmed and executed',
+  cancelled: 'Cancelled: nothing was changed',
+  failed: 'Confirmed, but the action failed',
+  expired: 'Expired: ask the Copilot again',
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -31,6 +51,7 @@ interface ChatMessage {
   image_b64?: string
   executed_tools?: Array<{ name: string; args: any; result_count?: number }>
   attachments?: any[]
+  pending_action?: PendingAction
 }
 
 interface ChatSessionItem {
@@ -387,6 +408,7 @@ export default function AICopilotOverlay({
     cloud_base_url: 'https://api.openai.com/v1',
   })
   const [savingConfig, setSavingConfig]       = useState(false)
+  const [decidingActionId, setDecidingActionId] = useState<string | null>(null)
 
   // Installed Ollama Models list state
   const [ollamaModels, setOllamaModels]       = useState<string[]>(['qwen2.5:3b', 'qwen2.5-vl:3b'])
@@ -550,6 +572,31 @@ export default function AICopilotOverlay({
     }
   }
 
+  const decideAction = async (actionId: string, decision: 'confirm' | 'cancel') => {
+    setDecidingActionId(actionId)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/assistant/actions/${actionId}/${decision}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decided_by: DEMO_OPERATOR }),
+      })
+      const data = await res.json().catch(() => ({}))
+      const newStatus: PendingAction['status'] = res.ok ? data.status : 'expired'
+      setMessages((prev) => [
+        ...prev.map((m) =>
+          m.pending_action?.id === actionId ? { ...m, pending_action: { ...m.pending_action, status: newStatus } } : m
+        ),
+        res.ok
+          ? { role: 'assistant', content: data.message.content, executed_tools: data.message.executed_tools || [] }
+          : { role: 'assistant', content: data.detail || 'This action has expired. Ask the Copilot again.' },
+      ])
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Could not reach the server to confirm the action.')
+    } finally {
+      setDecidingActionId(null)
+    }
+  }
+
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault()
     setSavingConfig(true)
@@ -709,11 +756,13 @@ const SLASH_COMMANDS = [
           role: m.role,
           content: m.content,
           image_b64: m.image_b64 || null,
+          pending_action: m.pending_action || null,
         }))
         apiMessages.push({
           role: 'user',
           content: transformedPrompt,
           image_b64: referenceB64 || null,
+          pending_action: null,
         })
 
         const res = await fetch(`${API_BASE}/api/v1/assistant/chat`, {
@@ -742,6 +791,7 @@ const SLASH_COMMANDS = [
             content: responseData.content || 'Analysis complete.',
             executed_tools: responseData.executed_tools || [],
             attachments: responseData.attachments || [],
+            pending_action: responseData.pending_action,
           },
         ])
       } catch (err: any) {
@@ -784,6 +834,7 @@ const SLASH_COMMANDS = [
           role: m.role,
           content: m.content,
           image_b64: m.image_b64 || null,
+          pending_action: m.pending_action || null,
         })),
       }
 
@@ -813,6 +864,7 @@ const SLASH_COMMANDS = [
           content: responseData.content || 'Analysis complete.',
           executed_tools: responseData.executed_tools || [],
           attachments: responseData.attachments || [],
+          pending_action: responseData.pending_action,
         },
       ])
     } catch (err: any) {
@@ -1025,6 +1077,46 @@ const SLASH_COMMANDS = [
                           alt="User target reference"
                           className="w-full h-auto object-cover max-h-48"
                         />
+                      </div>
+                    )}
+
+                    {/* Write action awaiting the officer's decision */}
+                    {msg.pending_action && (
+                      <div className="max-w-md rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-300">
+                          <ShieldAlert className="h-3.5 w-3.5" />
+                          Confirmation required
+                        </div>
+                        <p className="text-sm text-slate-100">{msg.pending_action.summary}</p>
+                        <p className="text-[11px] text-slate-400">{msg.pending_action.effect}</p>
+                        {msg.pending_action.status === 'pending' ? (
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => decideAction(msg.pending_action!.id, 'confirm')}
+                              disabled={decidingActionId === msg.pending_action.id}
+                              className="inline-flex items-center gap-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-500 disabled:opacity-50"
+                            >
+                              <Check className="h-3.5 w-3.5" /> Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => decideAction(msg.pending_action!.id, 'cancel')}
+                              disabled={decidingActionId === msg.pending_action.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                            >
+                              <X className="h-3.5 w-3.5" /> Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <p
+                            className={`text-[11px] font-semibold ${
+                              msg.pending_action.status === 'confirmed' ? 'text-emerald-400' : 'text-slate-400'
+                            }`}
+                          >
+                            {ACTION_STATUS_TEXT[msg.pending_action.status]}
+                          </p>
+                        )}
                       </div>
                     )}
 

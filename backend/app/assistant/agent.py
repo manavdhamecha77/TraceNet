@@ -7,6 +7,7 @@ from loguru import logger
 
 from app.assistant.llm_provider import BaseLLMProvider
 from app.assistant.guard import REFUSAL, is_off_topic
+from app.assistant.confirmations import is_write_tool, missing_required_args, propose
 from app.assistant.tools import TOOL_SCHEMAS, ToolExecutor
 
 SYSTEM_PROMPT = """You are TraceNet Copilot, a domain-specific AI Digital Forensics & Video Analytics Assistant for Smart City CCTV Surveillance (Project DRISHTI).
@@ -35,6 +36,17 @@ Instructions for In-Domain Queries:
 - Format answers with clean GitHub Markdown.
 - Highlight key forensic parameters (camera name/ID, timestamps, similarity confidence scores, tracklet IDs).
 """
+
+
+def _parse_args(raw: Any) -> Dict[str, Any]:
+    """Tool arguments arrive as a dict (Ollama) or a JSON string (OpenAI-compatible APIs)."""
+    if isinstance(raw, dict):
+        return raw
+    try:
+        parsed = json.loads(raw or "{}")
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError):
+        return {}
 
 
 def _with_english_rendering(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -116,11 +128,38 @@ class AssistantAgent:
                 "tool_calls": assistant_tool_calls
             })
 
-            # 2. Execute each tool and append tool result message with matching tool_call_id
+            # 2. Execute read-only tools; write tools are only proposed and wait for the officer's confirmation
             for i, tc in enumerate(tool_calls):
                 call_id = assistant_tool_calls[i]["id"]
                 fn_name = tc["function"]["name"]
-                fn_args = tc["function"]["arguments"]
+                fn_args = _parse_args(tc["function"]["arguments"])
+
+                if is_write_tool(fn_name):
+                    missing = missing_required_args(fn_name, fn_args)
+                    if not missing:
+                        action = propose(db, fn_name, fn_args)
+                        logger.info(f"Copilot proposed write action {action['id']}: {action['summary']} (awaiting confirmation)")
+                        return {
+                            "role": "assistant",
+                            "content": (
+                                f"I need your confirmation before I do this:\n\n**{action['summary']}**\n\n"
+                                f"_{action['effect']}._ Choose **Confirm** to proceed or **Cancel** to stop."
+                            ),
+                            "executed_tools": executed_tools,
+                            "attachments": structured_attachments,
+                            "pending_action": action,
+                        }
+                    tool_result = {
+                        "status": "not_executed",
+                        "message": (
+                            f"'{fn_name}' was NOT run: missing {', '.join(missing)}. It changes data, so ask the "
+                            "user for these values instead of guessing. If the user only asked a question, answer "
+                            "it with read-only tools."
+                        ),
+                    }
+                    history.append({"role": "tool", "tool_call_id": call_id, "name": fn_name,
+                                    "content": json.dumps(tool_result)})
+                    continue
 
                 tool_result = executor.execute_tool(fn_name, fn_args)
                 executed_tools.append({
