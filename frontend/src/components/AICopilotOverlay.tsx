@@ -597,7 +597,7 @@ Welcome to **TraceNet Copilot**! I am your domain-adapted AI Assistant for Smart
 - **/theft** — Retrieve outdoor chain snatching and violent theft alerts.
 - **/assault** — Retrieve physical assault & fighting alerts.
 - **/journey <tracklet_id>** — Reconstruct multi-camera spatial-temporal journey path.
-- **/sentinel <camera_id>** — Activate predictive downstream Sentinel pursuit wave.
+- **/pursuit <camera_id>** — Activate predictive downstream pursuit wave.
 - **/models** — Inspect registered ML object detection models & class lists.
 - **/metrics** — View high-level Smart City command-center overview metrics.
 - **/logs** — Inspect search history audit logs for court chain-of-custody compliance.
@@ -616,7 +616,7 @@ Welcome to **TraceNet Copilot**! I am your domain-adapted AI Assistant for Smart
 7. **\`get_assault_alerts\`** — Retrieve physical assault, fighting, and violent incident alerts.
 8. **\`detect_assault\`** — Trigger VideoMAE physical assault & fighting scan on video feeds.
 9. **\`reconstruct_trajectory\`** — Reconstruct multi-camera spatial-temporal DAG journey path.
-10. **\`activate_sentinel_wave\`** — Activate predictive downstream Sentinel search wave pursuit.
+10. **\`activate_pursuit_wave\`** — Activate predictive downstream pursuit wave.
 11. **\`get_search_logs\`** — Audit evidentiary search query history with SHA-256 validation.
 12. **\`get_dashboard_metrics\`** — Command-center stats (cameras, videos, tracklets, alerts).
 13. **\`list_models\`** — View loaded YOLO detection models, weights, and class lists.
@@ -628,7 +628,7 @@ Welcome to **TraceNet Copilot**! I am your domain-adapted AI Assistant for Smart
 ### 💡 Example Prompts to Try
 - \`"Find a person in a red jacket near CAM_001"\`
 - \`"Reconstruct the journey path for tracklet CAM_001_trk_5"\`
-- \`"Activate Sentinel pursuit wave from origin camera CAM_001"\`
+- \`"Activate pursuit wave from origin camera CAM_001"\`
 - \`"Check for recent chain snatching or theft alerts"\`
 - \`"Scan video_id_123 for physical assault or fighting"\`
 - \`"Give me an overview of system health and total processed videos"\``
@@ -640,7 +640,7 @@ const SLASH_COMMANDS = [
   { cmd: '/theft', desc: 'Retrieve outdoor chain snatching & theft alerts' },
   { cmd: '/assault', desc: 'Retrieve physical assault & fighting alerts' },
   { cmd: '/journey', desc: 'Reconstruct multi-camera trajectory journey path' },
-  { cmd: '/sentinel', desc: 'Activate predictive downstream Sentinel pursuit wave' },
+  { cmd: '/pursuit', desc: 'Activate predictive downstream pursuit wave' },
   { cmd: '/models', desc: 'Inspect registered ML detector models & YOLO weights' },
   { cmd: '/metrics', desc: 'View high-level Smart City command-center metrics' },
   { cmd: '/logs', desc: 'View evidentiary search audit history' },

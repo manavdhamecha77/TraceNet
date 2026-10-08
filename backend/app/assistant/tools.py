@@ -194,8 +194,8 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "activate_sentinel_wave",
-            "description": "Activate predictive downstream Sentinel search wave pursuit across neighbor cameras from an origin camera node.",
+            "name": "activate_pursuit_wave",
+            "description": "Activate predictive downstream pursuit wave across neighbor cameras from an origin camera node.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -511,13 +511,13 @@ class ToolExecutor:
                 engine = TrajectoryEngine(self.db)
                 return engine.reconstruct_trajectory(target_tracklet_id=tracklet_id, speed_mode=speed_mode)
 
-            elif name == "activate_sentinel_wave":
+            elif name == "activate_pursuit_wave":
                 origin_cam = args.get("origin_camera_id", "").strip()
                 target_trk = args.get("target_tracklet_id")
                 speed_mode = args.get("speed_mode", "pedestrian")
-                from app.analytics.sentinel_wave import SentinelWaveManager
-                manager = SentinelWaveManager(self.db)
-                return manager.activate_sentinel_wave(
+                from app.analytics.pursuit_wave import PursuitWaveManager
+                manager = PursuitWaveManager(self.db)
+                return manager.activate_pursuit_wave(
                     origin_camera_id=origin_cam,
                     target_tracklet_id=target_trk,
                     speed_mode=speed_mode

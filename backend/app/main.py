@@ -264,6 +264,30 @@ def run_startup_migrations():
                 conn.commit()
                 print("Schema Migration: Created 'webhooks' table.")
 
+            # Rename legacy 'sentinel_sessions' table (feature renamed to Pursuit Wave); keeps existing rows
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sentinel_sessions'")
+            legacy_exists = cursor.fetchone() is not None
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pursuit_sessions'")
+            if legacy_exists and cursor.fetchone() is None:
+                for idx in ("idx_sentinel_sessions_status", "idx_sentinel_sessions_origin_camera", "idx_sentinel_sessions_created_at"):
+                    cursor.execute(f"DROP INDEX IF EXISTS {idx}")
+                cursor.execute("ALTER TABLE sentinel_sessions RENAME TO pursuit_sessions")
+                conn.commit()
+                print("Schema Migration: Renamed 'sentinel_sessions' table to 'pursuit_sessions'.")
+            # SQLAlchemy's own id index keeps its old name across a table rename; drop it so create_all recreates it
+            cursor.execute("DROP INDEX IF EXISTS ix_sentinel_sessions_id")
+            conn.commit()
+
+            # pair_codes: operator-chosen stream config persisted with the code (applied on device verify)
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='pair_codes'")
+            if cursor.fetchone():
+                cursor.execute("PRAGMA table_info(pair_codes)")
+                pc_columns = [c[1] for c in cursor.fetchall()]
+                if "stream_config" not in pc_columns:
+                    cursor.execute("ALTER TABLE pair_codes ADD COLUMN stream_config TEXT")
+                    conn.commit()
+                    print("Schema Migration: Added 'stream_config' column to pair_codes.")
+
             # Check if live_stream_sessions table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='live_stream_sessions'")
             if not cursor.fetchone():
@@ -563,7 +587,15 @@ app = FastAPI(
 
 _mediamtx_process = None
 
+_mediamtx_lock = __import__('threading').Lock()
+
 def start_mediamtx_server():
+    global _mediamtx_process
+    with _mediamtx_lock:  # HTTP and HTTPS listeners both fire the startup event (serve.py); launch once
+        return _start_mediamtx_server_locked()
+
+
+def _start_mediamtx_server_locked():
     global _mediamtx_process
     if _mediamtx_process is not None and _mediamtx_process.poll() is None:
         return _mediamtx_process

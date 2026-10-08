@@ -76,7 +76,7 @@ export default function Dashboard({ metrics }: DashboardProps) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/cameras/CAM_001/live" className="inline-flex h-8 items-center rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Watch CAM_001</Link>
-          <Link to="/live-connect" className="inline-flex h-8 items-center rounded border border-teal-700 bg-teal-700 px-3 text-xs font-medium text-white hover:bg-teal-800">{t('dashboard.broadcastFeed')}</Link>
+          <Link to="/cameras" className="inline-flex h-8 items-center rounded border border-teal-700 bg-teal-700 px-3 text-xs font-medium text-white hover:bg-teal-800">{t('dashboard.broadcastFeed')}</Link>
         </div>
       </section>
 

@@ -43,6 +43,10 @@ export default function LiveCameraView() {
   
   // Customizable Chunk Duration & Pipeline Logs State
   const [chunkDurationSec, setChunkDurationSec] = useState<number>(30) // default 30s for demo
+  const [autoImport, setAutoImport] = useState<boolean>(true) // check recorded chunks into the archive + full pipeline
+  const [cameraAppUrl, setCameraAppUrl] = useState<string>(`${window.location.protocol}//${window.location.hostname}:8000/camera-app`)
+  const [cameraAppSecure, setCameraAppSecure] = useState<boolean>(false)
+  const whepRetryRef = useRef<any>(null)
   const [pipelineLogs, setPipelineLogs] = useState<any[]>([])
 
   // Pair Code State
@@ -64,6 +68,9 @@ export default function LiveCameraView() {
   const isMounted = useRef(true)
 
   useEffect(() => {
+    // React StrictMode mounts, unmounts and re-mounts in development. cleanup() flips this to false on
+    // the unmount, so it must be re-armed here or the WebRTC player silently never starts (boxes without video).
+    isMounted.current = true
     fetch(`${API_BASE}/api/v1/cameras`)
       .then(r => r.json())
       .then(data => {
@@ -102,6 +109,12 @@ export default function LiveCameraView() {
     pollStatus()
     statusPollRef.current = setInterval(pollStatus, 5000)
 
+    // Where a phone should open the edge camera app (HTTPS LAN URL when the backend runs via serve.py)
+    fetch(`${API_BASE}/api/v1/stream/access-urls`)
+      .then(r => r.json())
+      .then(d => { if (d?.recommended) { setCameraAppUrl(d.recommended); setCameraAppSecure(!!d.https_available) } })
+      .catch(() => {})
+
     // Generate initial pair code for camera
     generatePairCode()
 
@@ -114,10 +127,25 @@ export default function LiveCameraView() {
 
   useEffect(() => {
     if (camera?.camera_id) {
-      initWhep(camera.camera_id)
+      startWhep(camera.camera_id)
       initWebSocket(camera.camera_id)
     }
   }, [camera])
+
+  // Keep trying to attach to the WebRTC feed: the phone may start publishing after this page opened,
+  // and MediaMTX may restart. Stops retrying once the component unmounts.
+  const scheduleWhepRetry = (streamKey: string, delayMs = 4000) => {
+    if (!isMounted.current) return
+    if (whepRetryRef.current) clearTimeout(whepRetryRef.current)
+    whepRetryRef.current = setTimeout(() => startWhep(streamKey), delayMs)
+  }
+
+  const startWhep = (streamKey: string) => {
+    if (!isMounted.current) return
+    if (pcRef.current && (pcRef.current.connectionState === 'connected' || pcRef.current.connectionState === 'connecting')) return
+    if (pcRef.current) { try { pcRef.current.close() } catch { /* ignore */ } pcRef.current = null }
+    initWhep(streamKey)
+  }
 
   // Video element event listeners — track real playback state
   useEffect(() => {
@@ -159,6 +187,7 @@ export default function LiveCameraView() {
       wsRef.current.close()
       wsRef.current = null
     }
+    if (whepRetryRef.current) clearTimeout(whepRetryRef.current)
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     if (durationTimerRef.current) clearInterval(durationTimerRef.current)
     if (pairCountdownRef.current) clearInterval(pairCountdownRef.current)
@@ -177,7 +206,10 @@ export default function LiveCameraView() {
         body: JSON.stringify({
           camera_id,
           config: {
-            max_chunk_duration_sec: chunkDurationSec
+            max_chunk_duration_sec: chunkDurationSec,
+            auto_import_chunks: autoImport,
+            live_detector: 'vehicle',
+            live_alert_rules: false
           }
         })
       })
@@ -226,27 +258,37 @@ export default function LiveCameraView() {
       }
 
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
           setVideoPlaying(false)
+          if (pcRef.current === pc) { pcRef.current = null; scheduleWhepRetry(streamKey) }
         }
       }
       
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       
-      const whepUrl = `http://${window.location.hostname}:8889/${streamKey}/whep`
+      // Signalling is proxied through the backend (same origin as the API; HTTPS-safe for phones)
+      const whepUrl = `${API_BASE}/api/v1/stream/whep/${streamKey}`
       const res = await fetch(whepUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/sdp' },
         body: offer.sdp
       })
       
+      // Superseded by a newer attempt (e.g. React StrictMode re-running the effect) or closed meanwhile: stop quietly
+      if (pcRef.current !== pc || pc.signalingState === 'closed') return
       if (res.ok) {
         const answerSdp = await res.text()
+        if (pcRef.current !== pc || (pc.connectionState as string) === 'closed') return
         await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+      } else {
+        // 404 = nobody is publishing yet; try again shortly
+        pc.close(); if (pcRef.current === pc) pcRef.current = null
+        scheduleWhepRetry(streamKey)
       }
     } catch (err) {
       console.error("WHEP error:", err)
+      scheduleWhepRetry(streamKey, 5000)
     }
   }
 
@@ -327,14 +369,16 @@ export default function LiveCameraView() {
       canvas.height = cHeight
     }
     
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.clearRect(0, 0, cWidth, cHeight)
-    
     if (!data || !data.detections) return
-    
     const vWidth = video.videoWidth || 1280
     const vHeight = video.videoHeight || 720
-    const scaleX = cWidth / vWidth
-    const scaleY = cHeight / vHeight
+    // The <video> is object-contain: map boxes into the letterboxed content area, not the whole element
+    const s = Math.min(cWidth / vWidth, cHeight / vHeight)
+    const scaleX = s
+    const scaleY = s
+    ctx.translate((cWidth - vWidth * s) / 2, (cHeight - vHeight * s) / 2)
     
     data.detections.forEach((det: any) => {
       const color = getClassColor(det.class || det.class_name || 'unknown')
@@ -540,7 +584,7 @@ export default function LiveCameraView() {
                   </div>
                   <h3 className="font-bold text-lg text-white">Stream Offline</h3>
                   <p className="text-xs text-slate-400 mt-1 mb-4 leading-relaxed">
-                    Connect your mobile or edge camera at <a href="http://localhost:8000/camera-app" target="_blank" rel="noreferrer" className="text-teal-400 underline font-mono">localhost:8000/camera-app</a> using this active pair code:
+                    Connect your mobile or edge camera at <a href={cameraAppUrl} target="_blank" rel="noreferrer" className="text-teal-400 underline font-mono">{cameraAppUrl.replace(/^https?:\/\//, '')}</a> using this active pair code:
                   </p>
                   
                   <div className="flex items-center gap-3 bg-slate-950 px-5 py-3 rounded-lg border border-teal-500/40 mb-4 shadow-inner">
@@ -562,6 +606,15 @@ export default function LiveCameraView() {
                     </div>
                   )}
 
+                  <label className="flex items-center gap-2 text-[11px] text-slate-300 mb-3 cursor-pointer select-none">
+                    <input type="checkbox" checked={autoImport} onChange={e => { setAutoImport(e.target.checked) }} className="accent-teal-500" />
+                    Check {chunkDurationSec}s chunks into this camera's archive and run the full pipeline
+                  </label>
+                  {!cameraAppSecure && (
+                    <div className="text-[10px] text-amber-300/90 mb-3 max-w-xs leading-relaxed">
+                      Phones need HTTPS for camera access. Start the backend with <span className="font-mono">python serve.py</span> to get an https:// link here.
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 flex-wrap justify-center">
                     <button
                       onClick={generatePairCode}
@@ -571,14 +624,8 @@ export default function LiveCameraView() {
                       <RefreshCw className={`w-3.5 h-3.5 ${pairLoading ? 'animate-spin' : ''}`} />
                       New Code
                     </button>
-                    <Link
-                      to="/live-connect"
-                      className="text-xs font-semibold text-emerald-300 hover:text-white flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-700 px-3 py-1.5 rounded transition-colors shadow-sm"
-                    >
-                      Web Broadcaster
-                    </Link>
                     <a
-                      href="http://localhost:8000/camera-app"
+                      href={cameraAppUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs font-semibold text-teal-200 hover:text-white flex items-center gap-1.5 bg-teal-800 hover:bg-teal-700 px-3 py-1.5 rounded transition-colors shadow-sm"
@@ -664,12 +711,25 @@ export default function LiveCameraView() {
                 <span className="font-mono text-slate-800 dark:text-slate-200">{streamStatus?.session_id ? streamStatus.session_id.substring(0,8) : '---'}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1">
-                <span className="text-slate-500">Active Model</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">YOLOv8</span>
+                <span className="text-slate-500">Live detector</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono text-[11px]">
+                  {latestDetections?.model || (streamStatus?.config?.live_detector === 'camera' ? 'camera model' : 'vehicle_detector.pt')}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1">
+                <span className="text-slate-500">Live scope</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                  detection + tracking only
+                  <span className="block text-[10px] font-normal text-slate-500">analytics run at chunk check-in</span>
+                </span>
               </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1">
                 <span className="text-slate-500">Pose Estimation</span>
-                <span className="font-bold text-teal-600 dark:text-teal-400">ON</span>
+                <span className={`font-bold ${streamStatus?.config?.enable_pose ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400'}`}>{streamStatus?.config?.enable_pose ? 'ON' : 'OFF'}</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1">
+                <span className="text-slate-500">Archive chunks</span>
+                <span className={`font-bold ${streamStatus?.config?.auto_import_chunks ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400'}`}>{streamStatus?.config?.auto_import_chunks ? 'ON · full pipeline' : 'OFF'}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1 items-center">
                 <span className="text-slate-500">Chunk Length</span>
@@ -691,7 +751,7 @@ export default function LiveCameraView() {
               </div>
               <div className="flex justify-between border-b border-slate-100 dark:border-slate-800/50 pb-1">
                 <span className="text-slate-500">Chunks Recorded</span>
-                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{streamStatus?.telemetry?.frame_count ? Math.floor(streamStatus.telemetry.frame_count/300) : 0}</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{streamStatus?.chunks_recorded ?? 0}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Total Alerts</span>

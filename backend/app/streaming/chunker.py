@@ -155,7 +155,10 @@ class StreamChunker:
                         session.chunks_recorded = (session.chunks_recorded or 0) + 1
                     db.commit()
 
-                    # Spawn asynchronous pipeline worker thread so RTSP chunking is never blocked
+                    if not self.config.auto_import_chunks:
+                        self._emit_log(current_idx, "recorded", f"Chunk #{current_idx} kept in stream storage (auto check-in is off for this session)", progress=100)
+                        continue
+                    # Spawn asynchronous check-in thread so RTSP chunking is never blocked
                     pipeline_thread = threading.Thread(
                         target=self._process_chunk_pipeline,
                         args=(current_idx, filepath, chunk.id, start_t),
@@ -170,141 +173,76 @@ class StreamChunker:
         return current_idx
 
     def _process_chunk_pipeline(self, current_idx: int, filepath: str, chunk_id: str, start_t: datetime):
-        """Asynchronous pipeline processor for recorded live chunks."""
+        """Checks a finished chunk into the camera node as a regular video asset and runs the SAME
+        background pipeline an uploaded file gets (transcode -> detection/tracking -> plates -> CLIP
+        index -> faces -> accident engine). Nothing analytic runs on the live loop except the detector."""
+        from app.preprocess.storage import MockStorageProvider
+        from app.api.upload import process_video_background
+
         filename = os.path.basename(filepath)
         asset_id = f"vid_{chunk_id}"
         db = SessionLocal()
-
         try:
             camera = db.query(CameraProfile).filter(CameraProfile.camera_id == self.camera_id).first()
             cam_name = camera.name if (camera and camera.name) else self.camera_id
-            camera_dir_name = f"{self.camera_id}_{sanitize_filename(cam_name)}"
-            
-            orig_dir = get_data_path(os.path.join("cameras", camera_dir_name, "original_assets"))
-            trans_dir = get_data_path(os.path.join("cameras", camera_dir_name, "transcoded"))
-            os.makedirs(orig_dir, exist_ok=True)
-            os.makedirs(trans_dir, exist_ok=True)
 
-            dest_orig = os.path.join(orig_dir, filename)
-            dest_trans = os.path.join(trans_dir, filename)
+            # 1. Check the raw chunk into the WORM intake store exactly like an upload
+            with open(filepath, "rb") as f:
+                file_bytes = f.read()
+            if not file_bytes:
+                raise ValueError("recorded chunk is empty")
+            intake_hash = hashlib.sha256(file_bytes).hexdigest()
+            duplicate = db.query(VideoAsset).filter(
+                VideoAsset.camera_id == self.camera_id, VideoAsset.intake_sha256 == intake_hash
+            ).first()
+            if duplicate:
+                self._emit_log(current_idx, "db_saved", f"Chunk #{current_idx} already checked in as {duplicate.id}", progress=100)
+                return
+            raw_filepath = MockStorageProvider().upload_file(file_bytes, f"{asset_id}_{filename}")
 
-            # Copy original asset
-            shutil.copy2(filepath, dest_orig)
-            intake_hash = calculate_file_sha256(dest_orig)
-
-            # Create VideoAsset record with 'transcoding' status
             video_asset = VideoAsset(
                 id=asset_id,
                 camera_id=self.camera_id,
                 original_filename=filename,
-                standardized_filename=filename,
+                standardized_filename="pending_transcode.mp4",
                 intake_sha256=intake_hash,
-                processing_status="transcoding",
-                progress_percentage=15,
+                processing_status="pending",
+                progress_percentage=0,
                 upload_timestamp=datetime.now(timezone.utc),
-                is_live_recording=True
+                is_live_recording=True,
             )
             db.add(video_asset)
+            chunk = db.query(StreamChunk).filter(StreamChunk.id == chunk_id).first()
+            if chunk is not None and hasattr(chunk, "video_asset_id"):
+                chunk.video_asset_id = asset_id
             db.commit()
-
-            # Determine original video FPS using OpenCV
-            cap = cv2.VideoCapture(filepath)
-            orig_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-            duration_sec = total_frames / orig_fps if orig_fps > 0 else float(self.config.max_chunk_duration_sec)
-            cap.release()
-
-            target_fps = 4 if orig_fps > 4 else int(max(1, orig_fps))
-            self._emit_log(
-                current_idx, 
-                "preprocessing", 
-                f"Started pre-processing chunk #{current_idx} (FFmpeg {target_fps} FPS resampling & 720p H.264 transcode)...",
-                progress=25
-            )
-
-            # 1. Transcode & sample thumbnail
-            VideoPreprocessor.transcode_video(dest_orig, dest_trans, fps=target_fps, resolution="1280:720")
-            transcoded_hash = calculate_file_sha256(dest_trans)
-
-            inference_dir = get_data_path(os.path.join("cameras", camera_dir_name, "inference", filename.replace(".mp4", "")))
-            meta = VideoPreprocessor.sample_and_analyze(dest_trans, inference_dir, sampling_fps=4.0)
-
-            video_asset.standardized_filename = filename
-            video_asset.transcoded_sha256 = transcoded_hash
-            video_asset.duration = duration_sec
-            video_asset.start_time = start_t
-            video_asset.end_time = datetime.now(timezone.utc)
-            video_asset.thumbnail_path = meta.get("thumbnail_path")
-            video_asset.processing_status = "preprocessed"
-            video_asset.progress_percentage = 45
-            db.commit()
-
-            self._emit_log(current_idx, "preprocessed", f"Done pre-processing chunk #{current_idx} (720p 4-FPS asset & thumbnail ready)", progress=45)
-
-            # 2. Run object detection & ByteTrack tracking
-            video_asset.processing_status = "indexing"
-            video_asset.progress_percentage = 60
-            db.commit()
-
-            self._emit_log(current_idx, "indexing", f"Running YOLOv8 object detection & ByteTrack tracking on chunk #{current_idx}...", progress=60)
-
-            detection_output_dir = get_data_path(os.path.join("processed/detections", asset_id))
-            
-            # Resolve camera active model path
-            model_path = None
-            if camera:
-                active_m_id = camera.model_id or camera.theft_model_id or camera.abandoned_model_id or camera.assault_model_id
-                if active_m_id and active_m_id != "OFF":
-                    m_rec = db.query(MLModel).filter(MLModel.id == active_m_id).first()
-                    if m_rec and os.path.exists(m_rec.file_path):
-                        model_path = m_rec.file_path
-
-            detector = DetectionService(model_path=model_path)
-            det_results = detector.analyze_video(
-                video_path=dest_trans,
-                output_dir=detection_output_dir,
-                camera_id=self.camera_id,
-                video_id=asset_id
-            )
-            num_tracklets = len(det_results.get("tracklets", [])) if isinstance(det_results, dict) else 0
-
-            self._emit_log(current_idx, "indexing", f"Detected {num_tracklets} tracklets/objects in chunk #{current_idx}", progress=80)
-
-            # 3. Generate CLIP embeddings & index tracklets
-            video_asset.progress_percentage = 85
-            db.commit()
-
-            self._emit_log(current_idx, "indexing", f"Generating CLIP vectors & indexing tracklets for chunk #{current_idx}...", progress=85)
-
-            emb_service = TrackletEmbeddingService()
-            det_file = os.path.join(detection_output_dir, "detections.json")
-            if os.path.exists(det_file):
-                emb_service.embed_detection_artifact(det_file)
-
-            try:
-                vec_index = VectorIndexService()
-                vec_index.index_tracklets(asset_id)
-            except Exception as vec_err:
-                logger.warning(f"Vector indexing warning for chunk {chunk_id}: {vec_err}")
-
-            # 4. Complete asset pipeline
-            video_asset.processing_status = "complete"
-            video_asset.progress_percentage = 100
-            db.commit()
-
-            self._emit_log(current_idx, "db_saved", f"Saved chunk #{current_idx} into DB as VideoAsset ({asset_id})", progress=100)
-            self._emit_log(current_idx, "complete", f"Chunk #{current_idx} pipeline 100% COMPLETE! (Indexed {num_tracklets} tracklets into vector DB)", progress=100)
-
-        except Exception as ve_err:
-            logger.error(f"Pipeline failure for chunk {chunk_id}: {ve_err}")
-            self._emit_log(current_idx, "error", f"Pipeline error for chunk #{current_idx}: {ve_err}", level="ERROR")
-            if db:
-                asset = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
-                if asset:
-                    asset.processing_status = "failed"
-                    db.commit()
-        finally:
+            self._emit_log(current_idx, "checked_in", f"Chunk #{current_idx} checked into camera archive as video {asset_id}; full pipeline queued", progress=20)
+        except Exception as e:
+            logger.error(f"Chunk check-in failure for {chunk_id}: {e}")
+            self._emit_log(current_idx, "error", f"Check-in error for chunk #{current_idx}: {e}", level="ERROR")
             db.close()
+            return
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+        # 2. Same pipeline as POST /api/v1/ingest (runs synchronously in this worker thread)
+        try:
+            process_video_background(
+                asset_id=asset_id,
+                camera_id=self.camera_id,
+                camera_name=cam_name,
+                raw_filepath=raw_filepath,
+                original_filename=filename,
+                intake_sha256=intake_hash,
+                start_time_iso=start_t.isoformat(),
+            )
+            self._emit_log(current_idx, "complete", f"Chunk #{current_idx} pipeline complete (video {asset_id})", progress=100)
+        except Exception as pipe_err:
+            logger.error(f"Pipeline failure for checked-in chunk {chunk_id}: {pipe_err}")
+            self._emit_log(current_idx, "error", f"Pipeline error for chunk #{current_idx}: {pipe_err}", level="ERROR")
 
     def stop(self):
         self._stop_event.set()

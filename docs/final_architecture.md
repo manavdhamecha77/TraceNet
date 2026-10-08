@@ -38,10 +38,10 @@ TraceNet represents a comprehensive digital forensics and smart city video analy
 * **VideoMAE Assault & Fight Detection**: Time-series action classification using HuggingFace Timesformer (`OPear/videomae-large-finetuned-UCF-Crime`) on video frame clips.
 * **Suspect Reappearance Alerting**: Matching real-time camera crops against high-priority "Hot Target" vectors to trigger cross-camera suspect reappearance alarms.
 
-### F. Multi-Camera Sentinel Pursuit Wave
+### F. Multi-Camera Pursuit Wave
 * **Spatial-Temporal Topology Modeling**: Mapping camera nodes to a GIS map, tracking coordinates, corridors, altitudes, and neighbors.
 * **DAG Trajectory Journey Scrubber**: Reconstruction of most-likely target routes based on visual similarity and spatiotemporal transition feasibility.
-* **Sentinel Wave Pursuit HUD**: One-click predictive target tracking that alerts downstream camera nodes to prepare for incoming targets based on speed modes (pedestrian vs. vehicle).
+* **Pursuit Wave HUD**: One-click predictive target tracking that alerts downstream camera nodes to prepare for incoming targets based on speed modes (pedestrian vs. vehicle).
 
 ---
 

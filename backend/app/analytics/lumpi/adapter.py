@@ -2,6 +2,7 @@ import os
 import json
 import math
 import csv
+import glob
 from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Tuple, Any
 import numpy as np
@@ -20,6 +21,20 @@ LUMPI_CLASS_DICT = {
     7: "unknown"
 }
 
+# Seed for the deterministic synthetic-embedding generator. A dedicated Generator is used
+# so the benchmark never reseeds numpy's process-global RNG (which other services share).
+EMBEDDING_RNG_SEED = 42
+EMBEDDING_DIM = 512
+
+# Observations of the same object in the same camera separated by more than this many
+# seconds are treated as two distinct sightings (object left and re-entered the frame).
+SAME_CAMERA_REAPPEARANCE_GAP_S = 1.0
+
+# Projection-based attribution is only trusted when at least this fraction of the labels
+# lands inside some camera image; below it the calibration is not usable for this data.
+MIN_PROJECTION_COVERAGE = 0.2
+
+
 def map_lumpi_class_to_tracenet(class_id: int) -> str:
     """Maps LUMPI numeric class ID to TraceNet object type ('person' or 'vehicle')."""
     if class_id == 0:
@@ -27,6 +42,21 @@ def map_lumpi_class_to_tracenet(class_id: int) -> str:
     elif class_id in (1, 2, 3, 4, 5, 6):
         return "vehicle"
     return "unknown"
+
+
+def rodrigues_to_matrix(rvec: List[float]) -> np.ndarray:
+    """Converts an OpenCV-style Rodrigues rotation vector into a 3x3 rotation matrix."""
+    rv = np.asarray(rvec, dtype=float).reshape(3)
+    theta = float(np.linalg.norm(rv))
+    if theta < 1e-12:
+        return np.eye(3)
+    k = rv / theta
+    K = np.array([
+        [0.0, -k[2], k[1]],
+        [k[2], 0.0, -k[0]],
+        [-k[1], k[0], 0.0]
+    ])
+    return np.eye(3) + math.sin(theta) * K + (1.0 - math.cos(theta)) * (K @ K)
 
 
 @dataclass
@@ -40,6 +70,21 @@ class LumpiCameraInfo:
     altitude: float = 5.0
     intrinsic: List[List[float]] = field(default_factory=list)
     extrinsic: List[List[float]] = field(default_factory=list)
+    rvec: List[float] = field(default_factory=list)          # world -> camera rotation (Rodrigues)
+    tvec: List[float] = field(default_factory=list)          # world -> camera translation (metres)
+    image_width: int = 0
+    image_height: int = 0
+    experiment_id: Optional[int] = None
+    world_position: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+
+    def can_project(self) -> bool:
+        return (
+            len(self.rvec) == 3
+            and len(self.tvec) == 3
+            and len(self.intrinsic) == 3
+            and self.image_width > 0
+            and self.image_height > 0
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -57,11 +102,60 @@ class LumpiTrackletObservation:
     start_frame: int
     end_frame: int
     bbox_sample: List[float]  # [x, y, w, h]
-    position_3d: List[float]  # [x, y, z]
+    position_3d: List[float]  # [x, y, z] at the midpoint of the sighting
     embedding: Optional[List[float]] = None
+    position_3d_start: List[float] = field(default_factory=list)
+    position_3d_end: List[float] = field(default_factory=list)
+    trajectory: List[List[float]] = field(default_factory=list)  # sampled [t, x, y] ground-plane track
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+def position_at(obs: LumpiTrackletObservation, t: float) -> List[float]:
+    """Ground-plane [x, y] of a sighting at time t (linear interpolation, clamped to the sighting)."""
+    traj = obs.trajectory
+    if not traj:
+        if t <= obs.start_time:
+            p = obs.position_3d_start or obs.position_3d
+        elif t >= obs.end_time:
+            p = obs.position_3d_end or obs.position_3d
+        else:
+            p = obs.position_3d
+        return [p[0], p[1]]
+    if t <= traj[0][0]:
+        return [traj[0][1], traj[0][2]]
+    if t >= traj[-1][0]:
+        return [traj[-1][1], traj[-1][2]]
+    lo, hi = 0, len(traj) - 1
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if traj[mid][0] <= t:
+            lo = mid
+        else:
+            hi = mid
+    p0, p1 = traj[lo], traj[hi]
+    span = p1[0] - p0[0]
+    if span <= 0:
+        return [p0[1], p0[2]]
+    a = (t - p0[0]) / span
+    return [p0[1] + a * (p1[1] - p0[1]), p0[2] + a * (p1[2] - p0[2])]
+
+
+def sighting_distance_m(a: LumpiTrackletObservation, b: LumpiTrackletObservation) -> float:
+    """
+    Ground-plane distance an object would have to cover between sighting A and sighting B.
+    Sequential sightings: from where A ended to where B began. Overlapping sightings (handover
+    between cameras that see the same spot): compare both positions at the same instant.
+    """
+    if b.start_time >= a.end_time:
+        pa = a.position_3d_end or a.position_3d
+        pb = b.position_3d_start or b.position_3d
+    else:
+        t = max(a.start_time, b.start_time)
+        pa = position_at(a, t)
+        pb = position_at(b, t)
+    return math.hypot(pb[0] - pa[0], pb[1] - pa[1])
 
 
 @dataclass
@@ -69,7 +163,7 @@ class LumpiGroundTruthJourney:
     object_id: int
     object_type: str
     observations: List[LumpiTrackletObservation]
-    transitions: List[Dict[str, Any]]  # [(from_cam, to_cam, transit_time, distance_m)]
+    transitions: List[Dict[str, Any]]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -85,6 +179,14 @@ class LumpiAdapter:
     Adapter for the LUMPI Benchmark Dataset.
     Loads, parses, and converts LUMPI multi-camera calibration and track labels
     into TraceNet evaluation formats.
+
+    Two camera-assignment modes are supported:
+      * ``projection`` (real LUMPI data): each fused 3D label is projected into every camera
+        of the requested experiment using its rvec/tvec/intrinsic calibration; the object is
+        "seen" by a camera when the projection lands inside that camera's image. Cameras at a
+        LUMPI intersection overlap heavily, so one object yields simultaneous sightings.
+      * ``nearest-camera`` (synthetic sample without calibration): each label is attached to
+        the camera whose world position is closest.
     """
 
     def __init__(self, dataset_path: Optional[str] = None):
@@ -105,10 +207,86 @@ class LumpiAdapter:
         self.cameras: Dict[str, LumpiCameraInfo] = {}
         self.observations: List[LumpiTrackletObservation] = []
         self.ground_truth_journeys: Dict[int, LumpiGroundTruthJourney] = {}
+        self.evaluation_mode: str = "nearest-camera"
+        self.projection_coverage: Optional[float] = None
+        self.loaded_experiment_id: Optional[int] = None
+
+    # ------------------------------------------------------------------ discovery
 
     def is_dataset_available(self) -> bool:
         meta_path = os.path.join(self.dataset_path, "meta.json")
         return os.path.exists(meta_path)
+
+    def _read_meta(self) -> Dict[str, Any]:
+        meta_path = os.path.join(self.dataset_path, "meta.json")
+        with open(meta_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def dataset_kind(self) -> str:
+        """'lumpi' for calibrated LUMPI data, 'synthetic' for the generated sample, else 'missing'/'unknown'."""
+        if not self.is_dataset_available():
+            return "missing"
+        try:
+            meta = self._read_meta()
+        except Exception:
+            return "unknown"
+        if meta.get("dataset") == "LUMPI_Evaluation_Sequence":
+            return "synthetic"
+        for s_data in meta.get("session", {}).values():
+            if s_data.get("type") == "camera" and s_data.get("rvec") and s_data.get("tvec"):
+                return "lumpi"
+        return "unknown"
+
+    def list_experiments(self) -> List[Dict[str, Any]]:
+        """Enumerates Measurement{N} folders with label row counts, camera counts and video availability."""
+        if not self.is_dataset_available():
+            return []
+        try:
+            meta = self._read_meta()
+        except Exception:
+            meta = {}
+        sessions = meta.get("session", {})
+        camera_sessions = {k: v for k, v in sessions.items() if v.get("type") == "camera"}
+        tagged = any("experimentId" in v for v in camera_sessions.values())
+
+        experiments: List[Dict[str, Any]] = []
+        for meas_dir in sorted(glob.glob(os.path.join(self.dataset_path, "Measurement*"))):
+            base = os.path.basename(meas_dir)
+            suffix = base[len("Measurement"):]
+            if not suffix.isdigit():
+                continue
+            exp_id = int(suffix)
+            label_csv = self._find_label_csv(meas_dir)
+            if not label_csv:
+                continue
+            try:
+                with open(label_csv, "r", encoding="utf-8") as f:
+                    rows = max(0, sum(1 for _ in f) - 1)
+            except Exception:
+                rows = 0
+            if tagged:
+                cams = [k for k, v in camera_sessions.items() if v.get("experimentId") == exp_id]
+            else:
+                cams = list(camera_sessions.keys())
+            has_video = len(glob.glob(os.path.join(meas_dir, "cam", "*", "video.mp4"))) > 0
+            experiments.append({
+                "experiment_id": exp_id,
+                "camera_sessions": cams,
+                "camera_count": len(cams),
+                "label_rows": rows,
+                "has_video": has_video
+            })
+        return experiments
+
+    @staticmethod
+    def _find_label_csv(meas_dir: str) -> Optional[str]:
+        for name in ("Label.csv", "label.csv"):
+            p = os.path.join(meas_dir, name)
+            if os.path.exists(p):
+                return p
+        return None
+
+    # ------------------------------------------------------------------ synthetic sample
 
     def ensure_sample_dataset(self) -> str:
         """
@@ -241,51 +419,147 @@ class LumpiAdapter:
 
         return self.dataset_path
 
-    def load_dataset(self, experiment_id: int = 1) -> Dict[str, Any]:
+    # ------------------------------------------------------------------ camera parsing
+
+    @staticmethod
+    def _flatten_vec(raw: Any) -> List[float]:
+        """LUMPI stores rvec/tvec as [[x],[y],[z]]; the synthetic sample stores [x, y, z]."""
+        if raw is None:
+            return []
+        try:
+            arr = np.asarray(raw, dtype=float).reshape(-1)
+        except Exception:
+            return []
+        return [float(v) for v in arr] if arr.size == 3 else []
+
+    def _resolve_image_size(self, cam: LumpiCameraInfo, experiment_id: int) -> Tuple[int, int]:
+        """Reads the camera's frame size from its LUMPI video if present, else infers it from the principal point."""
+        video_path = os.path.join(self.dataset_path, f"Measurement{experiment_id}", "cam", str(cam.device_id), "video.mp4")
+        if os.path.exists(video_path):
+            try:
+                import cv2  # local import: keeps the adapter importable without OpenCV
+                cap = cv2.VideoCapture(video_path)
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                cap.release()
+                if w > 0 and h > 0:
+                    return w, h
+            except Exception as e:
+                logger.debug(f"LUMPI: could not read frame size from {video_path}: {e}")
+        if len(cam.intrinsic) == 3 and len(cam.intrinsic[0]) >= 3:
+            cx = float(cam.intrinsic[0][2])
+            cy = float(cam.intrinsic[1][2])
+            if cx > 0 and cy > 0:
+                return int(round(2 * cx)), int(round(2 * cy))
+        return 0, 0
+
+    def _parse_cameras(self, meta: Dict[str, Any], experiment_id: int) -> Dict[str, LumpiCameraInfo]:
+        sessions = meta.get("session", {})
+        camera_sessions = {k: v for k, v in sessions.items() if v.get("type") == "camera"}
+        tagged = any("experimentId" in v for v in camera_sessions.values())
+
+        if tagged:
+            selected = {k: v for k, v in camera_sessions.items() if v.get("experimentId") == experiment_id}
+            if not selected:
+                logger.warning(
+                    f"LUMPI: no camera sessions tagged experimentId={experiment_id}; falling back to all {len(camera_sessions)} cameras."
+                )
+                selected = camera_sessions
+        else:
+            selected = camera_sessions
+
+        cameras: Dict[str, LumpiCameraInfo] = {}
+        for session_id, s_data in selected.items():
+            coords = s_data.get("coordinates", {})
+            extrinsic = s_data.get("extrinsic", []) or []
+            rvec = self._flatten_vec(s_data.get("rvec"))
+            tvec = self._flatten_vec(s_data.get("tvec"))
+
+            # Camera position in the world frame: extrinsic (camera -> world) translation column,
+            # or -R^T t from the world -> camera rvec/tvec pair.
+            world_position = [0.0, 0.0, 0.0]
+            if len(extrinsic) >= 3 and all(len(r) >= 4 for r in extrinsic[:3]):
+                world_position = [float(extrinsic[0][3]), float(extrinsic[1][3]), float(extrinsic[2][3])]
+            elif len(rvec) == 3 and len(tvec) == 3:
+                R = rodrigues_to_matrix(rvec)
+                world_position = [float(v) for v in (-R.T @ np.asarray(tvec))]
+
+            cam_info = LumpiCameraInfo(
+                camera_id=session_id,
+                device_id=int(s_data.get("deviceId", 1)),
+                name=s_data.get("name", f"LUMPI_CAM_{session_id}"),
+                fps=float(s_data.get("fps", 10.0)),
+                latitude=float(coords.get("lat", 21.1700)),
+                longitude=float(coords.get("lon", 72.8310)),
+                altitude=float(coords.get("alt", world_position[2] if world_position[2] else 5.0)),
+                intrinsic=s_data.get("intrinsic", []) or [],
+                extrinsic=extrinsic,
+                rvec=rvec,
+                tvec=tvec,
+                experiment_id=s_data.get("experimentId"),
+                world_position=world_position
+            )
+            cam_info.image_width, cam_info.image_height = self._resolve_image_size(cam_info, experiment_id)
+            cameras[session_id] = cam_info
+        return cameras
+
+    # ------------------------------------------------------------------ geometry
+
+    def _is_visible(self, cam: LumpiCameraInfo, point_3d: List[float]) -> bool:
+        """Projects a world point with the camera's calibration and tests it against the image bounds."""
+        R = rodrigues_to_matrix(cam.rvec)
+        Xc = R @ np.asarray(point_3d, dtype=float) + np.asarray(cam.tvec, dtype=float)
+        if Xc[2] <= 0.0:
+            return False
+        K = cam.intrinsic
+        u = K[0][0] * Xc[0] / Xc[2] + K[0][2]
+        v = K[1][1] * Xc[1] / Xc[2] + K[1][2]
+        return 0.0 <= u < cam.image_width and 0.0 <= v < cam.image_height
+
+    def _nearest_camera(self, point_3d: List[float]) -> str:
+        best_cam_id = next(iter(self.cameras.keys()))
+        min_dist = float("inf")
+        for c_id, c_info in self.cameras.items():
+            dx = point_3d[0] - c_info.world_position[0]
+            dy = point_3d[1] - c_info.world_position[1]
+            dist = math.hypot(dx, dy)
+            if dist < min_dist:
+                min_dist = dist
+                best_cam_id = c_id
+        return best_cam_id
+
+    # ------------------------------------------------------------------ loading
+
+    def load_dataset(self, experiment_id: int = 1, embedding_noise_sigma: float = 0.05) -> Dict[str, Any]:
         """
         Parses meta.json and Measurement{experiment_id}/Label.csv into TraceNet format.
+
+        ``embedding_noise_sigma`` is the noise-to-signal ratio applied to the synthetic identity
+        embeddings (same-object cosine ~ 1/(1+sigma^2)). 0.05 yields near-perfect visual
+        re-identification; values near 1.0 push true matches down to the similarity gate so the
+        spatiotemporal linking has to carry the disambiguation.
         """
         if not self.is_dataset_available():
             self.ensure_sample_dataset()
 
-        meta_path = os.path.join(self.dataset_path, "meta.json")
-        with open(meta_path, "r", encoding="utf-8") as f:
-            meta = json.load(f)
+        meta = self._read_meta()
+        self.loaded_experiment_id = experiment_id
 
-        # 1. Parse cameras
-        self.cameras = {}
-        for session_id, s_data in meta.get("session", {}).items():
-            if s_data.get("type") == "camera":
-                coords = s_data.get("coordinates", {})
-                cam_info = LumpiCameraInfo(
-                    camera_id=session_id,
-                    device_id=s_data.get("deviceId", 1),
-                    name=s_data.get("name", f"LUMPI_CAM_{session_id}"),
-                    fps=float(s_data.get("fps", 10.0)),
-                    latitude=float(coords.get("lat", 21.1700)),
-                    longitude=float(coords.get("lon", 72.8310)),
-                    altitude=float(coords.get("alt", 5.0)),
-                    intrinsic=s_data.get("intrinsic", []),
-                    extrinsic=s_data.get("extrinsic", [])
-                )
-                self.cameras[session_id] = cam_info
+        # 1. Cameras belonging to this experiment only
+        self.cameras = self._parse_cameras(meta, experiment_id)
+        if not self.cameras:
+            raise ValueError(f"LUMPI meta.json at {self.dataset_path} defines no camera sessions.")
 
         # 2. Parse Label.csv
         meas_dir = os.path.join(self.dataset_path, f"Measurement{experiment_id}")
-        label_csv = os.path.join(meas_dir, "Label.csv")
-        if not os.path.exists(label_csv):
-            # Try lowercase or search
-            label_csv = os.path.join(meas_dir, "label.csv")
-
-        if not os.path.exists(label_csv):
+        label_csv = self._find_label_csv(meas_dir)
+        if not label_csv:
             raise FileNotFoundError(f"LUMPI Label file not found in {meas_dir}")
 
-        # Accumulate raw rows by (object_id, camera_session)
-        # Determine camera assignment based on 3D distance or timestamp segmentation
         raw_tracks: Dict[int, List[Dict[str, Any]]] = {}
         with open(label_csv, "r", encoding="utf-8") as f:
             reader = csv.reader(f)
-            header = next(reader, None)
+            next(reader, None)  # header
             for row in reader:
                 if len(row) < 12:
                     continue
@@ -295,126 +569,160 @@ class LumpiAdapter:
                     bbox = [float(row[2]), float(row[3]), float(row[4]), float(row[5])]
                     score = float(row[6]) if len(row) > 6 else 1.0
                     class_id = int(float(row[7])) if len(row) > 7 else 0
-                    loc_3d = [float(row[9]), float(row[10]), float(row[11])] if len(row) > 11 else [0.0, 0.0, 0.0]
-
-                    if obj_id not in raw_tracks:
-                        raw_tracks[obj_id] = []
-
-                    raw_tracks[obj_id].append({
-                        "time": time_val,
-                        "bbox": bbox,
-                        "score": score,
-                        "class_id": class_id,
-                        "position_3d": loc_3d
-                    })
-                except Exception:
+                    loc_3d = [float(row[9]), float(row[10]), float(row[11])]
+                except (ValueError, IndexError):
                     continue
+                raw_tracks.setdefault(obj_id, []).append({
+                    "time": time_val,
+                    "bbox": bbox,
+                    "score": score,
+                    "class_id": class_id,
+                    "position_3d": loc_3d
+                })
 
-        # 3. Associate observations to nearest cameras
+        # 3. Decide how sightings are attributed to cameras. Projection needs full calibration AND
+        #    must actually place the labels inside the images; otherwise (synthetic sample, bogus
+        #    calibration) fall back to nearest-camera attribution.
+        self.evaluation_mode = "projection" if all(c.can_project() for c in self.cameras.values()) else "nearest-camera"
+        self.projection_coverage = None
+        if self.evaluation_mode == "projection":
+            total_points = 0
+            visible_points = 0
+            for pts in raw_tracks.values():
+                for pt in pts:
+                    total_points += 1
+                    if any(self._is_visible(c, pt["position_3d"]) for c in self.cameras.values()):
+                        visible_points += 1
+            self.projection_coverage = (visible_points / total_points) if total_points else 0.0
+            if self.projection_coverage < MIN_PROJECTION_COVERAGE:
+                logger.warning(
+                    f"LUMPI: only {self.projection_coverage:.0%} of labels project into any camera image; "
+                    "falling back to nearest-camera attribution."
+                )
+                self.evaluation_mode = "nearest-camera"
+
+        # 4. Segment every object's track into per-camera sightings
+        rng = np.random.default_rng(EMBEDDING_RNG_SEED)
         self.observations = []
         obs_counter = 0
 
-        # Helper to generate consistent synthetic embeddings for object identity
-        # Base vector seed derived from object_id
-        np.random.seed(42)
-        object_base_vectors = {}
+        for obj_id in sorted(raw_tracks.keys()):
+            points = sorted(raw_tracks[obj_id], key=lambda p: p["time"])
+            base_vec = rng.standard_normal(EMBEDDING_DIM)
+            base_vec = base_vec / np.linalg.norm(base_vec)
 
-        for obj_id, points in raw_tracks.items():
-            if obj_id not in object_base_vectors:
-                # 512-dim normalized embedding simulating CLIP
-                vec = np.random.randn(512)
-                object_base_vectors[obj_id] = vec / np.linalg.norm(vec)
-
-            base_vec = object_base_vectors[obj_id]
-            points.sort(key=lambda p: p["time"])
-
-            # Segment by camera proximity
-            current_cam = None
-            current_cluster: List[Dict[str, Any]] = []
-
-            for pt in points:
-                # Find closest camera based on 3D extrinsic coordinates
-                best_cam_id = list(self.cameras.keys())[0]
-                min_dist = float("inf")
-                for c_id, c_info in self.cameras.items():
-                    c_pos = [c_info.extrinsic[0][3] if c_info.extrinsic else 0.0,
-                             c_info.extrinsic[1][3] if c_info.extrinsic else 0.0,
-                             c_info.extrinsic[2][3] if c_info.extrinsic else 0.0]
-                    dist = math.sqrt(
-                        (pt["position_3d"][0] - c_pos[0])**2 +
-                        (pt["position_3d"][1] - c_pos[1])**2
-                    )
-                    if dist < min_dist:
-                        min_dist = dist
-                        best_cam_id = c_id
-
-                if current_cam is None:
-                    current_cam = best_cam_id
-
-                # If camera changed or time gap > 10s, flush cluster
-                time_gap = (pt["time"] - current_cluster[-1]["time"]) if current_cluster else 0.0
-                if best_cam_id != current_cam or time_gap > 10.0:
-                    if current_cluster:
-                        obs = self._create_observation(
-                            obs_counter, obj_id, current_cam, current_cluster, base_vec
+            if self.evaluation_mode == "projection":
+                per_camera: Dict[str, List[Dict[str, Any]]] = {c_id: [] for c_id in self.cameras}
+                for pt in points:
+                    for c_id, cam in self.cameras.items():
+                        if self._is_visible(cam, pt["position_3d"]):
+                            per_camera[c_id].append(pt)
+                for c_id in self.cameras:  # deterministic camera order
+                    for segment in self._split_by_gap(per_camera[c_id], SAME_CAMERA_REAPPEARANCE_GAP_S):
+                        self.observations.append(
+                            self._create_observation(obs_counter, obj_id, c_id, segment, base_vec, rng, embedding_noise_sigma)
                         )
-                        self.observations.append(obs)
                         obs_counter += 1
-                        current_cluster = []
-                    current_cam = best_cam_id
+            else:
+                current_cam: Optional[str] = None
+                cluster: List[Dict[str, Any]] = []
+                for pt in points:
+                    cam_id = self._nearest_camera(pt["position_3d"])
+                    gap = (pt["time"] - cluster[-1]["time"]) if cluster else 0.0
+                    if cluster and (cam_id != current_cam or gap > 10.0):
+                        self.observations.append(
+                            self._create_observation(obs_counter, obj_id, current_cam, cluster, base_vec, rng, embedding_noise_sigma)
+                        )
+                        obs_counter += 1
+                        cluster = []
+                    current_cam = cam_id
+                    cluster.append(pt)
+                if cluster and current_cam is not None:
+                    self.observations.append(
+                        self._create_observation(obs_counter, obj_id, current_cam, cluster, base_vec, rng, embedding_noise_sigma)
+                    )
+                    obs_counter += 1
 
-                current_cluster.append(pt)
+        self.observations.sort(key=lambda o: (o.start_time, o.camera_id, o.observation_id))
 
-            if current_cluster and current_cam:
-                obs = self._create_observation(
-                    obs_counter, obj_id, current_cam, current_cluster, base_vec
-                )
-                self.observations.append(obs)
-                obs_counter += 1
-
-        # 4. Assemble Ground Truth Journeys
+        # 4. Assemble ground-truth journeys and their camera-to-camera transitions
         self.ground_truth_journeys = {}
         for obs in self.observations:
-            if obs.ground_truth_id not in self.ground_truth_journeys:
-                self.ground_truth_journeys[obs.ground_truth_id] = LumpiGroundTruthJourney(
+            journey = self.ground_truth_journeys.get(obs.ground_truth_id)
+            if journey is None:
+                journey = LumpiGroundTruthJourney(
                     object_id=obs.ground_truth_id,
                     object_type=obs.object_type,
                     observations=[],
                     transitions=[]
                 )
-            self.ground_truth_journeys[obs.ground_truth_id].observations.append(obs)
+                self.ground_truth_journeys[obs.ground_truth_id] = journey
+            journey.observations.append(obs)
 
-        for obj_id, journey in self.ground_truth_journeys.items():
-            journey.observations.sort(key=lambda o: o.start_time)
+        for journey in self.ground_truth_journeys.values():
+            journey.observations.sort(key=lambda o: (o.start_time, o.end_time, o.camera_id))
             for k in range(len(journey.observations) - 1):
                 from_obs = journey.observations[k]
                 to_obs = journey.observations[k + 1]
-                t_diff = to_obs.start_time - from_obs.end_time
-                pos1 = from_obs.position_3d
-                pos2 = to_obs.position_3d
-                dist_m = math.sqrt((pos2[0] - pos1[0])**2 + (pos2[1] - pos1[1])**2)
+                gap = to_obs.start_time - from_obs.end_time
+                handover = gap <= 0.0
+                transit = max(0.0, gap)
+                dist_m = sighting_distance_m(from_obs, to_obs)
+                cam_a = self.cameras.get(from_obs.camera_id)
+                cam_b = self.cameras.get(to_obs.camera_id)
+                cam_dist = 0.0
+                if cam_a and cam_b:
+                    cam_dist = math.hypot(
+                        cam_b.world_position[0] - cam_a.world_position[0],
+                        cam_b.world_position[1] - cam_a.world_position[1]
+                    )
                 journey.transitions.append({
                     "from_camera": from_obs.camera_id,
                     "to_camera": to_obs.camera_id,
                     "from_time": from_obs.end_time,
                     "to_time": to_obs.start_time,
-                    "transit_time_seconds": round(t_diff, 2),
+                    "transit_time_seconds": round(transit, 2),
+                    "is_handover": handover,
                     "distance_meters": round(dist_m, 2),
-                    "avg_speed_mps": round(dist_m / t_diff, 2) if t_diff > 0 else 0.0
+                    "camera_distance_meters": round(cam_dist, 2),
+                    "avg_speed_mps": round(dist_m / transit, 2) if transit > 0 else 0.0
                 })
 
+        per_camera_counts = {c_id: 0 for c_id in self.cameras}
+        for obs in self.observations:
+            per_camera_counts[obs.camera_id] = per_camera_counts.get(obs.camera_id, 0) + 1
+
+        multi_cam = [j for j in self.ground_truth_journeys.values() if len(j.observations) > 1]
         logger.info(
-            f"Successfully loaded LUMPI dataset: {len(self.cameras)} cameras, "
-            f"{len(self.observations)} tracklet observations, {len(self.ground_truth_journeys)} distinct trajectories."
+            f"LUMPI dataset loaded (exp {experiment_id}, mode={self.evaluation_mode}): {len(self.cameras)} cameras, "
+            f"{len(self.observations)} sightings, {len(self.ground_truth_journeys)} objects, {len(multi_cam)} multi-camera."
         )
 
         return {
             "dataset_path": self.dataset_path,
+            "dataset_kind": self.dataset_kind(),
+            "evaluation_mode": self.evaluation_mode,
+            "projection_coverage": round(self.projection_coverage, 4) if self.projection_coverage is not None else None,
+            "experiment_id": experiment_id,
             "cameras_count": len(self.cameras),
             "observations_count": len(self.observations),
+            "per_camera_observation_counts": per_camera_counts,
             "journeys_count": len(self.ground_truth_journeys),
-            "multi_camera_targets_count": len([j for j in self.ground_truth_journeys.values() if len(j.observations) > 1])
+            "multi_camera_targets_count": len(multi_cam)
         }
+
+    @staticmethod
+    def _split_by_gap(points: List[Dict[str, Any]], max_gap_s: float) -> List[List[Dict[str, Any]]]:
+        segments: List[List[Dict[str, Any]]] = []
+        current: List[Dict[str, Any]] = []
+        for pt in points:
+            if current and (pt["time"] - current[-1]["time"]) > max_gap_s:
+                segments.append(current)
+                current = []
+            current.append(pt)
+        if current:
+            segments.append(current)
+        return segments
 
     def _create_observation(
         self,
@@ -422,7 +730,9 @@ class LumpiAdapter:
         obj_id: int,
         cam_id: str,
         cluster: List[Dict[str, Any]],
-        base_vec: np.ndarray
+        base_vec: np.ndarray,
+        rng: np.random.Generator,
+        noise_sigma: float
     ) -> LumpiTrackletObservation:
         fps = self.cameras[cam_id].fps if cam_id in self.cameras else 10.0
         start_t = cluster[0]["time"]
@@ -431,8 +741,11 @@ class LumpiAdapter:
         obj_type = map_lumpi_class_to_tracenet(class_id)
         mid_pt = cluster[len(cluster) // 2]
 
-        # Add slight observation-level visual perturbation (camera angle / illumination noise)
-        noise = np.random.randn(512) * 0.05
+        # Observation-level visual perturbation (camera angle / illumination noise).
+        # noise_sigma is the noise-to-signal norm ratio: the perturbation vector has norm ~= sigma
+        # relative to the unit identity vector, so two sightings of one object have an expected
+        # cosine similarity of ~1 / (1 + sigma^2)  (0.05 -> 0.998, 0.6 -> 0.74, 1.0 -> 0.50).
+        noise = rng.standard_normal(EMBEDDING_DIM) * (max(0.0, noise_sigma) / math.sqrt(EMBEDDING_DIM))
         obs_vec = base_vec + noise
         obs_vec = obs_vec / np.linalg.norm(obs_vec)
 
@@ -448,5 +761,17 @@ class LumpiAdapter:
             end_frame=int(end_t * fps),
             bbox_sample=mid_pt["bbox"],
             position_3d=mid_pt["position_3d"],
-            embedding=obs_vec.tolist()
+            embedding=obs_vec.tolist(),
+            position_3d_start=list(cluster[0]["position_3d"]),
+            position_3d_end=list(cluster[-1]["position_3d"]),
+            trajectory=self._sample_trajectory(cluster)
         )
+
+    @staticmethod
+    def _sample_trajectory(cluster: List[Dict[str, Any]], max_points: int = 64) -> List[List[float]]:
+        """Downsamples a sighting's labels to at most ``max_points`` [t, x, y] samples, always keeping the last one."""
+        stride = max(1, len(cluster) // max_points)
+        sampled = cluster[::stride]
+        if sampled[-1] is not cluster[-1]:
+            sampled = sampled + [cluster[-1]]
+        return [[float(p["time"]), float(p["position_3d"][0]), float(p["position_3d"][1])] for p in sampled]

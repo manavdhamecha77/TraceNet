@@ -37,7 +37,7 @@ os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 # Guard against broken/mismatched torchaudio C++ binaries on Windows when PaddleX imports transformers
 try:
     import torchaudio  # noqa: F401
-except OSError:
+except (OSError, ImportError):  # broken binary OR package not installed: both are optional here
     import sys
     sys.modules["torchaudio"] = None
 

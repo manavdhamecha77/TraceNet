@@ -26,7 +26,6 @@ import LanguageSettings from './pages/LanguageSettings'
 import { useTranslation } from 'react-i18next'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import LiveConnect from './pages/LiveConnect'
 import { classColor } from './utils/colors'
 import LiveCameraView from './pages/LiveCameraView'
 import { useToast } from './components/Toast'
@@ -626,8 +625,6 @@ function App() {
         crumbs.push({ label: t('nav.dashboard'), link: '/dashboard' })
       } else if (paths[0] === 'models') {
         crumbs.push({ label: t('nav.models'), link: '/models' })
-      } else if (paths[0] === 'live-connect' || paths[0] === 'connect') {
-        crumbs.push({ label: t('nav.live'), link: '/live-connect' })
       } else if (paths[0] === 'embedding-models') {
         crumbs.push({ label: t('nav.embedding'), link: '/embedding-models' })
       } else if (paths[0] === 'finetuning') {
@@ -1048,17 +1045,6 @@ function App() {
                 {!isSidebarCollapsed && <span>{t('nav.cameras')}</span>}
               </Link>
 
-              <Link
-                to="/live-connect"
-                className={navLinkClass(location.pathname === '/live-connect' || location.pathname === '/connect')}
-                title={isSidebarCollapsed ? t('nav.live') : undefined}
-              >
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.828a5 5 0 010-7.072m7.072 0a5 5 0 010 7.072M13 12a1 1 0 11-2 0 1 1 0 012 0z" />
-                </svg>
-                {!isSidebarCollapsed && <span>{t('nav.live')}</span>}
-              </Link>
-
             <Link
               to="/multicam"
               className={navLinkClass(location.pathname === '/multicam')}
@@ -1402,8 +1388,6 @@ function App() {
               <Route path="/theft-alerts" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/alerts/assault" element={<AssaultDetection cameras={cameras} />} />
               <Route path="/assault-alerts" element={<AssaultDetection cameras={cameras} />} />
-              <Route path="/live-connect" element={<LiveConnect />} />
-              <Route path="/connect" element={<LiveConnect />} />
               <Route path="/assault-detection" element={<AssaultDetection cameras={cameras} />} />
               <Route path="/alerts/plates" element={<PlateDetection cameras={cameras} />} />
               <Route path="/anpr-alerts" element={<PlateDetection cameras={cameras} />} />

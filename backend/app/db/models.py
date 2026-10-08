@@ -454,8 +454,8 @@ class Webhook(Base):
         }
 
 
-class SentinelSession(Base):
-    __tablename__ = "sentinel_sessions"
+class PursuitSession(Base):
+    __tablename__ = "pursuit_sessions"
 
     id = Column(String, primary_key=True, index=True)  # UUID string
     target_tracklet_id = Column(String, ForeignKey("tracklets.id", ondelete="CASCADE"), nullable=True)
@@ -637,6 +637,7 @@ class PairCode(Base):
     expires_at = Column(DateTime, nullable=False)
     used = Column(Boolean, default=False)
     device_auth_token = Column(String, nullable=True)       # issued on verify
+    stream_config = Column(Text, nullable=True)             # JSON StreamConfig chosen by the operator at code generation
 
     def to_dict(self):
         return {

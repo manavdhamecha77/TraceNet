@@ -1,15 +1,18 @@
 import subprocess
 import secrets
 import random
+import json
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import urllib.parse
 import urllib.request
 import os
+
+import httpx
 
 from app.db.session import get_db
 from app.db.models import LiveStreamSession, StreamChunk, PairCode, CameraProfile
@@ -17,6 +20,7 @@ from app.streaming.manager import StreamManager
 from app.streaming.config import StreamConfig
 from app.streaming.mediamtx_downloader import ensure_mediamtx
 from app.config import get_data_path
+from app.tls import lan_ipv4_addresses, CERT_FILE
 
 from loguru import logger
 
@@ -24,9 +28,39 @@ router = APIRouter(prefix="/api/v1/stream", tags=["streaming"])
 manager = StreamManager()
 
 PAIR_CODE_TTL_MINUTES = 10
+HTTPS_PORT = int(os.getenv("TRACENET_HTTPS_PORT", "8443"))
+HTTP_PORT = int(os.getenv("TRACENET_HTTP_PORT", "8000"))
+
 
 # ---------------------------------------------------------------------------
-# Internal stream start/stop (called automatically when device pairs + streams)
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _public_base(request: Request) -> str:
+    """Origin the caller reached us on (scheme + host + port). WHIP/WHEP are proxied through this
+    same origin so a phone only ever has to trust one certificate."""
+    return str(request.base_url).rstrip("/")
+
+
+def _with_proxy_urls(result: dict, request: Request) -> dict:
+    """Rewrites MediaMTX-internal WHIP/WHEP URLs to the backend's proxied endpoints."""
+    cam = result.get("camera_id") or ""
+    base = _public_base(request)
+    out = dict(result)
+    out["whip_url"] = f"{base}/api/v1/stream/whip/{cam}?token={result['token']}&stream_key={result['stream_key']}"
+    out["whep_url"] = f"{base}/api/v1/stream/whep/{cam}"
+    out["ws_url"] = f"{base.replace('https://', 'wss://').replace('http://', 'ws://')}/api/v1/stream/ws/stream/{cam}"
+    out.pop("rtsp_url", None)  # internal only
+    return out
+
+
+def _store_result_camera(result: dict, camera_id: str) -> dict:
+    result["camera_id"] = camera_id
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Internal stream start/stop (dashboard / tests). Phones use the pair flow below.
 # ---------------------------------------------------------------------------
 
 class StreamStartRequest(BaseModel):
@@ -35,13 +69,15 @@ class StreamStartRequest(BaseModel):
     config: dict = {}
 
 @router.post("/start")
-def start_stream(req: StreamStartRequest, db: Session = Depends(get_db)):
-    config = StreamConfig(**req.config)
+def start_stream(req: StreamStartRequest, request: Request, db: Session = Depends(get_db)):
+    config = StreamConfig.from_dict(req.config)
     result = manager.generate_stream_token(req.camera_id, db, config)
     if not result:
         raise HTTPException(status_code=404, detail="Camera not found")
     manager.start_inference(req.camera_id, result["session_id"], config, db)
-    return result
+    out = _with_proxy_urls(_store_result_camera(result, req.camera_id), request)
+    out["config"] = config.to_public_dict()
+    return out
 
 @router.post("/stop/{camera_id}")
 def stop_stream(camera_id: str, db: Session = Depends(get_db)):
@@ -50,7 +86,11 @@ def stop_stream(camera_id: str, db: Session = Depends(get_db)):
 
 @router.get("/status/{camera_id}")
 def get_stream_status(camera_id: str, db: Session = Depends(get_db)):
-    return manager.get_status(camera_id, db)
+    status = manager.get_status(camera_id, db)
+    active = manager._active_streams.get(camera_id)
+    if active and active.get("config"):
+        status["config"] = active["config"].to_public_dict()
+    return status
 
 @router.get("/sessions")
 def list_sessions(db: Session = Depends(get_db)):
@@ -62,6 +102,32 @@ def list_chunks(session_id: str, db: Session = Depends(get_db)):
     chunks = db.query(StreamChunk).filter(StreamChunk.session_id == session_id).order_by(StreamChunk.chunk_index.asc()).all()
     return [c.to_dict() for c in chunks]
 
+
+@router.get("/access-urls")
+def access_urls(request: Request):
+    """Where a phone / edge device on the LAN should open the edge camera app.
+    HTTPS is required for camera access on anything but localhost; the HTTPS listener exists when the
+    backend runs through serve.py (self-signed certificate under backend/data/certs)."""
+    ips = lan_ipv4_addresses()
+    https_available = os.path.exists(CERT_FILE)
+    urls = []
+    for ip in ips:
+        if https_available:
+            urls.append({"url": f"https://{ip}:{HTTPS_PORT}/camera-app", "secure": True, "host": ip})
+        urls.append({"url": f"http://{ip}:{HTTP_PORT}/camera-app", "secure": False, "host": ip})
+    return {
+        "lan_ips": ips,
+        "https_port": HTTPS_PORT,
+        "http_port": HTTP_PORT,
+        "https_available": https_available,
+        "reached_via": _public_base(request),
+        "recommended": next((u["url"] for u in urls if u["secure"]), (urls[0]["url"] if urls else f"{_public_base(request)}/camera-app")),
+        "urls": urls,
+        "note": ("Phones need the HTTPS URL (accept the self-signed certificate once). "
+                 "Start the backend with `python serve.py` to enable it." if not https_available else
+                 "Phones: open the HTTPS URL and accept the self-signed certificate once."),
+    }
+
 # ---------------------------------------------------------------------------
 # Pair Code API — decoupled edge camera device pairing
 # ---------------------------------------------------------------------------
@@ -69,6 +135,7 @@ def list_chunks(session_id: str, db: Session = Depends(get_db)):
 class PairGenerateRequest(BaseModel):
     camera_id: str
     device_label: Optional[str] = None  # e.g. 'Gate-3 Mobile Camera'
+    config: dict = {}                   # operator-chosen StreamConfig (chunk length, auto-import, live fps, ...)
 
 class PairVerifyRequest(BaseModel):
     code: str          # 6-digit code, with or without dash (e.g. '482910' or '482-910')
@@ -77,14 +144,16 @@ class PairVerifyRequest(BaseModel):
 
 
 @router.post("/pair/generate")
-def generate_pair_code(req: PairGenerateRequest, db: Session = Depends(get_db)):
+def generate_pair_code(req: PairGenerateRequest, request: Request, db: Session = Depends(get_db)):
     """Generates a 6-digit pairing code for a camera node.
-    The DRISHTI operator calls this from the main dashboard.
-    Returns the code (e.g. '482-910') and expiry timestamp.
+    The DRISHTI operator calls this from the main dashboard. The stream configuration chosen here is
+    stored with the code and applied when the device verifies it.
     """
     cam = db.query(CameraProfile).filter(CameraProfile.camera_id == req.camera_id).first()
     if not cam:
         raise HTTPException(status_code=404, detail="Camera not found")
+
+    config = StreamConfig.from_dict(req.config)
 
     # Invalidate any existing unused pair codes for this camera
     db.query(PairCode).filter(
@@ -93,7 +162,6 @@ def generate_pair_code(req: PairGenerateRequest, db: Session = Depends(get_db)):
     ).delete(synchronize_session=False)
     db.commit()
 
-    # Generate new 6-digit code
     code_digits = f"{random.randint(0, 999999):06d}"
     code_display = f"{code_digits[:3]}-{code_digits[3:]}"
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=PAIR_CODE_TTL_MINUTES)
@@ -104,30 +172,33 @@ def generate_pair_code(req: PairGenerateRequest, db: Session = Depends(get_db)):
         code_display=code_display,
         device_label=req.device_label,
         expires_at=expires_at,
-        used=False
+        used=False,
+        stream_config=json.dumps(config.to_public_dict()),
     )
     db.add(pair_code)
     db.commit()
 
-    logger.info(f"[Pair] Generated code {code_display} for camera {req.camera_id}, expires {expires_at.isoformat()}")
+    logger.info(f"[Pair] Generated code {code_display} for camera {req.camera_id}, expires {expires_at.isoformat()}, config={config.to_public_dict()}")
 
+    urls = access_urls(request)
     return {
         "code": code_display,
         "camera_id": req.camera_id,
         "camera_name": cam.name,
         "expires_at": expires_at.isoformat(),
         "ttl_minutes": PAIR_CODE_TTL_MINUTES,
-        "whip_url_template": f"http://{{HOST}}:8889/{req.camera_id}/whip",
-        "whep_url_template": f"http://{{HOST}}:8889/{req.camera_id}/whep",
+        "config": config.to_public_dict(),
+        "camera_app_url": urls["recommended"],
+        "camera_app_urls": urls["urls"],
+        "https_available": urls["https_available"],
     }
 
 
 @router.post("/pair/verify")
-def verify_pair_code(req: PairVerifyRequest, db: Session = Depends(get_db)):
+def verify_pair_code(req: PairVerifyRequest, request: Request, db: Session = Depends(get_db)):
     """Called by the edge camera device to exchange the 6-digit pair code
     for a long-lived device_auth_token and WHIP stream credentials.
     """
-    # Normalize: strip dash, spaces
     code_digits = req.code.replace("-", "").replace(" ", "").strip()
     if len(code_digits) != 6 or not code_digits.isdigit():
         raise HTTPException(status_code=400, detail="Invalid code format. Expected 6-digit code.")
@@ -147,15 +218,19 @@ def verify_pair_code(req: PairVerifyRequest, db: Session = Depends(get_db)):
     if now > expires:
         raise HTTPException(status_code=410, detail="Pair code has expired. Please generate a new one.")
 
-    # Issue device auth token
     device_token = secrets.token_hex(32)
     pair_code.used = True
     pair_code.device_auth_token = device_token
     if req.device_label:
         pair_code.device_label = req.device_label
 
-    # Issue stream token via manager
-    config = StreamConfig()
+    # Apply the configuration the operator chose when generating the code
+    try:
+        stored = json.loads(pair_code.stream_config) if pair_code.stream_config else {}
+    except Exception:
+        stored = {}
+    config = StreamConfig.from_dict(stored)
+
     stream_credentials = manager.generate_stream_token(pair_code.camera_id, db, config)
     if not stream_credentials:
         db.rollback()
@@ -164,17 +239,19 @@ def verify_pair_code(req: PairVerifyRequest, db: Session = Depends(get_db)):
     manager.start_inference(pair_code.camera_id, stream_credentials["session_id"], config, db)
     db.commit()
 
-    logger.info(f"[Pair] Device verified for camera {pair_code.camera_id}, token issued")
+    proxied = _with_proxy_urls(_store_result_camera(stream_credentials, pair_code.camera_id), request)
+    logger.info(f"[Pair] Device verified for camera {pair_code.camera_id}, token issued, config={config.to_public_dict()}")
 
     return {
         "camera_id": pair_code.camera_id,
         "device_auth_token": device_token,
         "session_id": stream_credentials["session_id"],
-        "whip_url": stream_credentials["whip_url"],
+        "whip_url": proxied["whip_url"],
         "stream_key": stream_credentials["stream_key"],
         "stream_token": stream_credentials["token"],
-        "whep_url": stream_credentials.get("whep_url", ""),
-        "ws_telemetry_url": stream_credentials.get("ws_url", ""),
+        "whep_url": proxied["whep_url"],
+        "ws_telemetry_url": proxied["ws_url"],
+        "config": config.to_public_dict(),
     }
 
 
@@ -199,6 +276,80 @@ def device_get_status(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid device token")
     status = manager.get_status(pair.camera_id, db)
     return {"camera_id": pair.camera_id, **status}
+
+# ---------------------------------------------------------------------------
+# WHIP / WHEP proxy — the only WebRTC signalling path clients use.
+# MediaMTX (port 8889) stays internal; phones talk to this origin only (one certificate).
+# ---------------------------------------------------------------------------
+
+_SDP_HEADERS = {"Content-Type": "application/sdp"}
+
+
+def _mediamtx_base() -> str:
+    return StreamConfig().mediamtx_whip_base.rstrip("/")
+
+
+async def _forward_sdp(method: str, upstream_url: str, body: bytes, content_type: str) -> httpx.Response:
+    """Must be non-blocking: while MediaMTX handles this request it calls back into THIS server's
+    /mediamtx-auth hook, so a synchronous client here would deadlock the event loop until timeout."""
+    try:
+        async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
+            return await client.request(method, upstream_url, content=body, headers={"Content-Type": content_type})
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"MediaMTX unreachable: {e}")
+
+
+async def _proxy_sdp_offer(kind: str, camera_id: str, request: Request) -> Response:
+    """POST an SDP offer to MediaMTX's /{camera}/whip|whep and return the answer.
+    The MediaMTX session Location is rewritten to this proxy so DELETE/PATCH keep working."""
+    body = await request.body()
+    query = request.url.query
+    upstream = f"{_mediamtx_base()}/{camera_id}/{kind}" + (f"?{query}" if query else "")
+    up = await _forward_sdp("POST", upstream, body, request.headers.get("content-type", "application/sdp"))
+    if up.status_code >= 400:
+        detail = up.text[:300] or f"MediaMTX returned {up.status_code}"
+        if up.status_code == 404 and kind == "whep":
+            detail = "No publisher is streaming to this camera yet."
+        raise HTTPException(status_code=up.status_code, detail=detail)
+
+    headers = {}
+    loc = up.headers.get("location") or up.headers.get("Location")
+    if loc:
+        session_id = loc.rstrip("/").split("/")[-1]
+        headers["Location"] = f"{_public_base(request)}/api/v1/stream/{kind}/{camera_id}/{session_id}"
+    for h in ("etag", "accept-patch"):
+        if h in up.headers:
+            headers[h.title()] = up.headers[h]
+    return Response(content=up.content, status_code=up.status_code, media_type="application/sdp", headers=headers)
+
+
+async def _proxy_sdp_session(kind: str, camera_id: str, session_id: str, request: Request) -> Response:
+    body = await request.body()
+    upstream = f"{_mediamtx_base()}/{camera_id}/{kind}/{session_id}"
+    up = await _forward_sdp(request.method, upstream, body, request.headers.get("content-type", "application/trickle-ice-sdpfrag"))
+    return Response(content=up.content, status_code=up.status_code, media_type=up.headers.get("content-type", "text/plain"))
+
+
+@router.post("/whip/{camera_id}")
+async def whip_offer(camera_id: str, request: Request):
+    """Publish: the camera device posts its SDP offer here (token + stream_key in the query)."""
+    return await _proxy_sdp_offer("whip", camera_id, request)
+
+
+@router.api_route("/whip/{camera_id}/{session_id}", methods=["PATCH", "DELETE"])
+async def whip_session(camera_id: str, session_id: str, request: Request):
+    return await _proxy_sdp_session("whip", camera_id, session_id, request)
+
+
+@router.post("/whep/{camera_id}")
+async def whep_offer(camera_id: str, request: Request):
+    """Play: the dashboard posts its SDP offer here and receives the answer."""
+    return await _proxy_sdp_offer("whep", camera_id, request)
+
+
+@router.api_route("/whep/{camera_id}/{session_id}", methods=["PATCH", "DELETE"])
+async def whep_session(camera_id: str, session_id: str, request: Request):
+    return await _proxy_sdp_session("whep", camera_id, session_id, request)
 
 # ---------------------------------------------------------------------------
 # MediaMTX Auth hook + control
@@ -234,11 +385,13 @@ async def mediamtx_auth(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/mediamtx-status")
 def mediamtx_status():
+    """MediaMTX's own API port is disabled in our config, so probe the WebRTC signalling port instead."""
+    import socket
     try:
-        urllib.request.urlopen("http://localhost:9997/v3/config/global/get", timeout=2)
-        return {"running": True}
-    except Exception:
-        return {"running": False}
+        with socket.create_connection(("127.0.0.1", 8889), timeout=1.5):
+            return {"running": True, "webrtc_port": 8889}
+    except OSError:
+        return {"running": False, "webrtc_port": 8889}
 
 
 @router.post("/mediamtx-start")

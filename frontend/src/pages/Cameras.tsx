@@ -190,6 +190,11 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
   const [pairCode, setPairCode] = useState<string | null>(null)
   const [pairLoading, setPairLoading] = useState(false)
   const [pairSecondsLeft, setPairSecondsLeft] = useState(0)
+  const [pairAppUrl, setPairAppUrl] = useState<string>(`${window.location.protocol}//${window.location.hostname}:8000/camera-app`)
+  const [pairHttps, setPairHttps] = useState<boolean>(false)
+  const [pairChunkSec, setPairChunkSec] = useState<number>(30)
+  const [pairAutoImport, setPairAutoImport] = useState<boolean>(true)
+  const [pairFps, setPairFps] = useState<number>(4)
   const pairCountdownRef = useRef<any>(null)
 
   const generatePairCode = async (cam: Camera) => {
@@ -201,11 +206,13 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
       const res = await fetch(`${API_BASE}/api/v1/stream/pair/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ camera_id: cam.camera_id })
+        body: JSON.stringify({ camera_id: cam.camera_id, config: { max_chunk_duration_sec: pairChunkSec, auto_import_chunks: pairAutoImport, target_fps: pairFps, live_detector: 'vehicle', live_alert_rules: false } })
       })
       if (!res.ok) throw new Error('Failed to generate pair code')
       const data = await res.json()
       setPairCode(data.code)
+      if (data.camera_app_url) setPairAppUrl(data.camera_app_url)
+      setPairHttps(!!data.https_available)
       const expiresAt = new Date(data.expires_at)
       const calcSecs = () => Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
       setPairSecondsLeft(calcSecs())
@@ -468,13 +475,6 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t('cameras.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            to="/live-connect"
-            className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded text-xs font-semibold transition-colors"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>{t('nav.live')}</span>
-          </Link>
           <button
             onClick={onOpenRegisterModal}
             className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors"
@@ -1239,6 +1239,30 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                   <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
                     Open the Edge Camera app on the device, enter the backend URL and this 6-digit code.
                   </p>
+                  <div className="w-full grid grid-cols-3 gap-2">
+                    <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Chunk length
+                      <select value={pairChunkSec} onChange={e => setPairChunkSec(parseInt(e.target.value, 10))} className={inputCls}>
+                        {[15, 30, 60, 120].map(v => <option key={v} value={v}>{v} s</option>)}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Live FPS
+                      <select value={pairFps} onChange={e => setPairFps(parseInt(e.target.value, 10))} className={inputCls}>
+                        {[2, 4, 8].map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Archive chunks
+                      <span className="flex items-center gap-1.5 h-[34px] text-xs normal-case font-medium text-slate-700 dark:text-slate-200">
+                        <input type="checkbox" checked={pairAutoImport} onChange={e => setPairAutoImport(e.target.checked)} className="accent-sky-500" />
+                        full pipeline
+                      </span>
+                    </label>
+                  </div>
+                  <button onClick={() => generatePairCode(pairCamera)} className="w-full py-2 text-xs font-semibold rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    Apply settings &amp; regenerate code
+                  </button>
                   <div className="bg-slate-900 dark:bg-slate-950 rounded-xl px-8 py-5 text-center w-full">
                     <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Pair Code</div>
                     <div className="text-4xl font-black font-mono tracking-[0.35em] text-sky-400">{pairCode}</div>
@@ -1250,14 +1274,18 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Edge Camera App URL</div>
                     <div className="flex gap-2 items-center">
                       <code className="flex-1 text-xs bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-3 py-2 text-sky-600 dark:text-sky-400 truncate">
-                        {`${window.location.protocol}//${window.location.hostname}:8000/camera-app`}
+                        {pairAppUrl}
                       </code>
                       <button
-                        onClick={() => { navigator.clipboard.writeText(`${window.location.protocol}//${window.location.hostname}:8000/camera-app`); toast.success('Copied', 'Camera app URL copied') }}
+                        onClick={() => { navigator.clipboard.writeText(pairAppUrl); toast.success('Copied', 'Camera app URL copied') }}
                         className="px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-xs text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap"
                       >Copy</button>
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1.5">Share this URL + the pair code with the camera device operator.</p>
+                    <p className="text-[10px] text-slate-400 mt-1.5">
+                      {pairHttps
+                        ? 'Open this HTTPS link on the phone and accept the certificate warning once; then enter the pair code.'
+                        : 'Phones need HTTPS for camera access: start the backend with python serve.py so this becomes an https:// link.'}
+                    </p>
                   </div>
                   {pairSecondsLeft <= 0 && (
                     <button onClick={() => generatePairCode(pairCamera)} className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white text-sm font-bold rounded-lg transition-colors">

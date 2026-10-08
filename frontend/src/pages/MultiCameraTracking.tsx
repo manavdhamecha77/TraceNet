@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Navigation, Radar, Play, RefreshCw } from 'lucide-react'
 import { JourneyMapScrubber, type JourneyStep } from '../components/JourneyMapScrubber'
-import { SentinelWaveHUD, type SentinelSession } from '../components/SentinelWaveHUD'
+import { PursuitWaveHUD, type PursuitSession } from '../components/PursuitWaveHUD'
+import { LumpiBenchmarkPanel } from '../components/LumpiBenchmarkPanel'
+import { LumpiReplayPanel } from '../components/LumpiReplayPanel'
 
 import { useToast } from '../components/Toast'
 
@@ -13,7 +15,15 @@ declare global {
 
 export const MultiCameraTracking: React.FC = () => {
   const toast = useToast()
-  const [activeTab, setActiveTab] = useState<'journey' | 'sentinel'>('journey')
+  // Deep-linkable tab for demos: /multicam?tab=replay | pursuit | benchmark
+  const initialTab = (() => {
+    try {
+      const t = new URLSearchParams(window.location.search).get('tab')
+      return t === 'pursuit' || t === 'replay' || t === 'benchmark' ? t : 'journey'
+    } catch { return 'journey' }
+  })() as 'journey' | 'pursuit' | 'replay' | 'benchmark'
+  const [activeTab, setActiveTab] = useState<'journey' | 'pursuit' | 'replay' | 'benchmark'>(initialTab)
+  const isOverlayTab = activeTab === 'replay' || activeTab === 'benchmark'
   const [speedMode, setSpeedMode] = useState<'pedestrian' | 'vehicle'>('pedestrian')
   const [trackletIdInput, setTrackletIdInput] = useState<string>('')
   const [selectedOriginCam, setSelectedOriginCam] = useState<string>('')
@@ -26,8 +36,8 @@ export const MultiCameraTracking: React.FC = () => {
   const [totalDuration, setTotalDuration] = useState<number>(0)
   const [activeStepNo, setActiveStepNo] = useState<number>(1)
 
-  // Sentinel Pursuit State
-  const [activeSentinelSession, setActiveSentinelSession] = useState<SentinelSession | null>(null)
+  // Pursuit State
+  const [activePursuitSession, setActivePursuitSession] = useState<PursuitSession | null>(null)
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -37,7 +47,7 @@ export const MultiCameraTracking: React.FC = () => {
   // 1. Fetch available cameras on mount
   useEffect(() => {
     fetchCameras()
-    fetchActiveSentinelSessions()
+    fetchActivePursuitSessions()
   }, [])
 
   const fetchCameras = async () => {
@@ -55,16 +65,16 @@ export const MultiCameraTracking: React.FC = () => {
     }
   }
 
-  const fetchActiveSentinelSessions = async () => {
+  const fetchActivePursuitSessions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/v1/multicam/sentinel/sessions`)
+      const res = await fetch(`${API_BASE}/api/v1/multicam/pursuit/sessions`)
       if (res.ok) {
         const data = await res.json()
         const active = data.find((s: any) => s.status === 'active')
-        if (active) setActiveSentinelSession(active)
+        if (active) setActivePursuitSession(active)
       }
     } catch (e) {
-      console.error('Failed to fetch sentinel sessions:', e)
+      console.error('Failed to fetch pursuit sessions:', e)
     }
   }
 
@@ -101,9 +111,8 @@ export const MultiCameraTracking: React.FC = () => {
         zoomControl: true
       })
 
-      window.L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        subdomains: 'abcd',
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19
       }).addTo(map)
 
@@ -111,7 +120,7 @@ export const MultiCameraTracking: React.FC = () => {
     }
 
     renderMapMarkersAndPath()
-  }, [cameras, journeySteps, activeSentinelSession, leafletReady])
+  }, [cameras, journeySteps, activePursuitSession, leafletReady])
 
   // 3. Render Map Markers and Trajectory Polyline
   const renderMapMarkersAndPath = () => {
@@ -137,7 +146,7 @@ export const MultiCameraTracking: React.FC = () => {
 
         // Check if camera is part of journey steps
         const stepMatch = journeySteps.find((s) => s.camera_id === cam.camera_id)
-        const isSentinelWatch = activeSentinelSession?.downstream_nodes?.some(
+        const isPursuitWatch = activePursuitSession?.downstream_nodes?.some(
           (n) => n.camera_id === cam.camera_id
         )
 
@@ -145,8 +154,8 @@ export const MultiCameraTracking: React.FC = () => {
 
         if (stepMatch) {
           pinColor = '#10B981' // green for journey hop
-        } else if (isSentinelWatch) {
-          pinColor = '#F59E0B' // amber for sentinel watch
+        } else if (isPursuitWatch) {
+          pinColor = '#F59E0B' // amber for pursuit watch
         }
 
         const iconHtml = `
@@ -231,12 +240,12 @@ export const MultiCameraTracking: React.FC = () => {
     }
   }
 
-  // 5. Trigger Sentinel Pursuit Activation API
-  const handleActivateSentinel = async () => {
+  // 5. Trigger Pursuit Activation API
+  const handleActivatePursuit = async () => {
     if (!selectedOriginCam) return
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/v1/multicam/sentinel/activate`, {
+      const res = await fetch(`${API_BASE}/api/v1/multicam/pursuit/activate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,7 +257,7 @@ export const MultiCameraTracking: React.FC = () => {
 
       if (res.ok) {
         const data = await res.json()
-        setActiveSentinelSession({
+        setActivePursuitSession({
           id: data.session_id,
           origin_camera_id: data.origin_camera.camera_id,
           speed_mode: data.speed_mode,
@@ -256,26 +265,26 @@ export const MultiCameraTracking: React.FC = () => {
           status: 'active',
           created_at: new Date().toISOString()
         })
-        toast.success('Sentinel Pursuit Active', `Monitoring ${data.downstream_nodes?.length || 0} downstream camera nodes.`)
+        toast.success('Pursuit Active', `Monitoring ${data.downstream_nodes?.length || 0} downstream camera nodes.`)
       } else {
         const err = await res.json()
-        toast.error('Sentinel Activation Failed', err.detail || 'Sentinel pursuit activation failed.')
+        toast.error('Pursuit Activation Failed', err.detail || 'pursuit activation failed.')
       }
     } catch (e) {
       console.error(e)
-      toast.error('Network Error', 'Error activating sentinel pursuit.')
+      toast.error('Network Error', 'Error activating pursuit.')
     } finally {
       setLoading(false)
     }
   }
 
-  // 6. Terminate Sentinel Session API
-  const handleTerminateSentinel = async (sessionId: string) => {
+  // 6. Terminate Pursuit Session API
+  const handleTerminatePursuit = async (sessionId: string) => {
     try {
-      await fetch(`${API_BASE}/api/v1/multicam/sentinel/sessions/${sessionId}`, {
+      await fetch(`${API_BASE}/api/v1/multicam/pursuit/sessions/${sessionId}`, {
         method: 'DELETE'
       })
-      setActiveSentinelSession(null)
+      setActivePursuitSession(null)
     } catch (e) {
       console.error(e)
     }
@@ -350,15 +359,43 @@ export const MultiCameraTracking: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('sentinel')}
+              onClick={() => setActiveTab('pursuit')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
-                activeTab === 'sentinel'
+                activeTab === 'pursuit'
                   ? 'bg-white text-teal-800 font-semibold shadow-sm dark:bg-teal-700 dark:text-white'
                   : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
-              <Radar className="w-3.5 h-3.5" />
-              Sentinel Pursuit Wave
+              <Radar className="w-3.5 h-3.5 text-sky-400" />
+              Pursuit Wave
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('replay')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+                activeTab === 'replay'
+                  ? 'bg-white text-teal-800 font-semibold shadow-sm dark:bg-teal-700 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+              }`}
+              title="Live detector + ByteTrack on three synchronized LUMPI cameras, fused on a calibrated ground plane"
+            >
+              <Play className="w-3.5 h-3.5 text-emerald-400 fill-current" />
+              Fusion Replay
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('benchmark')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+                activeTab === 'benchmark'
+                  ? 'bg-white text-teal-800 font-semibold shadow-sm dark:bg-teal-700 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
+              }`}
+              title="Score cross-camera linking against the LUMPI benchmark ground truth"
+            >
+              <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" /><rect x="12" y="8" width="3" height="10" /><rect x="17" y="5" width="3" height="13" />
+              </svg>
+              LUMPI Benchmark
             </button>
           </div>
         </div>
@@ -385,6 +422,16 @@ export const MultiCameraTracking: React.FC = () => {
               Reconstruct Trajectory
             </button>
           </div>
+        ) : activeTab === 'replay' ? (
+          <div className="flex items-center gap-2 text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Real detector output on real multi-camera footage. Click any object to follow it across all three views and the ground-plane map.
+          </div>
+        ) : activeTab === 'benchmark' ? (
+          <div className="flex items-center gap-2 text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            Offline evaluation against LUMPI ground truth. Configure weights below and run; nothing here touches operational cameras or alerts.
+          </div>
         ) : (
           <div className="flex items-center gap-3 w-full max-w-2xl">
             <select
@@ -407,12 +454,12 @@ export const MultiCameraTracking: React.FC = () => {
             />
             <button
               type="button"
-              onClick={handleActivateSentinel}
+              onClick={handleActivatePursuit}
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2 rounded bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white font-semibold transition-colors disabled:opacity-50 shrink-0"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4" />}
-              Activate Sentinel Wave
+              Activate Pursuit Wave
             </button>
           </div>
         )}
@@ -426,15 +473,29 @@ export const MultiCameraTracking: React.FC = () => {
           style={{ isolation: 'isolate' }}
         />
 
-        {/* Floating Sentinel Pursuit HUD Overlay */}
-        <SentinelWaveHUD
-          activeSession={activeSentinelSession}
-          onTerminateSession={handleTerminateSentinel}
-        />
+        {/* Floating Pursuit HUD Overlay */}
+        {!isOverlayTab && (
+          <PursuitWaveHUD
+            activeSession={activePursuitSession}
+            onTerminateSession={handleTerminatePursuit}
+          />
+        )}
+
+        {/* LUMPI panels overlay the (still mounted) map so Leaflet keeps its instance */}
+        {activeTab === 'replay' && (
+          <div className="absolute inset-0 z-10">
+            <LumpiReplayPanel />
+          </div>
+        )}
+        {activeTab === 'benchmark' && (
+          <div className="absolute inset-0 z-10">
+            <LumpiBenchmarkPanel />
+          </div>
+        )}
       </div>
 
       {/* Bottom Trajectory Timeline Scrubber */}
-      {journeySteps.length > 0 && (
+      {!isOverlayTab && journeySteps.length > 0 && (
         <JourneyMapScrubber
           steps={journeySteps}
           activeStep={activeStepNo}

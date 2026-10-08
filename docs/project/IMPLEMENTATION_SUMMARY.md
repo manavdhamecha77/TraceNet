@@ -42,7 +42,7 @@ This document provides a comprehensive summary of all implemented features and c
 
 ### 5. Advanced Features
 - ✅ Multi-camera intelligence (Re-ID, trajectory tracking)
-- ✅ Sentinel Wave Pursuit (threat tracking across cameras)
+- ✅ Pursuit Wave (threat tracking across cameras)
 - ✅ Re-ID Journey Map (person tracking visualization)
 - ✅ Chain Snatching detection
 - ✅ Abandoned object detection
@@ -134,8 +134,8 @@ This document provides a comprehensive summary of all implemented features and c
 
 ### Multi-Camera Intelligence (5 endpoints)
 - ✅ GET `/api/v1/multicam/reid/journey/{tracklet_id}` - Re-ID journey
-- ✅ POST `/api/v1/multicam/sentinel/pursue` - Sentinel pursuit
-- ✅ GET `/api/v1/multicam/sentinel/status/{session_id}` - Pursuit status
+- ✅ POST `/api/v1/multicam/pursuit/pursue` - pursuit
+- ✅ GET `/api/v1/multicam/pursuit/status/{session_id}` - Pursuit status
 - ✅ GET `/api/v1/multicam/hotlist` - Hot targets list
 - ✅ POST `/api/v1/multicam/hotlist/track` - Track target
 
@@ -167,7 +167,7 @@ This document provides a comprehensive summary of all implemented features and c
 ### Advanced Models
 - ✅ LoiteringZone (region of interest)
 - ✅ ChatSession (AI assistant chats)
-- ✅ SentinelSession (threat tracking)
+- ✅ PursuitSession (threat tracking)
 - ✅ HotTarget (wanted person/vehicle list)
 
 **Total Database Tables: 14**

@@ -16,6 +16,8 @@ class StreamManager:
     # and restarted (e.g. from the camera-app), existing connected browser clients
     # don't lose their telemetry connection.
     _ws_clients: dict = {}
+    # websocket -> the asyncio loop it was accepted on (HTTP and HTTPS listeners run separate loops)
+    _ws_loops: dict = {}
 
     # The uvicorn event loop, captured the first time a WS client connects.
     # We must use this specific loop for asyncio.run_coroutine_threadsafe calls
@@ -142,6 +144,16 @@ class StreamManager:
             cam.is_streaming = False
         db.commit()
         
+    @staticmethod
+    def _chunks_recorded(session_id, db) -> int:
+        if db is None:
+            return 0
+        try:
+            session = db.query(LiveStreamSession).filter(LiveStreamSession.id == session_id).first()
+            return int(session.chunks_recorded or 0) if session else 0
+        except Exception:
+            return 0
+
     def get_status(self, camera_id, db=None):
         if camera_id in self._active_streams:
             worker = self._active_streams[camera_id]["worker_thread"]
@@ -161,7 +173,9 @@ class StreamManager:
                 "started_at": started_at,
                 "fps": round(worker.fps, 1),
                 "inference_ms": round(worker.inference_ms, 1),
-                "frame_count": worker.frame_count
+                "frame_count": worker.frame_count,
+                "chunks_recorded": self._chunks_recorded(self._active_streams[camera_id]["session_id"], db),
+                "live_scope": self._active_streams[camera_id]["config"].live_detector,
             }
         return {"status": "stopped", "is_streaming": False}
 
@@ -172,6 +186,12 @@ class StreamManager:
         stream stop/restart events.
         """
         self._capture_loop()
+        # Remember the loop this socket lives on: the backend may serve HTTP and HTTPS listeners
+        # from two event loops in one process (serve.py), and a send must run on the socket's own loop.
+        try:
+            self.__class__._ws_loops[websocket] = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
         if camera_id not in self.__class__._ws_clients:
             self.__class__._ws_clients[camera_id] = set()
         self.__class__._ws_clients[camera_id].add(websocket)
@@ -181,29 +201,40 @@ class StreamManager:
         if camera_id in self.__class__._ws_clients:
             self.__class__._ws_clients[camera_id].discard(websocket)
             logger.info(f"[WS] Unregistered client for camera '{camera_id}'")
+        self.__class__._ws_loops.pop(websocket, None)
                 
     def broadcast_to_clients(self, camera_id: str, message_dict: dict):
-        """Called from the background inference thread. Uses the stored uvicorn
-        event loop to broadcast telemetry data to all active WebSocket subscribers."""
+        """Called from the background inference thread. Sends telemetry to every WebSocket
+        subscriber, each from the event loop its socket was accepted on (the backend may run an
+        HTTP and an HTTPS listener with separate loops in one process, see serve.py)."""
         if camera_id not in self._active_streams:
             return
 
         clients = self.__class__._ws_clients.get(camera_id, set()).copy()
         if not clients:
             return
-            
-        loop = self.__class__._event_loop
-        if loop is None or not loop.is_running():
-            return
 
-        async def _send():
-            dead_clients = set()
-            for client in clients:
-                try:
-                    await client.send_json(message_dict)
-                except Exception:
-                    dead_clients.add(client)
-            if dead_clients and camera_id in self.__class__._ws_clients:
-                self.__class__._ws_clients[camera_id] -= dead_clients
+        fallback_loop = self.__class__._event_loop
+        by_loop: dict = {}
+        for client in clients:
+            loop = self.__class__._ws_loops.get(client) or fallback_loop
+            if loop is None or not loop.is_running():
+                continue
+            by_loop.setdefault(loop, set()).add(client)
 
-        asyncio.run_coroutine_threadsafe(_send(), loop)
+        def _make_sender(batch: set):
+            async def _send():
+                dead_clients = set()
+                for client in batch:
+                    try:
+                        await client.send_json(message_dict)
+                    except Exception:
+                        dead_clients.add(client)
+                if dead_clients and camera_id in self.__class__._ws_clients:
+                    self.__class__._ws_clients[camera_id] -= dead_clients
+                    for d in dead_clients:
+                        self.__class__._ws_loops.pop(d, None)
+            return _send
+
+        for loop, batch in by_loop.items():
+            asyncio.run_coroutine_threadsafe(_make_sender(batch)(), loop)

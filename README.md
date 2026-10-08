@@ -25,7 +25,7 @@ The diagram below shows the 7 functional subsystems that form the TraceNet proce
 | 03 | **Identity & Semantic Intelligence** | CLIP visual embeddings · BLIP auto-captioning · LLM scene reasoning · Cross-camera Re-ID |
 | 04 | **Threat & Event Intelligence** | Loitering / dwell-time · Theft / chain-snatching · Assault/fight · Abandoned objects · Suspect reappearance |
 | 05 | **Search & Forensics** | NL query search · Visual / missing-person reverse photo search · Evidence export with integrity manifest |
-| 06 | **Command & Multi-Camera Intelligence** | Security command centre · GIS pursuit map · Sentinel Wave predictive camera handoff · Real-time alerts |
+| 06 | **Command & Multi-Camera Intelligence** | Security command centre · GIS pursuit map · Pursuit Wave predictive camera handoff · Real-time alerts |
 | 07 | **Security, Privacy & Evidence Integrity** | Secure communication · Immutable audit logs · Chain-of-custody SHA-256 verification |
 
 ---
@@ -34,7 +34,7 @@ The diagram below shows the 7 functional subsystems that form the TraceNet proce
 
 ### 🔵 Ingestion & Preprocessing
 - **Batch video upload** — supports `.mp4`, `.avi`, `.mov`
-- **Live WebRTC streaming** — WHIP/WHEP via MediaMTX; browser or mobile device broadcaster at `/live-connect`
+- **Live WebRTC streaming** — WHIP/WHEP via MediaMTX, proxied through the backend; phones/edge cameras broadcast from the backend-served edge camera app at `https://<LAN-IP>:8443/camera-app` (see `docs/live-streaming.md`)
 - **FFmpeg transcoding** — standardises all inputs to 720p / 10 FPS H.264
 - **OpenCV 4-FPS timeline-proportional frame sampling** — zero disk-write overhead
 - **SHA-256 forensic intake hash** on every uploaded asset for chain-of-custody
@@ -71,13 +71,13 @@ The diagram below shows the 7 functional subsystems that form the TraceNet proce
 ### 🔴 Pursuit & Multi-Camera Intelligence (`/targets`)
 - **Hot Targets registry** — label, priority (NORMAL / HIGH / CRITICAL), status (active / resolved), reappearance tracking
 - **Journey Map** — interactive Leaflet multi-camera trajectory scrubber with timeline step navigation
-- **Sentinel Wave Pursuit HUD** — floating predictive downstream-camera handoff panel; monitors adjacent nodes in real-time
+- **Pursuit Wave HUD** — floating predictive downstream-camera handoff panel; monitors adjacent nodes in real-time
 - **Cross-camera Re-ID** — CLIP embedding similarity through spatial graph DAG trajectory engine
 - **Tag from search or video detail** — one-click pursuit target assignment anywhere in the platform
 
 ### 🟣 Live Streaming
 - **LiveCameraView** (`/cameras/:id/live`) — real-time WHEP player with canvas annotation overlay, pair-code QR system, skeleton pose keypoints, telemetry sparklines (FPS, inference ms, latency), chunk pipeline logs
-- **Live Broadcaster Console** (`/live-connect`) — browser WebRTC WHIP broadcaster with configurable inference FPS, chunk duration, and auto-import to indexing pipeline
+- **Edge Camera App** (`/camera-app`, served by the backend over HTTPS) — pair a phone with a 6-digit code; live loop runs the vehicle/pedestrian detector only, every recorded chunk is checked into the camera's archive and run through the full indexing pipeline
 
 ### 🔵 Forensic Reports (`/api/v1/reports`)
 - **Automated PDF crime report generation** — per-alert incident reports with severity classification, evidence frame attachments, chain-of-custody tagging, assigned operator fields
@@ -158,7 +158,7 @@ TraceNet/
 │   │   │   ├── streaming.py         # WebRTC WHIP/WHEP live streaming
 │   │   │   ├── reports.py           # PDF crime report generation
 │   │   │   ├── audit.py             # Search + alert audit trail
-│   │   │   ├── multicam.py          # Multi-camera trajectory + Sentinel Wave
+│   │   │   ├── multicam.py          # Multi-camera trajectory + Pursuit Wave
 │   │   │   ├── assistant.py         # AI Copilot (Ollama / Cloud LLM + MCP)
 │   │   │   ├── models.py            # YOLO model registry
 │   │   │   ├── detections.py        # Tracklet inspection endpoints
@@ -171,7 +171,7 @@ TraceNet/
 │   │   ├── analytics/
 │   │   │   ├── camera_graph.py      # Spatial adjacency graph
 │   │   │   ├── trajectory_engine.py # DAG-based cross-camera trajectory
-│   │   │   ├── sentinel_wave.py     # Predictive pursuit manager
+│   │   │   ├── pursuit_wave.py     # Predictive pursuit manager
 │   │   │   └── hot_target.py        # Hot target manager
 │   │   ├── embeddings/
 │   │   │   ├── clip_encoder.py      # CLIP visual embedding extractor
@@ -257,7 +257,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Start the API server
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Development (hot reload, HTTP :8000) - always uses the project venv, even if a global uvicorn is on PATH
+.\dev.ps1          # or: dev.bat
+
+# Demo / phones (HTTP :8000 + HTTPS :8443 with a self-signed LAN certificate, no reload)
+.\serve.ps1        # or: ..\.venv\Scripts\python.exe serve.py
+
+# NOTE: a bare `uvicorn app.main:app` may resolve to a global Python without the project packages
+# (symptom: ModuleNotFoundError: No module named 'supervision'). Use the launchers above.
 ```
 
 ### WebRTC Server Setup (For real-time stream)
@@ -317,14 +324,14 @@ Upload → FFmpeg transcode (720p/10FPS) → OpenCV frame sampling (4FPS)
 Results show: thumbnail crop, CLIP similarity score, camera + timestamp, BLIP caption, and a "Why this matched" explainability panel.
 
 ### 4. Tag a Suspect for Pursuit
-On any search result → **Tag as Hot Target** → assign label and priority → the suspect is registered in the Pursuit registry and monitored via **Sentinel Wave** across adjacent camera nodes.
+On any search result → **Tag as Hot Target** → assign label and priority → the suspect is registered in the Pursuit registry and monitored via **Pursuit Wave** across adjacent camera nodes.
 
 ### 5. Review Alerts
 `/alerts` → review loitering, theft, and assault alerts → click any alert to view evidence frames, tracklet timeline → acknowledge with operator stamp.
 
 ### 6. Live Monitoring
 - **Watch Live** — `/cameras/:id/live` — real-time WebRTC stream with bounding-box overlays and performance telemetry.
-- **Broadcast from Browser** — `/live-connect` — broadcast from this device's camera into the inference pipeline via WebRTC WHIP.
+- **Broadcast from a phone** — `https://<LAN-IP>:8443/camera-app` — pair with the code from Cameras → Pair device; start the backend with `python serve.py` for the HTTPS listener (`docs/live-streaming.md`).
 
 ---
 

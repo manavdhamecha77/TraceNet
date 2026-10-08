@@ -70,10 +70,10 @@ def optimize_database():
             ("idx_models_category", "models", "category"),
             ("idx_models_is_default", "models", "is_default"),
 
-            # Sentinel Sessions - frequently filtered by status, origin_camera_id
-            ("idx_sentinel_sessions_status", "sentinel_sessions", "status"),
-            ("idx_sentinel_sessions_origin_camera", "sentinel_sessions", "origin_camera_id"),
-            ("idx_sentinel_sessions_created_at", "sentinel_sessions", "created_at"),
+            # Pursuit Sessions - frequently filtered by status, origin_camera_id
+            ("idx_pursuit_sessions_status", "pursuit_sessions", "status"),
+            ("idx_pursuit_sessions_origin_camera", "pursuit_sessions", "origin_camera_id"),
+            ("idx_pursuit_sessions_created_at", "pursuit_sessions", "created_at"),
 
             # Hot Targets - frequently filtered by status, priority, object_type
             ("idx_hot_targets_status", "hot_targets", "status"),
