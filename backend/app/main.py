@@ -24,6 +24,7 @@ from app.api.system_jobs import router as system_jobs_router
 from app.api.streaming import router as streaming_router
 from app.api.plate_detection import router as plate_detection_router
 from app.api.face_detection import router as face_detection_router
+from app.api.accident_detection import router as accident_detection_router
 from app.config import get_settings, get_data_path
 from app.db.models import Area, Base
 from app.db.session import SessionLocal, engine
@@ -36,7 +37,9 @@ os.makedirs(get_data_path("minio_mock"), exist_ok=True)
 os.makedirs(get_data_path("cameras"), exist_ok=True)
 os.makedirs(get_data_path("processed/detections"), exist_ok=True)
 os.makedirs(get_data_path("processed/faces"), exist_ok=True)
+os.makedirs(get_data_path("processed/accidents"), exist_ok=True)
 os.makedirs(get_data_path("models"), exist_ok=True)
+os.makedirs(get_data_path("models/accident_detection"), exist_ok=True)
 os.makedirs(get_data_path("audit_logs"), exist_ok=True)
 os.makedirs(get_data_path("streams"), exist_ok=True)
 # Run schema migrations for SQLite dynamically to prevent OperationalError
@@ -601,6 +604,7 @@ app.include_router(audit_router, prefix=settings.api_prefix, tags=["Audit"])
 app.include_router(assault_detection_router, prefix=settings.api_prefix, tags=["Assault Detection"])
 app.include_router(plate_detection_router, prefix=settings.api_prefix, tags=["ANPR"])
 app.include_router(face_detection_router, prefix=settings.api_prefix, tags=["Face Detection"])
+app.include_router(accident_detection_router, prefix=settings.api_prefix, tags=["Accident Detection"])
 app.include_router(processing_router, prefix=settings.api_prefix, tags=["Video Processing"])
 app.include_router(webhooks_router, prefix=settings.api_prefix, tags=["Webhooks"])
 app.include_router(frame_inspection_router, prefix=settings.api_prefix, tags=["Frame Inspection"])

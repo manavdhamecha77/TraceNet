@@ -5,11 +5,13 @@ import {
   RefreshCw, Settings2, Loader2, ToggleLeft, ToggleRight,
   Radio, SlidersHorizontal, UserCheck, UserX, Minus,
   Database, Save, ExternalLink, Info, ShieldAlert,
-  Trash2, RotateCcw, Target
+  Trash2, RotateCcw, Target, Siren, Car, PhoneCall,
+  Activity, X
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { AlertEntry, AnalysisLogEntry, Camera } from '../types/alerts'
 import { formatDisplayDate } from '../utils/dateFormatter'
+import { useToast } from '../components/Toast'
 
 import { API_BASE } from '../config/api'
 
@@ -548,7 +550,335 @@ function DetectedObjectCard({
   )
 }
 
-import { useToast } from '../components/Toast'
+function CrashReconstructionModal({
+  alert,
+  onClose,
+  onDispatch,
+}: {
+  alert: AlertEntry
+  onClose: () => void
+  onDispatch: (alertId: number) => void
+}) {
+  let logData: any = {}
+  try {
+    logData = alert.analysis_log ? JSON.parse(alert.analysis_log) : {}
+  } catch (_) {}
+
+  const severity = logData.severity || 'CRITICAL'
+  const confidence = logData.confidence ? Math.round(logData.confidence * 100) : 85
+  const vehiclesCount = logData.vehicles_involved || 2
+  const timestampSec = logData.collision_timestamp_seconds ?? 0
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Modal Header */}
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/60">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+              <Siren className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                  Collision Forensic Reconstruction
+                </h3>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  severity === 'CRITICAL'
+                    ? 'bg-rose-600 text-white'
+                    : severity === 'HIGH'
+                    ? 'bg-amber-500 text-black'
+                    : 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border border-yellow-500/30'
+                }`}>
+                  {severity} IMPACT
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                Camera: {alert.camera_id} · Impact Time: {timestampSec.toFixed(1)}s · Confidence: {confidence}%
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Modal Body: 3-Stage Progression */}
+        <div className="p-5 overflow-y-auto space-y-5">
+          <div>
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              3-Stage Collision Progression
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Pre-Crash */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2.5 flex flex-col">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 px-0.5">
+                  <span>1. Pre-Impact</span>
+                  <span className="text-[10px] font-mono text-slate-400">T - 1.5s</span>
+                </div>
+                <div className="aspect-video w-full rounded-lg bg-black overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center">
+                  {logData.pre_crash_url ? (
+                    <img src={`${API_BASE}${logData.pre_crash_url}`} alt="Pre-Crash" className="w-full h-full object-cover" />
+                  ) : (
+                    <Car className="w-8 h-8 text-slate-700" />
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 px-0.5">
+                  Approaching vehicle trajectories prior to point of collision.
+                </p>
+              </div>
+
+              {/* Point of Impact */}
+              <div className="rounded-xl border border-rose-500/40 bg-rose-500/[0.04] dark:bg-rose-950/20 p-2.5 flex flex-col shadow-sm ring-1 ring-rose-500/30">
+                <div className="flex items-center justify-between text-[11px] font-bold text-rose-600 dark:text-rose-400 mb-1.5 px-0.5">
+                  <span className="flex items-center gap-1"><Siren className="w-3.5 h-3.5 animate-pulse" /> 2. Impact Instant</span>
+                  <span className="text-[10px] font-mono text-rose-600 dark:text-rose-300 font-bold">T = 0.0s</span>
+                </div>
+                <div className="aspect-video w-full rounded-lg bg-black overflow-hidden border border-rose-500/50 flex items-center justify-center">
+                  {logData.evidence_snapshot_url ? (
+                    <img src={`${API_BASE}${logData.evidence_snapshot_url}`} alt="Point of Impact" className="w-full h-full object-cover" />
+                  ) : (
+                    <AlertTriangle className="w-8 h-8 text-rose-500" />
+                  )}
+                </div>
+                <p className="text-[10px] text-rose-700 dark:text-rose-200 mt-2 px-0.5 font-medium">
+                  Direct collision contact. Peak deformation and deceleration zone.
+                </p>
+              </div>
+
+              {/* Post-Crash */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2.5 flex flex-col">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 px-0.5">
+                  <span>3. Post-Collision Scene</span>
+                  <span className="text-[10px] font-mono text-slate-400">T + 2.5s</span>
+                </div>
+                <div className="aspect-video w-full rounded-lg bg-black overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center">
+                  {logData.post_crash_url ? (
+                    <img src={`${API_BASE}${logData.post_crash_url}`} alt="Post-Crash" className="w-full h-full object-cover" />
+                  ) : (
+                    <Car className="w-8 h-8 text-slate-700" />
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 px-0.5">
+                  Final resting positions and subsequent lane blockage.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Incident Telemetry Details */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-100/60 dark:bg-slate-950/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div>
+              <div className="text-[10px] uppercase font-bold text-slate-500">Involved Vehicles</div>
+              <div className="text-sm font-bold font-mono text-slate-800 dark:text-slate-200 mt-0.5">~{vehiclesCount} Unit(s)</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase font-bold text-slate-500">Peak Confidence</div>
+              <div className="text-sm font-bold font-mono text-rose-600 dark:text-rose-400 mt-0.5">{confidence}%</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase font-bold text-slate-500">Dispatch Status</div>
+              <div className={`text-sm font-bold mt-0.5 ${logData.dispatch_status === 'dispatched' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                {logData.dispatch_status === 'dispatched' ? 'Dispatched' : 'Pending'}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase font-bold text-slate-500">Recorded Timestamp</div>
+              <div className="text-sm font-bold font-mono text-slate-800 dark:text-slate-200 mt-0.5">{formatDisplayDate(alert.timestamp)}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Footer Actions */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between flex-wrap gap-2">
+          {alert.video_id ? (
+            <Link
+              to={`/cameras/${alert.camera_id}/videos/${alert.video_id}?seek=${Math.max(0, timestampSec - 2)}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors"
+            >
+              <Play className="w-3.5 h-3.5 fill-current" />
+              Stream Crash Video ({timestampSec.toFixed(1)}s)
+            </Link>
+          ) : <div />}
+
+          <div className="flex items-center gap-2">
+            {logData.dispatch_status !== 'dispatched' && (
+              <button
+                onClick={() => onDispatch(alert.id)}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-sm transition-colors"
+              >
+                <PhoneCall className="w-3.5 h-3.5" />
+                Dispatch 108/112 EMS & Police
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AccidentAlertCard({
+  alert,
+  onAcknowledge,
+  onOpenReconstruction,
+  onDispatch,
+}: {
+  alert: AlertEntry
+  onAcknowledge: (id: number) => void
+  onOpenReconstruction: (alert: AlertEntry) => void
+  onDispatch: (alertId: number) => void
+}) {
+  let logData: any = {}
+  try {
+    logData = alert.analysis_log ? JSON.parse(alert.analysis_log) : {}
+  } catch (_) {}
+
+  const severity = logData.severity || 'CRITICAL'
+  const confidence = logData.confidence ? Math.round(logData.confidence * 100) : 85
+  const vehiclesCount = logData.vehicles_involved || 2
+  const timestampSec = logData.collision_timestamp_seconds ?? 0
+  const isDispatched = logData.dispatch_status === 'dispatched'
+
+  return (
+    <div className={`rounded-xl border p-4 transition-all duration-200 relative overflow-hidden ${
+      !alert.acknowledged
+        ? 'border-rose-500/50 bg-rose-500/[0.04] dark:border-rose-500/40 dark:bg-rose-950/20 shadow-sm ring-1 ring-rose-500/20'
+        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-xs'
+    }`}>
+      {/* Top emergency pulse stripe if unacknowledged */}
+      {!alert.acknowledged && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-600 animate-pulse" />
+      )}
+
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold ${
+            severity === 'CRITICAL'
+              ? 'bg-rose-600 text-white shadow-xs'
+              : 'bg-amber-500 text-black'
+          }`}>
+            <Siren className="w-3.5 h-3.5 animate-pulse" />
+            TRAFFIC COLLISION [{severity}]
+          </span>
+
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            <Car className="w-3 h-3 text-slate-500" />
+            ~{vehiclesCount} Vehicles Involved
+          </span>
+
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40">
+            {confidence}% Confidence
+          </span>
+
+          {isDispatched && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+              <CheckCheck className="w-3 h-3" />
+              108/112 Dispatched
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <span className="font-semibold text-slate-800 dark:text-slate-200">{alert.camera_id}</span>
+          <span>·</span>
+          <span>{formatDisplayDate(alert.timestamp)}</span>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4 items-start">
+        {/* Evidence thumbnail */}
+        <div className="shrink-0 w-full md:w-56 aspect-video rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-950 relative group">
+          {logData.evidence_snapshot_url ? (
+            <img
+              src={`${API_BASE}${logData.evidence_snapshot_url}`}
+              alt="Crash Snapshot"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
+              <Car className="w-8 h-8 mb-1 text-slate-700" />
+              <span className="text-[10px]">No Snapshot</span>
+            </div>
+          )}
+          <div className="absolute bottom-1.5 left-1.5 bg-black/75 backdrop-blur-xs px-1.5 py-0.5 rounded text-[9px] font-mono text-rose-300 font-bold border border-rose-500/30">
+            Impact: {timestampSec.toFixed(1)}s
+          </div>
+        </div>
+
+        {/* Narrative / Description */}
+        <div className="flex-1 min-w-0 flex flex-col justify-between h-full space-y-3">
+          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+            High-severity collision detected by the YOLO11x accident model on camera <strong className="text-slate-900 dark:text-slate-100">{alert.camera_id}</strong>. Overlapping impact zone confirmed across multiple frames involving approximately {vehiclesCount} vehicle(s). Immediate emergency protocol activation recommended.
+          </p>
+
+          {isDispatched && logData.dispatched_by && (
+            <div className="text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 rounded-md p-2 flex items-center gap-2">
+              <CheckCheck className="w-4 h-4 shrink-0" />
+              <span>Units dispatched by <strong>{logData.dispatched_by}</strong> at {formatDisplayDate(logData.dispatched_at)} ({logData.emergency_units || 'EMS & Police'}).</span>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            <button
+              onClick={() => onOpenReconstruction(alert)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors"
+            >
+              <Activity className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              Reconstruct (3-Stage)
+            </button>
+
+            {alert.video_id && (
+              <Link
+                to={`/cameras/${alert.camera_id}/videos/${alert.video_id}?seek=${Math.max(0, timestampSec - 2)}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors"
+              >
+                <Play className="w-3.5 h-3.5 text-rose-500 fill-current" />
+                Seek ({timestampSec.toFixed(1)}s)
+              </Link>
+            )}
+
+            {!isDispatched && (
+              <button
+                onClick={() => onDispatch(alert.id)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-xs transition-colors"
+              >
+                <PhoneCall className="w-3.5 h-3.5" />
+                Dispatch Units
+              </button>
+            )}
+
+            {!alert.acknowledged ? (
+              <button
+                onClick={() => onAcknowledge(alert.id)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white ml-auto transition-colors"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                Acknowledge
+              </button>
+            ) : (
+              <span className="text-[11px] text-slate-500 ml-auto flex items-center gap-1">
+                <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+                Acknowledged {alert.acknowledged_by ? `by ${alert.acknowledged_by}` : ''}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPageProps) {
   const toast = useToast()
@@ -561,7 +891,8 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
   const [showSettings, setShowSettings] = useState(false)
   const [filterAcknowledged, setFilterAcknowledged] = useState<boolean | undefined>(undefined)
   const [filterCamera, setFilterCamera] = useState('')
-  const [activeTab, setActiveTab] = useState<'alerts' | 'unattended' | 'loitering' | 'all-objects'>('alerts')
+  const [activeTab, setActiveTab] = useState<'all' | 'accident' | 'alerts' | 'loitering' | 'unattended' | 'all-objects'>('all')
+  const [selectedCrashModal, setSelectedCrashModal] = useState<AlertEntry | null>(null)
   const [allObjects, setAllObjects] = useState<DetectedObject[]>([])
   const [objectsLoading, setObjectsLoading] = useState(false)
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null)
@@ -599,10 +930,16 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
       if (filterCamera) params.append('camera_id', filterCamera)
       if (filterAcknowledged !== undefined) params.append('acknowledged', String(filterAcknowledged))
       
-      if (activeTab !== 'all-objects') {
-        const typeParam = activeTab === 'unattended' ? 'unattended_object' : activeTab === 'loitering' ? 'loitering' : 'abandoned_object'
-        params.append('alert_type', typeParam)
+      if (activeTab === 'accident') {
+        params.append('alert_type', 'accident')
+      } else if (activeTab === 'alerts') {
+        params.append('alert_type', 'abandoned_object')
+      } else if (activeTab === 'loitering') {
+        params.append('alert_type', 'loitering')
+      } else if (activeTab === 'unattended') {
+        params.append('alert_type', 'unattended_object')
       }
+      // When activeTab === 'all', omit alert_type parameter to query all incident types
 
       const [aRes, sRes] = await Promise.all([
         fetch(`${API_BASE}/api/v1/alerts?${params}`),
@@ -798,6 +1135,30 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
     setSummary(prev => prev ? { ...prev, unacknowledged_alerts: Math.max(0, prev.unacknowledged_alerts - 1) } : prev)
     toast.success('Alert Acknowledged', `Incident #${alertId} confirmed.`)
     window.dispatchEvent(new CustomEvent('tracenet:alert-ack'))
+  }
+
+  const handleDispatch = async (alertId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/accidents/${alertId}/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operator_name: 'Traffic Control Operator', emergency_units: '108 Ambulance & 112 Patrol' }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, ...updated, acknowledged: true } : a))
+        setSummary(prev => prev ? { ...prev, unacknowledged_alerts: Math.max(0, prev.unacknowledged_alerts - 1) } : prev)
+        toast.success('Emergency Dispatched', `108/112 units dispatched for collision alert #${alertId}.`)
+        window.dispatchEvent(new CustomEvent('tracenet:alert-ack'))
+        if (selectedCrashModal?.id === alertId) {
+          setSelectedCrashModal(null)
+        }
+      } else {
+        toast.error('Dispatch Failed', 'Could not record emergency dispatch.')
+      }
+    } catch (e) {
+      toast.error('Dispatch Error', 'Failed to contact emergency dispatch service.')
+    }
   }
 
   const [confirmClearArtifacts, setConfirmClearArtifacts] = useState(false)
@@ -1013,24 +1374,30 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
             <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Alerts</div>
             <div className="text-2xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-1">{summary.total_alerts}</div>
           </div>
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 dark:border-amber-500/30 dark:bg-amber-950/30 p-4 text-amber-700 dark:text-amber-400 shadow-sm">
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 dark:border-rose-500/30 dark:bg-rose-950/30 p-4 text-rose-700 dark:text-rose-400 shadow-xs">
+            <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              <Siren className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 animate-pulse" /> Traffic Collisions
+            </div>
+            <div className="text-2xl font-bold font-mono text-rose-800 dark:text-rose-300 mt-1">{summary.by_type?.accident || 0}</div>
+          </div>
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 dark:border-amber-500/30 dark:bg-amber-950/30 p-4 text-amber-700 dark:text-amber-400 shadow-xs">
             <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Unacknowledged
             </div>
             <div className="text-2xl font-bold font-mono text-amber-800 dark:text-amber-300 mt-1">{summary.unacknowledged_alerts}</div>
           </div>
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 dark:border-emerald-500/30 dark:bg-emerald-950/30 p-4 text-emerald-700 dark:text-emerald-400 shadow-sm">
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 dark:border-emerald-500/30 dark:bg-emerald-950/30 p-4 text-emerald-700 dark:text-emerald-400 shadow-xs">
             <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Acknowledged
             </div>
             <div className="text-2xl font-bold font-mono text-emerald-800 dark:text-emerald-300 mt-1">{acked}</div>
           </div>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
             <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
               <Users className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Persons of Interest
             </div>
@@ -1047,6 +1414,28 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
       {/* Navigation Tabs Header */}
       <div className="flex border-b border-slate-200 dark:border-slate-700/60 gap-4 text-xs font-semibold overflow-x-auto whitespace-nowrap">
         <button
+          onClick={() => setActiveTab('all')}
+          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeTab === 'all'
+              ? 'border-teal-700 dark:border-teal-500 text-teal-700 dark:text-teal-500 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          All Incident Alerts ({summary?.total_alerts ?? alerts.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('accident')}
+          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeTab === 'accident'
+              ? 'border-rose-600 dark:border-rose-500 text-rose-600 dark:text-rose-400 font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          <Siren className="w-4 h-4 text-rose-500" />
+          Traffic Collisions ({summary?.by_type?.accident || 0})
+        </button>
+        <button
           onClick={() => setActiveTab('alerts')}
           className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${
             activeTab === 'alerts'
@@ -1054,14 +1443,19 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
-          <AlertTriangle className="w-4 h-4" />
-          Flagged Abandonments ({activeTab === 'alerts' ? alerts.length : '—'})
+          <AlertTriangle className="w-4 h-4 text-amber-500" />
+          Flagged Abandonments ({summary?.by_type?.abandoned_object || 0})
         </button>
         <button
           onClick={() => setActiveTab('loitering')}
-          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${activeTab === 'loitering' ? 'border-violet-700 dark:border-violet-500 text-violet-700 dark:text-violet-400' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+          className={`pb-2.5 px-1 border-b-2 transition-all flex items-center gap-1.5 ${
+            activeTab === 'loitering'
+              ? 'border-violet-700 dark:border-violet-500 text-violet-700 dark:text-violet-400'
+              : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
         >
-          <Clock className="w-4 h-4" /> Loitering Reviews ({activeTab === 'loitering' ? alerts.length : '—'})
+          <Clock className="w-4 h-4 text-violet-500" />
+          Loitering Reviews ({summary?.by_type?.loitering || 0})
         </button>
         <button
           onClick={() => setActiveTab('unattended')}
@@ -1071,8 +1465,8 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
               : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
-          <ShieldAlert className="w-4 h-4" />
-          Unattended Objects ({activeTab === 'unattended' ? alerts.length : '—'})
+          <ShieldAlert className="w-4 h-4 text-teal-500" />
+          Unattended Objects ({summary?.by_type?.unattended_object || 0})
         </button>
         <button
           onClick={() => setActiveTab('all-objects')}
@@ -1088,7 +1482,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
       </div>
 
       {/* Tab Contents */}
-      {activeTab === 'alerts' || activeTab === 'unattended' || activeTab === 'loitering' ? (
+      {activeTab !== 'all-objects' ? (
         <div className="space-y-4">
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -1130,21 +1524,37 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
             <div className="rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/40 py-16 text-center">
               <Package className="w-8 h-8 text-slate-350 dark:text-slate-700 mx-auto mb-3" />
               <div className="text-sm font-medium text-slate-500">
-                {activeTab === 'loitering' ? 'No loitering review alerts found' : activeTab === 'unattended' ? 'No unattended object logs found' : 'No abandoned object alerts found'}
+                {activeTab === 'accident'
+                  ? 'No traffic collision alerts found'
+                  : activeTab === 'loitering'
+                  ? 'No loitering review alerts found'
+                  : activeTab === 'unattended'
+                  ? 'No unattended object logs found'
+                  : 'No active incident alerts found'}
               </div>
               <div className="text-xs text-slate-400 dark:text-slate-600 mt-1">
-                Run analysis on opt-in cameras. Complete videos will be evaluated using the settings above.
+                Completed videos will be evaluated using the automated detection models.
               </div>
             </div>
           ) : (
             <div className="space-y-3">
               {alerts.map(alert => (
-                <AbandonedAlertCard
-                  key={alert.id}
-                  alert={alert}
-                  onAcknowledge={handleAcknowledge}
-                  onTrackTracklet={handleTrackTracklet}
-                />
+                alert.alert_type === 'accident' ? (
+                  <AccidentAlertCard
+                    key={alert.id}
+                    alert={alert}
+                    onAcknowledge={handleAcknowledge}
+                    onOpenReconstruction={a => setSelectedCrashModal(a)}
+                    onDispatch={handleDispatch}
+                  />
+                ) : (
+                  <AbandonedAlertCard
+                    key={alert.id}
+                    alert={alert}
+                    onAcknowledge={handleAcknowledge}
+                    onTrackTracklet={handleTrackTracklet}
+                  />
+                )
               ))}
             </div>
           )}
@@ -1181,6 +1591,15 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
             </div>
           )}
         </div>
+      )}
+
+      {/* Crash Reconstruction Modal */}
+      {selectedCrashModal && (
+        <CrashReconstructionModal
+          alert={selectedCrashModal}
+          onClose={() => setSelectedCrashModal(null)}
+          onDispatch={handleDispatch}
+        />
       )}
     </div>
   )

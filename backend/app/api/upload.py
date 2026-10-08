@@ -181,6 +181,50 @@ def process_video_background(
         index_service = VectorIndexService()
         index_result = index_service.index_video_tracklets(asset_id, db)
 
+        # 6. Automated Facial Detection, Tracking & Vector Indexing
+        try:
+            logger.info(f"Running automated facial intelligence pipeline for video asset {asset_id}")
+            face_output_dir = get_data_path(os.path.join("processed/faces", asset_id))
+            from app.detection.face_detector import get_face_detector
+            from app.search.face_vector_index import get_face_vector_index
+
+            face_detector = get_face_detector()
+            face_result = face_detector.analyze_video(
+                video_path=pipeline_results["standardized_video_path"],
+                output_dir=face_output_dir,
+                camera_id=camera_id,
+                video_id=asset_id,
+            )
+            face_index_service = get_face_vector_index()
+            face_index_res = face_index_service.index_video_faces(asset_id, db)
+            logger.info(
+                f"Face pipeline completed for asset {asset_id}: "
+                f"{len(face_result.face_tracklets)} face tracklets detected, "
+                f"{face_index_res.get('indexed', 0)} indexed to Qdrant collection 'tracenet_faces'."
+            )
+        except Exception as face_err:
+            logger.warning(f"Automated face detection/indexing encountered an issue for asset {asset_id}: {str(face_err)}")
+
+        # 7. Automated Accident & Collision Detection
+        try:
+            logger.info(f"Running automated accident detection for video asset {asset_id}")
+            accident_output_dir = get_data_path(os.path.join("processed/accidents", asset_id))
+            from app.detection.accident_detector import get_accident_detector
+            accident_detector = get_accident_detector()
+            accident_result = accident_detector.analyze_video(
+                video_path=pipeline_results["standardized_video_path"],
+                output_dir=accident_output_dir,
+                camera_id=camera_id,
+                video_id=asset_id,
+                db=db,
+            )
+            logger.info(
+                f"Accident analysis complete for {asset_id}: "
+                f"{accident_result.get('incidents_count', 0)} verified collision incidents found."
+            )
+        except Exception as acc_err:
+            logger.warning(f"Automated accident detection encountered an issue for asset {asset_id}: {str(acc_err)}")
+
         inference_duration = time.time() - start_inference
 
         # Log serving execution if custom model was used
