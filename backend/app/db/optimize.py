@@ -114,10 +114,12 @@ def optimize_database():
                     continue
 
                 # Create index
-                col_clause = columns if columns.startswith("(") else f"({columns})"
-                create_index_sql = f"CREATE INDEX {idx_name} ON {table_name} {col_clause}"
+                col_expr = columns.strip()
+                if not col_expr.startswith("("):
+                    col_expr = f"({col_expr})"
+                create_index_sql = f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name} {col_expr}"
                 cursor.execute(create_index_sql)
-                logger.info(f"Created index: {idx_name} on {table_name}{col_clause}")
+                logger.info(f"Created index: {idx_name} on {table_name}{col_expr}")
                 created_count += 1
 
             except sqlite3.OperationalError as e:

@@ -278,6 +278,68 @@ async def list_reports(
         )
 
 
+@router.get("/reports/statistics/summary")
+async def get_report_statistics(
+    days: int = 30,
+    db: Session = Depends(get_db)
+) -> dict:
+    """Get crime report statistics."""
+    try:
+        from datetime import timedelta
+
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+        # Get counts by type
+        total_reports = db.query(CrimeReport).filter(
+            CrimeReport.report_generated_at >= cutoff_date
+        ).count()
+
+        # Get counts by severity
+        severities = ['low', 'medium', 'high', 'critical']
+        severity_counts = {}
+        for severity in severities:
+            count = db.query(CrimeReport).filter(
+                CrimeReport.report_generated_at >= cutoff_date,
+                CrimeReport.severity == severity
+            ).count()
+            severity_counts[severity] = count
+
+        # Get counts by type
+        types = ['theft', 'assault', 'abandoned_object', 'loitering']
+        type_counts = {}
+        for report_type in types:
+            count = db.query(CrimeReport).filter(
+                CrimeReport.report_generated_at >= cutoff_date,
+                CrimeReport.report_type == report_type
+            ).count()
+            type_counts[report_type] = count
+
+        # Get counts by status
+        statuses = ['draft', 'generated', 'reviewed', 'archived']
+        status_counts = {}
+        for report_status in statuses:
+            count = db.query(CrimeReport).filter(
+                CrimeReport.report_generated_at >= cutoff_date,
+                CrimeReport.status == report_status
+            ).count()
+            status_counts[report_status] = count
+
+        return {
+            "period_days": days,
+            "total_reports": total_reports,
+            "by_severity": severity_counts,
+            "by_type": type_counts,
+            "by_status": status_counts
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get report statistics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get report statistics: {str(e)}"
+        )
+
+
 @router.get("/reports/{report_id}")
 async def get_report(
     report_id: str,
@@ -379,51 +441,4 @@ async def delete_report(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete report: {str(e)}"
-        )
-
-
-@router.get("/reports/statistics/summary")
-async def get_report_statistics(
-    days: int = 30,
-    db: Session = Depends(get_db)
-) -> dict:
-    """Get crime report statistics."""
-    try:
-        from datetime import timedelta
-
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
-
-        # Get counts by type
-        total_reports = db.query(CrimeReport).filter(
-            CrimeReport.report_generated_at >= cutoff_date
-        ).count()
-
-        by_type = {}
-        for report_type in ['theft', 'assault', 'abandoned_object', 'loitering']:
-            count = db.query(CrimeReport).filter(
-                CrimeReport.report_type == report_type,
-                CrimeReport.report_generated_at >= cutoff_date
-            ).count()
-            by_type[report_type] = count
-
-        by_severity = {}
-        for severity in ['low', 'medium', 'high', 'critical']:
-            count = db.query(CrimeReport).filter(
-                CrimeReport.severity == severity,
-                CrimeReport.report_generated_at >= cutoff_date
-            ).count()
-            by_severity[severity] = count
-
-        return {
-            "period_days": days,
-            "total_reports": total_reports,
-            "by_type": by_type,
-            "by_severity": by_severity
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to get statistics: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get statistics: {str(e)}"
         )
