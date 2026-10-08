@@ -16,11 +16,10 @@ import {
   MessageSquare,
   Sliders,
   Check,
-  PanelLeftClose,
-  ArrowLeft,
   Sun,
   Moon,
   Square,
+  AlertTriangle,
 } from 'lucide-react'
 
 import { API_BASE } from '../config/api'
@@ -48,6 +47,7 @@ interface AICopilotOverlayProps {
   theme: 'light' | 'dark'
   onToggleTheme: () => void
   initialPrompt?: string
+  leftOffset?: number
   onPlayVideoAtTime: (
     video: any,
     timestamp: number,
@@ -336,13 +336,14 @@ export default function AICopilotOverlay({
   theme,
   onToggleTheme,
   initialPrompt,
+  leftOffset = 0,
   onPlayVideoAtTime,
 }: AICopilotOverlayProps) {
   // Session & Chat State
   const [sessions, setSessions]               = useState<ChatSessionItem[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [activeSessionTitle, setActiveSessionTitle] = useState<string>('New Conversation')
-  const [isSidebarOpen, setIsSidebarOpen]     = useState(true)
+  const [isConversationsOpen, setIsConversationsOpen] = useState(false)
 
   const [messages, setMessages]               = useState<ChatMessage[]>([])
   const [inputPrompt, setInputPrompt]         = useState('')
@@ -525,8 +526,8 @@ export default function AICopilotOverlay({
     }
   }
 
-  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation()
+  const handleDeleteSession = async (sessionId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
     try {
       const r = await fetch(`${API_BASE}/api/v1/assistant/sessions/${sessionId}`, {
         method: 'DELETE',
@@ -828,102 +829,29 @@ const SLASH_COMMANDS = [
   }
 
   return (
-    <div className={`copilot-overlay fixed inset-0 z-[150] flex ${theme === 'light' ? 'copilot-light' : ''} bg-slate-950/95 backdrop-blur-md text-slate-100 animate-in fade-in duration-200 isolation-isolate`}>
+    <div
+      style={{ left: leftOffset }}
+      className={`copilot-overlay fixed top-0 bottom-0 right-0 z-[150] flex ${theme === 'light' ? 'copilot-light' : ''} bg-slate-950/95 backdrop-blur-md text-slate-100 animate-in fade-in duration-200 isolation-isolate transition-[left] duration-300 ease-in-out`}
+    >
       
-      {/* STREAMLINED CONVERSATIONS SIDEBAR */}
-      <div
-        className={`${
-          isSidebarOpen ? 'w-64 pr-5' : 'w-14'
-        } relative shrink-0 border-r border-slate-800/80 bg-slate-900/95 flex flex-col transition-all duration-200 ease-in-out z-10`}
-      >
-        {/* Sidebar Header */}
-        {isSidebarOpen && <div className="h-14 shrink-0 border-b border-slate-800/80" />}
-
-        {/* Sessions List */}
-        {isSidebarOpen && <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          <div className="px-2 py-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-            Recent Searches
-          </div>
-
-          {sessions.length === 0 ? (
-            <div className="text-center py-10 text-xs text-slate-500">No past conversations</div>
-          ) : (
-            sessions.map((sess) => {
-              const isActive = activeSessionId === sess.id
-              return (
-                <div
-                  key={sess.id}
-                  onClick={() => loadSingleSession(sess.id)}
-                  className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer text-xs transition-all ${
-                    isActive
-                      ? 'bg-teal-600/20 border border-teal-500/40 text-teal-200 font-semibold shadow-sm'
-                      : 'hover:bg-slate-800/70 text-slate-400 hover:text-slate-200 border border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                    <MessageSquare className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-teal-400' : 'text-slate-500'}`} />
-                    <span className="truncate">{sess.title || 'New Conversation'}</span>
-                  </div>
-
-                  {confirmDeleteSessionId === sess.id ? (
-                    <div className="flex items-center gap-1 text-[10px] bg-rose-950/60 border border-rose-500/40 rounded px-1.5 py-0.5 animate-in fade-in" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-rose-300 font-bold">Delete?</span>
-                      <button
-                        onClick={(e) => handleDeleteSession(e, sess.id)}
-                        className="px-1 py-0.2 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold"
-                      >
-                        Yes
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteSessionId(null); }}
-                        className="px-1 py-0.2 rounded bg-slate-800 text-slate-300"
-                      >
-                        No
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteSessionId(sess.id); }}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-slate-500 transition-opacity rounded hover:bg-slate-800"
-                      title="Delete Conversation"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              )
-            })
-          )}
-        </div>}
-
-        <div className={`border-t border-slate-800/80 ${isSidebarOpen ? 'p-3' : 'mt-auto py-2 pl-0 pr-5'}`}>
-          <button
-            onClick={handleStartNewSession}
-            className={`flex items-center justify-center gap-2 rounded-xl bg-teal-600 py-2 text-white text-xs font-bold transition-all shadow-sm group hover:bg-teal-500 ${isSidebarOpen ? 'w-full px-3.5' : 'mx-auto h-8 w-8'}`}
-            title={isSidebarOpen ? undefined : 'New Chat'}
-            aria-label="New Chat"
-          >
-            <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
-            {isSidebarOpen && <span>New Chat</span>}
-          </button>
-        </div>
-
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="absolute inset-y-0 right-0 flex w-5 items-center justify-center border-l border-slate-800/80 bg-slate-950/40 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-100"
-          title={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          {isSidebarOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5 rotate-180" />}
-        </button>
-      </div>
-
       {/* MAIN CHAT CONTAINER */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         
         {/* STREAMLINED TOP HEADER */}
         <div className="h-14 px-6 border-b border-slate-800/80 bg-slate-900/90 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setIsConversationsOpen(!isConversationsOpen)}
+              className={`p-2 rounded-xl transition-all shrink-0 ${
+                isConversationsOpen
+                  ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-xs'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+              title={isConversationsOpen ? 'Close Conversations' : 'Open Conversations'}
+              aria-label="Toggle Conversations"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </button>
             <div className="h-8 w-8 rounded-lg bg-teal-500/10 border border-teal-500/30 flex items-center justify-center text-teal-400 shrink-0">
               <Sparkles className="h-4 w-4 animate-pulse" />
             </div>
@@ -943,14 +871,6 @@ const SLASH_COMMANDS = [
           {/* Action buttons */}
           <div className="flex items-center gap-2">
             <button
-              onClick={onClose}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-              title="Back to the dashboard and sidebar"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden md:inline">Back</span>
-            </button>
-            <button
               onClick={onToggleTheme}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
               title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
@@ -965,19 +885,84 @@ const SLASH_COMMANDS = [
               <Sliders className="h-3.5 w-3.5 text-teal-400" />
               <span className="hidden sm:inline">Provider Settings</span>
             </button>
-
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors"
-              title="Close Copilot (Esc)"
-            >
-              <X className="h-5 w-5" />
-            </button>
           </div>
         </div>
 
-        {/* FULL-WIDTH SCROLLABLE MESSAGES CONTAINER */}
-        <div className="flex-1 overflow-y-auto w-full">
+        {/* MIDDLE SECTION: sidebar + messages, sandwiched between header and input */}
+        <div className="flex-1 relative overflow-hidden flex">
+
+          {/* CONVERSATIONS SIDEBAR — constrained to this middle zone only, never touching header or input */}
+          {isConversationsOpen && (
+            <div className="absolute inset-y-0 left-0 w-64 z-10 flex flex-col border-r border-slate-800/80 bg-slate-900/98 animate-in fade-in duration-150">
+              {/* Sidebar Header */}
+              <div className="h-14 shrink-0 px-4 flex items-center justify-between border-b border-slate-800/80 bg-slate-900/90">
+                <span className="text-[11px] font-bold tracking-wider text-slate-300 uppercase flex items-center gap-2">
+                  <MessageSquare className="h-3.5 w-3.5 text-teal-400" />
+                  Recent Searches
+                </span>
+                <button
+                  onClick={() => handleStartNewSession()}
+                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                  title="Start New Chat"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Sessions List */}
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {sessions.length === 0 ? (
+                  <div className="text-center py-10 text-xs text-slate-500">No past conversations</div>
+                ) : (
+                  sessions.map((sess) => {
+                    const isActive = activeSessionId === sess.id
+                    return (
+                      <div
+                        key={sess.id}
+                        onClick={() => loadSingleSession(sess.id)}
+                        className={`group relative flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer text-xs transition-all ${
+                          isActive
+                            ? 'bg-teal-600/20 border border-teal-500/40 text-teal-200 font-semibold shadow-sm'
+                            : 'hover:bg-slate-800/70 text-slate-400 hover:text-slate-200 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                          <MessageSquare className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-teal-400' : 'text-slate-500'}`} />
+                          <span className="truncate">{sess.title || 'New Conversation'}</span>
+                        </div>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setConfirmDeleteSessionId(sess.id)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 hover:text-rose-400 text-slate-500 transition-opacity rounded hover:bg-slate-800 shrink-0"
+                          title="Delete Conversation"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="border-t border-slate-800/80 p-3">
+                <button
+                  onClick={() => handleStartNewSession()}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-teal-600 py-2 text-white text-xs font-bold transition-all shadow-sm group hover:bg-teal-500 w-full px-3.5"
+                  title="New Chat"
+                  aria-label="New Chat"
+                >
+                  <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
+                  <span>New Chat</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* FULL-WIDTH SCROLLABLE MESSAGES CONTAINER */}
+          <div className={`flex-1 overflow-y-auto w-full transition-[margin] duration-150 ${isConversationsOpen ? 'ml-64' : ''}`}>
           <div className="max-w-4xl mx-auto p-6 space-y-6">
             {messages.length === 0 ? (
               <div className="py-16 flex flex-col items-center justify-center text-center space-y-5">
@@ -1179,6 +1164,7 @@ const SLASH_COMMANDS = [
             <div ref={chatEndRef} />
           </div>
         </div>
+        </div>{/* end middle section */}
 
         {/* INPUT DOCK */}
         <div className="border-t border-slate-800/80 bg-slate-900/95 p-4 shrink-0">
@@ -1299,7 +1285,10 @@ const SLASH_COMMANDS = [
 
       {/* UNIVERSAL API & MODEL SETTINGS MODAL WITH DROPDOWN SELECTORS */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div
+          style={{ left: leftOffset }}
+          className="fixed top-0 bottom-0 right-0 z-[160] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 transition-[left]"
+        >
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-850">
               <div className="flex items-center gap-2">
@@ -1535,6 +1524,60 @@ const SLASH_COMMANDS = [
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION POPUP MODAL */}
+      {confirmDeleteSessionId && (() => {
+        const sessionToDelete = sessions.find((s) => s.id === confirmDeleteSessionId)
+        return (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+            onClick={() => setConfirmDeleteSessionId(null)}
+          >
+            <div
+              className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl p-6 space-y-4 animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 shrink-0">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">Delete Conversation?</h3>
+                  <p className="text-xs text-slate-400">Are you sure you want to delete this conversation?</p>
+                </div>
+              </div>
+
+              {sessionToDelete?.title && (
+                <div className="rounded-lg bg-slate-950/60 border border-slate-800 p-2.5 text-xs text-slate-300 truncate font-mono">
+                  "{sessionToDelete.title}"
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                This will permanently remove the conversation and its message history. This action cannot be undone.
+              </p>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteSessionId(null)}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteSession(confirmDeleteSessionId)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-sm shadow-rose-950 flex items-center gap-1.5"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

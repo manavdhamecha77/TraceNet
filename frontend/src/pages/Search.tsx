@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Search as SearchIcon,
-  Filter,
   Download,
   Clock,
   Layers,
@@ -14,6 +14,8 @@ import {
   Image as ImageIcon,
   Type,
   Upload,
+  X,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 import { API_BASE } from '../config/api'
@@ -158,6 +160,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
   const [searchError, setSearchError]         = useState('')
   const [exportHash, setExportHash]           = useState<string | null>(null)
   const [exportOpen, setExportOpen]           = useState(false)
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
 
   // Attribute (colour / vehicle type) filtering
   const [attributeMode, setAttributeMode]     = useState<AttributeMode>('boost')
@@ -487,6 +490,24 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     )}
                     Forensic Search
                   </button>
+                  {/* Filter icon button */}
+                  <button
+                    type="button"
+                    onClick={() => setFilterModalOpen(true)}
+                    title="Filters &amp; Scope"
+                    className={`relative h-12 w-12 shrink-0 flex items-center justify-center rounded border transition-all shadow-sm ${
+                      (selectedColors.length > 0 || attributeMode !== 'boost' || timeStart || timeEnd || objectType !== 'all' || topK !== 15 || selectedModels.length > 0 || selectedCameras.length > 0)
+                        ? 'border-teal-600 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
+                        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-teal-600 hover:text-teal-700 dark:hover:border-teal-500 dark:hover:text-teal-300'
+                    }`}
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                    {(selectedColors.length > 0 || attributeMode !== 'boost' || timeStart || timeEnd || objectType !== 'all' || topK !== 15 || selectedModels.length > 0 || selectedCameras.length > 0) && (
+                      <span className="absolute -top-1.5 -right-1.5 h-4 w-4 flex items-center justify-center rounded-full bg-teal-600 text-white text-[8px] font-bold leading-none">
+                        {[selectedColors.length > 0, attributeMode !== 'boost', timeStart, timeEnd, objectType !== 'all', topK !== 15, selectedModels.length > 0, selectedCameras.length > 0].filter(Boolean).length}
+                      </span>
+                    )}
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -600,191 +621,10 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
               )}
             </div>
 
-            {/* Attribute filters: explicit colour / type checks, not just visual similarity */}
-            {searchMode === 'text' && (
-              <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Attribute filters (colour)</label>
-                  <select
-                    value={attributeMode}
-                    onChange={(e) => setAttributeMode(e.target.value as AttributeMode)}
-                    className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-[10px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700"
-                    title="How detected colours / vehicle types affect results"
-                  >
-                    <option value="boost">Boost: re-rank by verified attributes</option>
-                    <option value="strict">Strict: hide contradicted results</option>
-                    <option value="off">Off: visual similarity only</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                  {COLOR_SWATCHES.map(sw => {
-                    const active = selectedColors.includes(sw.name)
-                    return (
-                      <button
-                        key={sw.name}
-                        type="button"
-                        onClick={() => toggleColor(sw.name)}
-                        title={sw.name}
-                        aria-pressed={active}
-                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize transition-all ${
-                          active
-                            ? 'border-teal-600 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 ring-1 ring-teal-500'
-                            : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-teal-500'
-                        }`}
-                      >
-                        <span className="h-2.5 w-2.5 rounded-full border border-slate-300 dark:border-slate-600" style={{ backgroundColor: sw.hex }} />
-                        {sw.name}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {parsedConstraints.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-                    <span className="text-slate-400 font-semibold">Detected in query:</span>
-                    {parsedConstraints.map((c, i) => (
-                      <span
-                        key={`${c.kind}-${c.value}-${c.region}-${i}`}
-                        className={`rounded border px-1.5 py-0.5 font-semibold ${
-                          c.verifiable
-                            ? 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300'
-                            : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                        }`}
-                        title={c.verifiable ? 'Will be verified against each candidate' : 'Cannot be verified automatically — review manually'}
-                      >
-                        {c.text}{c.region && c.region !== 'any' && c.region !== 'body' ? ` · ${c.region}` : ''}{c.verifiable ? '' : ' (unverifiable)'}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Filter sections */}
-            <div className="grid md:grid-cols-2 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800">
-              
-              {/* Timeline boundary */}
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Timeframe start boundary</label>
-                  <input
-                    type="datetime-local"
-                    value={timeStart}
-                    onChange={(e) => setTimeStart(e.target.value)}
-                    className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Timeframe end boundary</label>
-                  <input
-                    type="datetime-local"
-                    value={timeEnd}
-                    onChange={(e) => setTimeEnd(e.target.value)}
-                    className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700"
-                  />
-                </div>
-              </div>
-
-              {/* Object category and scope limits */}
-              <div className="space-y-2">
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Classification Category</label>
-                  <select
-                    value={objectType}
-                    onChange={(e) => setObjectType(e.target.value)}
-                    className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-850 dark:text-slate-100 focus:outline-none focus:border-teal-700"
-                  >
-                    <option value="all">All (People &amp; Vehicles)</option>
-                    <option value="person">People Only</option>
-                    <option value="vehicle">Vehicles Only</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Result limits (top K)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={topK}
-                    onChange={(e) => setTopK(parseInt(e.target.value) || 15)}
-                    className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-            </div>
           </form>
         </div>
 
-        {/* Sidebar Filters: Models & Cameras */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          {/* Model Registry Filter */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between max-h-[170px] overflow-hidden">
-            <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                <Filter className="h-3 w-3" /> Model Filter (drift guard)
-              </label>
-              <p className="text-[9px] text-slate-500 dark:text-slate-400 shrink-0">Select model source. De-selecting a model hides its predictions and locks corresponding cameras.</p>
-              <div className="overflow-y-auto mt-2 space-y-1.5 pr-2 flex-1 min-h-0">
-                {models.map((m) => (
-                  <label key={m.id} className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100">
-                    <input
-                      type="checkbox"
-                      checked={selectedModels.includes(m.id)}
-                      onChange={() => handleModelToggle(m.id)}
-                      className="rounded text-amber-600 border-slate-300 dark:border-slate-700 focus:ring-amber-500"
-                    />
-                    <span className="font-mono bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] text-amber-700 dark:text-amber-400 font-bold shrink-0">{m.model_type}</span>
-                    <span className="truncate">{m.name}</span>
-                  </label>
-                ))}
-                {models.length === 0 && (
-                  <span className="text-xs text-slate-400 block py-1">No uploaded models found.</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Camera node scopes */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between max-h-[220px] overflow-hidden">
-            <div className="space-y-2 flex-1 min-h-0 flex flex-col">
-              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">Scope Camera nodes</label>
-              <p className="text-[9px] text-slate-500 dark:text-slate-400 shrink-0">Filter targets. Cameras connected to deselected models are disabled.</p>
-              <div className="overflow-y-auto mt-2 space-y-1.5 pr-2 flex-1 min-h-0">
-                {cameras.map((c) => {
-                  const disabled = isCameraDisabled(c)
-                  return (
-                    <label 
-                      key={c.camera_id} 
-                      className={`flex items-center gap-2 text-xs transition-opacity ${
-                      disabled ? 'opacity-35 cursor-not-allowed text-slate-400 dark:text-slate-500' : 'cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        disabled={disabled}
-                        checked={selectedCameras.includes(c.camera_id)}
-                        onChange={() => handleCameraToggle(c.camera_id)}
-                        className="rounded text-teal-700 border-slate-300 dark:border-slate-700 focus:ring-teal-500 disabled:bg-slate-200"
-                      />
-                      <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px] text-teal-700 dark:text-teal-400 font-bold shrink-0">{c.camera_id}</span>
-                      <span className="truncate">{c.name}</span>
-                    </label>
-                  )
-                })}
-                {cameras.length === 0 && (
-                  <span className="text-xs text-slate-400 block py-4">No cameras configured.</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-      </div>
+      </div>{/* end SEARCH INTERFACE PANEL */}
 
       {searchError && (
         <div className="rounded border border-red-200 bg-red-50 text-red-800 dark:border-red-950/20 dark:bg-red-950/30 dark:text-red-400 p-3.5 text-xs text-center">
@@ -1083,6 +923,245 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           </table>
         </div>
       </div>
+
+      {/* ── FILTER MODAL ──────────────────────────────────────── */}
+      {filterModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+          {/* Backdrop — covers full viewport including topbar */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setFilterModalOpen(false)}
+          />
+
+          {/* Panel */}
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] mx-4 flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Search Filters &amp; Scope</h3>
+              </div>
+              <button
+                onClick={() => setFilterModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                aria-label="Close filters"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+
+              {/* Colour attributes */}
+              {searchMode === 'text' && (
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Colour Attribute Filter</h4>
+                    <select
+                      value={attributeMode}
+                      onChange={(e) => setAttributeMode(e.target.value as AttributeMode)}
+                      className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+                    >
+                      <option value="boost">Boost — re-rank by verified attributes</option>
+                      <option value="strict">Strict — hide contradicted results</option>
+                      <option value="off">Off — visual similarity only</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {COLOR_SWATCHES.map(sw => {
+                      const active = selectedColors.includes(sw.name)
+                      return (
+                        <button
+                          key={sw.name}
+                          type="button"
+                          onClick={() => toggleColor(sw.name)}
+                          aria-pressed={active}
+                          className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold capitalize transition-all ${
+                            active
+                              ? 'border-teal-600 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 ring-1 ring-teal-500'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-teal-500 hover:text-slate-700 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          <span className="h-3 w-3 rounded-full border border-slate-300/60 dark:border-slate-600/60 shrink-0" style={{ backgroundColor: sw.hex }} />
+                          {sw.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {parsedConstraints.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] pt-1">
+                      <span className="text-slate-400 dark:text-slate-500 font-semibold shrink-0">Detected in query:</span>
+                      {parsedConstraints.map((c, i) => (
+                        <span
+                          key={`${c.kind}-${c.value}-${c.region}-${i}`}
+                          className={`rounded border px-1.5 py-0.5 font-semibold ${
+                            c.verifiable
+                              ? 'border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300'
+                              : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                          }`}
+                          title={c.verifiable ? 'Will be verified against each candidate' : 'Cannot be verified automatically — review manually'}
+                        >
+                          {c.text}{c.region && c.region !== 'any' && c.region !== 'body' ? ` · ${c.region}` : ''}{c.verifiable ? '' : ' (unverifiable)'}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* Timeframe */}
+              <section className="space-y-3">
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timeframe</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">Start</label>
+                    <input
+                      type="datetime-local"
+                      value={timeStart}
+                      onChange={(e) => setTimeStart(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">End</label>
+                    <input
+                      type="datetime-local"
+                      value={timeEnd}
+                      onChange={(e) => setTimeEnd(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Category + Top K */}
+              <section className="space-y-3">
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Classification &amp; Scope</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">Category</label>
+                    <select
+                      value={objectType}
+                      onChange={(e) => setObjectType(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+                    >
+                      <option value="all">All (People &amp; Vehicles)</option>
+                      <option value="person">People Only</option>
+                      <option value="vehicle">Vehicles Only</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">Max results (top K)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={topK}
+                      onChange={(e) => setTopK(parseInt(e.target.value) || 15)}
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Model filter */}
+              <section className="space-y-3">
+                <div>
+                  <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Model Filter</h4>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">De-selecting a model hides its predictions and locks its cameras.</p>
+                </div>
+                <div className="space-y-2">
+                  {models.length === 0 ? (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 py-1">No uploaded models found.</p>
+                  ) : (
+                    models.map((m) => (
+                      <label key={m.id} className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={selectedModels.includes(m.id)}
+                          onChange={() => handleModelToggle(m.id)}
+                          className="rounded text-amber-600 border-slate-300 dark:border-slate-600 focus:ring-amber-500 shrink-0"
+                        />
+                        <span className="font-mono bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] text-amber-700 dark:text-amber-400 font-bold shrink-0">{m.model_type}</span>
+                        <span className="text-xs text-slate-700 dark:text-slate-300 min-w-0 truncate">{m.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              {/* Camera scope */}
+              <section className="space-y-3">
+                <div>
+                  <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Camera Scope</h4>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Restrict search to specific camera nodes. Cameras locked by model filter are disabled.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {cameras.length === 0 ? (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 col-span-2 py-1">No cameras configured.</p>
+                  ) : (
+                    cameras.map((c) => {
+                      const disabled = isCameraDisabled(c)
+                      return (
+                        <label
+                          key={c.camera_id}
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+                            disabled
+                              ? 'border-slate-100 dark:border-slate-800 opacity-40 cursor-not-allowed'
+                              : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={disabled}
+                            checked={selectedCameras.includes(c.camera_id)}
+                            onChange={() => handleCameraToggle(c.camera_id)}
+                            className="rounded text-teal-700 border-slate-300 dark:border-slate-600 focus:ring-teal-500 disabled:opacity-50 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-mono text-[10px] text-teal-700 dark:text-teal-400 font-bold truncate">{c.camera_id}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{c.name}</p>
+                          </div>
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+              </section>
+
+            </div>
+
+            {/* Footer */}
+            <div className="shrink-0 px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-900/80">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedColors([])
+                  setAttributeMode('boost')
+                  setTimeStart('')
+                  setTimeEnd('')
+                  setObjectType('all')
+                  setTopK(15)
+                  setSelectedModels([])
+                  setSelectedCameras([])
+                }}
+                className="text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+              >
+                Reset all
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterModalOpen(false)}
+                className="px-5 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white text-xs font-bold transition-colors shadow-sm"
+              >
+                Apply &amp; Search
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
 
       <ExportDialog
         open={exportOpen}
