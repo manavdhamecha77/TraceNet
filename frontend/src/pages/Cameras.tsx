@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { RefreshCw } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Filter, RefreshCw, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/Toast'
 
 import { API_BASE } from '../config/api'
@@ -122,9 +123,36 @@ const inputCls = "w-full rounded border border-slate-200 dark:border-slate-700 b
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function Cameras({ cameras, areas, models, onOpenRegisterModal, onRefreshCameras }: CamerasProps) {
+  const { t } = useTranslation()
   const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const areaFilter = searchParams.get('area') || searchParams.get('area_id') || ''
+  const activeArea = areas.find(a => a.id === areaFilter)
+
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({})
   const [localCameras, setLocalCameras] = useState<Camera[]>(cameras)
+
+  const displayedCameras = areaFilter
+    ? localCameras.filter(cam => cam.area_id === areaFilter)
+    : localCameras
+
+  const handleSelectAreaFilter = (areaId: string) => {
+    const nextParams = new URLSearchParams(searchParams)
+    if (areaId) {
+      nextParams.set('area', areaId)
+    } else {
+      nextParams.delete('area')
+      nextParams.delete('area_id')
+    }
+    setSearchParams(nextParams)
+  }
+
+  const handleClearAreaFilter = () => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('area')
+    nextParams.delete('area_id')
+    setSearchParams(nextParams)
+  }
 
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   // Store button position for fixed-positioned dropdown
@@ -288,22 +316,33 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
 
     map.markerGroup.clearLayers()
 
-    const valid = localCameras.filter(c => c.latitude != null && c.longitude != null)
+    const valid = displayedCameras.filter(c => c.latitude != null && c.longitude != null)
     valid.forEach(cam => {
       const color = cam.status === 'active' ? '#059669' : cam.status === 'maintenance' ? '#D97706' : '#DC2626'
       const assignedModel = models.find(m => m.id === cam.model_id)
       const modelLabel = assignedModel ? `${assignedModel.name} (${assignedModel.model_type})` : 'None (Default)'
+      const camArea = areas.find(a => a.id === cam.area_id)
       const popup = `
         <div style="font-family:Inter,sans-serif;font-size:12px;min-width:160px">
           <div style="font-weight:700;color:#1F2937;margin-bottom:5px">${cam.name}</div>
           <div style="color:#6B7280;font-size:11px;margin-bottom:2px">ID: <b>${cam.camera_id}</b></div>
+          ${camArea ? `<div style="color:#0F766E;font-size:11px;margin-bottom:2px">Area: <b>${camArea.name}</b></div>` : ''}
           <div style="color:#6B7280;font-size:11px;margin-bottom:2px">Model: <b>${modelLabel}</b></div>
           <div style="color:#6B7280;font-size:11px;margin-bottom:5px">${cam.latitude?.toFixed(5)}, ${cam.longitude?.toFixed(5)}</div>
           <div style="font-weight:700;font-size:11px;color:${color};text-transform:uppercase">${cam.status}</div>
         </div>`
       window.L.marker([cam.latitude!, cam.longitude!]).bindPopup(popup).addTo(map.markerGroup)
     })
-  }, [localCameras, models])
+
+    if (valid.length > 0 && areaFilter) {
+      if (valid.length === 1) {
+        map.setView([valid[0].latitude!, valid[0].longitude!], 14)
+      } else {
+        const bounds = window.L.latLngBounds(valid.map(c => [c.latitude!, c.longitude!]))
+        map.fitBounds(bounds, { padding: [40, 40] })
+      }
+    }
+  }, [displayedCameras, models, areas, areaFilter])
 
   // ── DETAIL MAP
   function initLeafletMap(
@@ -425,8 +464,8 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
       {/* ── PAGE HEADER ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Camera Nodes</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Geographic grid, node statuses, and video archive registry.</p>
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('cameras.title')}</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t('cameras.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -434,7 +473,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
             className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded text-xs font-semibold transition-colors"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Live Broadcaster</span>
+            <span>{t('nav.live')}</span>
           </Link>
           <button
             onClick={onOpenRegisterModal}
@@ -443,7 +482,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
             </svg>
-            Register Camera
+            {t('cameras.registerCamera')}
           </button>
         </div>
       </div>
@@ -463,8 +502,47 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
 
       {/* ── DEVICE TABLE ── */}
       <section className="mx-0 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800 md:mx-4">
-        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wider">
-          Device Directory — {localCameras.length} Node{localCameras.length !== 1 ? 's' : ''} Registered
+        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span>
+              Device Directory — {displayedCameras.length} {displayedCameras.length === 1 ? 'Node' : 'Nodes'} Registered
+              {areaFilter && ` (of ${localCameras.length} total)`}
+            </span>
+            {areaFilter && (
+              <span className="inline-flex items-center gap-1.5 rounded bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/80 px-2 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
+                <span>Area: <strong>{activeArea?.name || areaFilter}</strong></span>
+                <button
+                  onClick={handleClearAreaFilter}
+                  className="rounded p-0.5 hover:bg-teal-200/50 dark:hover:bg-teal-800/50 text-teal-600 dark:text-teal-400"
+                  title="Clear area filter"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5" />
+              <span>Area:</span>
+              <select
+                value={areaFilter}
+                onChange={(e) => handleSelectAreaFilter(e.target.value)}
+                className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
+              >
+                <option value="">{t('cameras.allAreas')} ({localCameras.length})</option>
+                {areas.map(area => {
+                  const count = localCameras.filter(c => c.area_id === area.id).length
+                  return (
+                    <option key={area.id} value={area.id}>
+                      {area.name} ({count})
+                    </option>
+                  )
+                })}
+              </select>
+            </label>
+          </div>
         </div>
 
         {/* Table must NOT be overflow-x-auto — dropdown would clip */}
@@ -472,23 +550,35 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
           <thead className="bg-slate-50 dark:bg-slate-700/60 text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider font-semibold">
             <tr>
               <th className="px-4 py-2.5 w-[72px]">Preview</th>
-              <th className="px-4 py-2.5">Camera / ID</th>
-              <th className="px-4 py-2.5">Zone</th>
+              <th className="px-4 py-2.5">{t('cameras.colCamera')} / ID</th>
+              <th className="px-4 py-2.5">{t('cameras.colArea')}</th>
               <th className="px-4 py-2.5">Neighbors</th>
-              <th className="px-4 py-2.5">Status</th>
+              <th className="px-4 py-2.5">{t('cameras.colStatus')}</th>
               <th className="px-4 py-2.5">Assigned Model</th>
-              <th className="px-4 py-2.5 text-center">Feeds</th>
-              <th className="px-4 py-2.5 text-right w-[110px]">Actions</th>
+              <th className="px-4 py-2.5 text-center">{t('cameras.colVideos')}</th>
+              <th className="px-4 py-2.5 text-right w-[110px]">{t('cameras.colActions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
-            {localCameras.length === 0 ? (
+            {displayedCameras.length === 0 ? (
               <tr>
                 <td colSpan={8} className="text-center py-16 text-xs text-slate-500 dark:text-slate-400">
-                  No camera nodes configured. Use <strong>Register Camera</strong> to add the first node.
+                  {areaFilter ? (
+                    <div className="space-y-2">
+                      <p>No camera nodes found in area <strong>{activeArea?.name || areaFilter}</strong>.</p>
+                      <button
+                        onClick={handleClearAreaFilter}
+                        className="text-xs font-semibold text-teal-700 hover:text-teal-800 dark:text-teal-400 underline"
+                      >
+                        View all cameras ({localCameras.length})
+                      </button>
+                    </div>
+                  ) : (
+                    <span>No camera nodes configured. Use <strong>Register Camera</strong> to add the first node.</span>
+                  )}
                 </td>
               </tr>
-            ) : localCameras.map(cam => {
+            ) : displayedCameras.map(cam => {
               const thumb = thumbnails[cam.camera_id]
               return (
                 <tr key={cam.camera_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors">
@@ -519,9 +609,31 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                     <div className="text-[10px] font-mono text-teal-700 dark:text-teal-400 mt-0.5">{cam.camera_id}</div>
                   </td>
 
-                  {/* ZONE */}
+                  {/* AREA & ZONE */}
                   <td className="px-4 py-2.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
-                    {cam.corridor_group ?? <span className="text-slate-400 dark:text-slate-600 italic">—</span>}
+                    <div className="flex flex-col">
+                      {(() => {
+                        const camArea = areas.find(a => a.id === cam.area_id)
+                        return (
+                          <>
+                            {camArea ? (
+                              <button
+                                onClick={() => handleSelectAreaFilter(camArea.id)}
+                                className="font-semibold text-teal-700 dark:text-teal-400 hover:underline text-left text-xs"
+                                title={`Filter by ${camArea.name}`}
+                              >
+                                {camArea.name}
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-600 italic">No Area</span>
+                            )}
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                              {cam.corridor_group ? `Zone: ${cam.corridor_group}` : '—'}
+                            </span>
+                          </>
+                        )
+                      })()}
+                    </div>
                   </td>
 
                   {/* NEIGHBORS */}

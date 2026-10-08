@@ -61,6 +61,7 @@ def test_small_cutouts_are_upscaled_with_margin():
 @pytest.fixture(scope="module")
 def ocr():
     pytest.importorskip("paddleocr")
+    pytest.importorskip("paddle")
     return PaddlePlateOCR()
 
 
@@ -130,6 +131,7 @@ def _scene(plate):
 
 def _detector(box):
     pytest.importorskip("paddleocr")
+    pytest.importorskip("paddle")
     det = PlateDetector()
     det.model = _FakePlateLocaliser(box)   # skip YOLO weight loading
     det.vehicle_model = None               # full-frame mode

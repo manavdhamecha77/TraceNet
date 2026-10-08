@@ -134,8 +134,10 @@ interface SearchProps {
 import { useToast } from '../components/Toast'
 import ExportDialog from '../components/ExportDialog'
 import { PlateBadge, type PlateInfo } from '../components/PlateBadge'
+import { useTranslation } from 'react-i18next'
 
 export default function Search({ onPlayVideoAtTime }: SearchProps) {
+  const { t } = useTranslation()
   const toast = useToast()
   // Filters & State
   const [query, setQuery]                     = useState('')
@@ -471,7 +473,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Red SUV moving quickly, man in yellow raincoat, police patrol vehicle..."
+                      placeholder={t('search.placeholder')}
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                       className="h-12 w-full rounded border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm transition focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 dark:focus:ring-teal-400/20"
@@ -487,7 +489,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     ) : (
                       <SearchIcon className="h-3.5 w-3.5" />
                     )}
-                    Forensic Search
+                    {t('search.button')}
                   </button>
                   {/* Filter icon button */}
                   <button
@@ -1010,7 +1012,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
               {/* Timeframe */}
               <section className="space-y-3">
-                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timeframe</h4>
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('search.timeframe')}</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">Start</label>
@@ -1035,22 +1037,22 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
               {/* Category + Top K */}
               <section className="space-y-3">
-                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Classification &amp; Scope</h4>
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t('search.category')} &amp; Scope</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">Category</label>
+                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">{t('search.category')}</label>
                     <select
                       value={objectType}
                       onChange={(e) => setObjectType(e.target.value)}
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-[11px] text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-600"
                     >
-                      <option value="all">All (People &amp; Vehicles)</option>
-                      <option value="person">People Only</option>
-                      <option value="vehicle">Vehicles Only</option>
+                      <option value="all">{t('search.all')}</option>
+                      <option value="person">{t('search.person')}</option>
+                      <option value="vehicle">{t('search.vehicle')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">Max results (top K)</label>
+                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-1">{t('search.topK')}</label>
                     <input
                       type="number"
                       min="1"

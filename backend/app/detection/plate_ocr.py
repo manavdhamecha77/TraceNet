@@ -34,6 +34,13 @@ from app.config import get_data_path
 # Skip PaddleX's connectivity probe of model hosters on every start-up.
 os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
 
+# Guard against broken/mismatched torchaudio C++ binaries on Windows when PaddleX imports transformers
+try:
+    import torchaudio  # noqa: F401
+except OSError:
+    import sys
+    sys.modules["torchaudio"] = None
+
 OCR_ENGINE_NAME = "PaddleOCR PP-OCRv5"
 DET_MODEL = "PP-OCRv5_mobile_det"
 REC_MODEL = "en_PP-OCRv5_mobile_rec"
@@ -131,9 +138,12 @@ class PaddlePlateOCR(PlateOCREngine):
 
     def is_available(self) -> tuple[bool, str]:
         try:
+            import paddle  # noqa: F401
             import paddleocr  # noqa: F401
-        except ImportError:
-            return False, "paddleocr is not installed"
+        except ImportError as exc:
+            return False, f"paddleocr/paddle is not installed ({exc})"
+        except Exception as exc:
+            return False, str(exc)
         return True, ""
 
     def load(self) -> None:
@@ -143,11 +153,14 @@ class PaddlePlateOCR(PlateOCREngine):
             if self._ocr is not None:
                 return
             try:
+                import paddle  # noqa: F401
                 from paddleocr import PaddleOCR
-            except ImportError as exc:
+            except (ImportError, ModuleNotFoundError) as exc:
                 raise RuntimeError(
-                    "PaddleOCR is not installed. Install paddlepaddle and paddleocr (see requirements.txt)."
+                    "PaddleOCR or paddlepaddle is not installed. Install paddlepaddle and paddleocr (see requirements.txt)."
                 ) from exc
+            except Exception as exc:
+                raise RuntimeError(f"Failed to initialise PaddleOCR: {exc}") from exc
             logger.info(f"Loading plate OCR engine: {OCR_ENGINE_NAME} ({DET_MODEL} + {REC_MODEL})")
             self._ocr = PaddleOCR(
                 text_detection_model_name=DET_MODEL,
@@ -268,14 +281,15 @@ def get_ocr_engine(name: Optional[str] = None) -> PlateOCREngine:
     return _ENGINES[name or get_active_engine_name()]
 
 
-def set_active_engine(name: str) -> PlateOCREngine:
+def set_active_engine(name: str, force: bool = False) -> PlateOCREngine:
     """Switch the process-wide OCR engine and persist the choice. Raises ValueError if unknown/unavailable."""
     global _active_engine
     if name not in _ENGINES:
         raise ValueError(f"Unknown OCR engine '{name}'. Choose one of: {', '.join(_ENGINES)}")
-    available, reason = _ENGINES[name].is_available()
-    if not available:
-        raise ValueError(f"OCR engine '{name}' is unavailable: {reason}")
+    if not force:
+        available, reason = _ENGINES[name].is_available()
+        if not available:
+            raise ValueError(f"OCR engine '{name}' is unavailable: {reason}")
     with _state_lock:
         _active_engine = name
         try:

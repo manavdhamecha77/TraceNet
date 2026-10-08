@@ -91,6 +91,7 @@ export default function VideoDetail() {
   const [detectionMode, setDetectionMode] = useState<'objects' | 'faces'>('objects')
   const [faceData, setFaceData] = useState<any>(null)
   const [faceDataLoading, setFaceDataLoading] = useState(false)
+  const [allFaceTracklets, setAllFaceTracklets] = useState<any[]>([])
   const [localFaceResults, setLocalFaceResults] = useState<any[]>([])
   const [faceSearchQuery, setFaceSearchQuery] = useState('')
   const [faceSearching, setFaceSearching] = useState(false)
@@ -190,61 +191,85 @@ export default function VideoDetail() {
     if (!video_id) return
     setFaceDataLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/v1/videos/${video_id}/faces`)
-      if (res.ok) setFaceData(await res.json())
+      const [trackletsRes, facesRes] = await Promise.all([
+        fetch(`${API_BASE}/api/v1/videos/${video_id}/face-tracklets`),
+        fetch(`${API_BASE}/api/v1/videos/${video_id}/faces`)
+      ])
+      if (trackletsRes.ok) {
+        setAllFaceTracklets(await trackletsRes.json())
+      }
+      if (facesRes.ok) {
+        setFaceData(await facesRes.json())
+      }
     } catch (_) { /* silent */ }
     setFaceDataLoading(false)
   }, [video_id])
 
   useEffect(() => {
-    if (detectionMode === 'faces' && playerView === 'annotated') {
+    if (detectionMode === 'faces') {
       loadFaceData()
     }
-  }, [detectionMode, playerView, loadFaceData])
+  }, [detectionMode, loadFaceData])
 
   const handleRunFaceDetection = async () => {
     if (!video_id) return
     setFaceDataLoading(true)
     try {
-      await fetch(`${API_BASE}/api/v1/videos/${video_id}/faces/run`, { method: 'POST' })
-      loadFaceData()
+      const res = await fetch(`${API_BASE}/api/v1/videos/${video_id}/faces/run`, { method: 'POST' })
+      if (res.ok) {
+        toast.success('Face detection and indexing complete.')
+      }
+      await loadFaceData()
     } catch (_) {
+      toast.error('Face detection failed.')
+    } finally {
       setFaceDataLoading(false)
     }
   }
 
   const handleFaceSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!faceSearchQuery.trim()) return
+    if (!faceSearchQuery.trim()) {
+      setLocalFaceResults([])
+      return
+    }
     setFaceSearching(true)
     try {
       const res = await fetch(`${API_BASE}/api/v1/face-search/text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: faceSearchQuery, top_k: topK })
+        body: JSON.stringify({ query: faceSearchQuery.trim(), top_k: topK, video_id })
       })
       if (res.ok) {
         const results = await res.json()
         setLocalFaceResults(results.filter((r: any) => r.video_id === video_id))
       }
-    } catch (_) { }
-    setFaceSearching(false)
+    } catch (_) {
+      toast.error('Face search failed.')
+    } finally {
+      setFaceSearching(false)
+    }
   }
 
   const handleLabelFace = async (id: string) => {
     if (!faceLabel.trim()) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/face-tracklets/${id}/label`, {
+      const res = await fetch(`${API_BASE}/api/v1/face-tracklets/${encodeURIComponent(id)}/label`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: faceLabel.trim() })
       })
       if (res.ok) {
-        setLocalFaceResults(prev => prev.map(r => r.face_tracklet_id === id ? { ...r, label: faceLabel.trim() } : r))
+        const val = faceLabel.trim()
+        setAllFaceTracklets(prev => prev.map(r => ((r.id || r.face_tracklet_id) === id ? { ...r, label: val } : r)))
+        setLocalFaceResults(prev => prev.map(r => ((r.id || r.face_tracklet_id) === id ? { ...r, label: val } : r)))
         setLabelingFaceId(null)
         setFaceLabel('')
+        toast.success('Face tag updated.')
       }
-    } catch (_) { }
+    } catch (_) {
+      toast.error('Failed to update tag.')
+    }
   }
 
   // ─── Precision Canvas Alignment & Draw ──────────────────────────────────────
@@ -1395,15 +1420,24 @@ export default function VideoDetail() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Local Face Search</h3>
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                Facial Intelligence Grid
+                {allFaceTracklets.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    ({allFaceTracklets.length} {allFaceTracklets.length === 1 ? 'face' : 'faces'} detected)
+                  </span>
+                )}
+              </h3>
             </div>
             
-            {(!faceData || (faceData.frame_detections?.length === 0)) && (
-              <button onClick={handleRunFaceDetection} disabled={faceDataLoading} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded transition-colors flex items-center gap-1">
-                {faceDataLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />}
-                Run Face Detection
-              </button>
-            )}
+            <button
+              onClick={handleRunFaceDetection}
+              disabled={faceDataLoading}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded transition-colors flex items-center gap-1.5"
+            >
+              {faceDataLoading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+              <span>{faceDataLoading ? 'Analyzing Faces...' : (allFaceTracklets.length > 0 ? 'Re-run Face Detection' : 'Run Face Detection')}</span>
+            </button>
           </div>
 
           <form onSubmit={handleFaceSearch} className="flex gap-2 items-center">
@@ -1411,30 +1445,54 @@ export default function VideoDetail() {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search faces by description..."
+                placeholder="Search faces by description or attribute..."
                 value={faceSearchQuery}
-                onChange={e => setFaceSearchQuery(e.target.value)}
+                onChange={e => {
+                  setFaceSearchQuery(e.target.value)
+                  if (!e.target.value.trim()) setLocalFaceResults([])
+                }}
                 className="w-full pl-9 pr-3 py-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:outline-none focus:border-emerald-500"
               />
             </div>
-            <button type="submit" disabled={faceSearching} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded transition-colors flex items-center gap-1.5 shrink-0">
+            <button
+              type="submit"
+              disabled={faceSearching}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded transition-colors flex items-center gap-1.5 shrink-0"
+            >
               {faceSearching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-              Search
+              <span>{faceSearching ? 'Searching...' : 'Search'}</span>
             </button>
+            {(localFaceResults.length > 0 || faceSearchQuery) && (
+              <button
+                type="button"
+                onClick={() => { setFaceSearchQuery(''); setLocalFaceResults([]) }}
+                className="px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold text-xs rounded transition-colors border border-slate-200 dark:border-slate-600 shrink-0 flex items-center gap-1"
+              >
+                <X className="h-3.5 w-3.5" /> Clear
+              </button>
+            )}
           </form>
 
+          {/* Results count indicator */}
+          {localFaceResults.length > 0 && (
+            <p className="text-xs text-slate-500">
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">{localFaceResults.length}</span> face results for &ldquo;<em>{faceSearchQuery}</em>&rdquo;
+            </p>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {localFaceResults.map((r, i) => {
+            {(localFaceResults.length > 0 ? localFaceResults : (faceSearchQuery.trim() ? [] : allFaceTracklets)).map((r, i) => {
               const cp = r.best_crop_path
               const cropUrl = cp ? (cp.startsWith('http') ? cp : `${API_BASE}${cp.startsWith('/data/') ? cp : '/' + cp}`) : ''
-              const tid = r.face_tracklet_id || i
+              const cardFaceId = String(r.id || r.face_tracklet_id || `${video_id}_face_${r.tracker_id ?? i}`)
+              const tid = cardFaceId
               
               const targetTid = extractTrackerId(seekedTrackletId)
-              const itemTid = extractTrackerId(tid)
+              const itemTid = extractTrackerId(r.tracker_id ?? tid)
               const isHighlighted = targetTid !== null && itemTid !== null && targetTid === itemTid
 
               return (
-                <div key={tid} className={`flex flex-col rounded-md overflow-hidden border transition-all ${isHighlighted ? 'border-[#00FF41] ring-2 ring-[#00FF41]/50 bg-emerald-500/5 shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'}`}>
+                <div key={cardFaceId} className={`flex flex-col rounded-md overflow-hidden border transition-all ${isHighlighted ? 'border-[#00FF41] ring-2 ring-[#00FF41]/50 bg-emerald-500/5 shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'}`}>
                   <div className="relative aspect-square bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
                     {cropUrl ? <img src={cropUrl} alt="face" className="w-full h-full object-contain" /> : <FileText className="h-8 w-8 text-slate-400 opacity-40" />}
                     {r.label && (
@@ -1442,32 +1500,70 @@ export default function VideoDetail() {
                         {r.label}
                       </div>
                     )}
+                    {r.tracker_id !== undefined && (
+                      <div className="absolute top-1 left-1 bg-black/60 text-white text-[9px] font-mono px-1 rounded">
+                        #{r.tracker_id}
+                      </div>
+                    )}
+                    {r.score !== undefined && (
+                      <div className="absolute top-1 right-1 bg-emerald-600 text-white text-[9px] font-bold px-1 rounded">
+                        {(r.score * 100).toFixed(0)}%
+                      </div>
+                    )}
                   </div>
                   
                   <div className="p-2 space-y-1.5 flex flex-col justify-between flex-1">
                     <div className="text-[10px] text-slate-500 font-mono">
-                      {new Date(r.timestamp_start_seconds * 1000).toISOString().substr(11, 8)}
+                      {typeof r.timestamp_start_seconds === 'number'
+                        ? new Date(r.timestamp_start_seconds * 1000).toISOString().substr(11, 8)
+                        : '--:--:--'}
                     </div>
                     
                     <div className="grid grid-cols-2 gap-1 mt-auto font-sans">
-                      <button onClick={() => { setSeekedTrackletId(tid); seekAndPause(r.timestamp_start_seconds, { tracker_id: tid }) }} className="py-1 font-bold text-[10px] rounded flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200">
+                      <button
+                        onClick={() => {
+                          setSeekedTrackletId(tid)
+                          seekAndPause(r.timestamp_start_seconds || 0, { tracker_id: r.tracker_id ?? tid })
+                        }}
+                        className="py-1 font-bold text-[10px] rounded flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300"
+                      >
                         <Play className="h-3 w-3 fill-current" /> Seek
                       </button>
                       
-                      {labelingFaceId === tid ? (
-                        <div className="flex items-center">
+                      {labelingFaceId === cardFaceId ? (
+                        <div className="flex items-center gap-1 col-span-2 mt-1">
                           <input
                             autoFocus
                             type="text"
                             value={faceLabel}
                             onChange={e => setFaceLabel(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleLabelFace(tid)}
-                            className="w-full h-full px-1 py-1 text-[10px] border border-emerald-500 rounded outline-none"
-                            placeholder="Name"
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleLabelFace(cardFaceId)
+                              if (e.key === 'Escape') { setLabelingFaceId(null); setFaceLabel('') }
+                            }}
+                            className="w-full px-1.5 py-1 text-[10px] border border-emerald-500 rounded bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-none"
+                            placeholder="Tag name..."
                           />
+                          <button
+                            onClick={() => handleLabelFace(cardFaceId)}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold"
+                            title="Save"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => { setLabelingFaceId(null); setFaceLabel('') }}
+                            className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[10px]"
+                            title="Cancel"
+                          >
+                            ✕
+                          </button>
                         </div>
                       ) : (
-                        <button onClick={() => { setLabelingFaceId(tid); setFaceLabel(r.label || '') }} className="flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-600 py-1 rounded text-[10px] font-bold">
+                        <button
+                          onClick={() => { setLabelingFaceId(cardFaceId); setFaceLabel(r.label || '') }}
+                          className="flex items-center justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 py-1 rounded text-[10px] font-bold transition-colors"
+                        >
                           Tag
                         </button>
                       )}
@@ -1477,6 +1573,14 @@ export default function VideoDetail() {
               )
             })}
           </div>
+
+          {(localFaceResults.length === 0 ? (faceSearchQuery.trim() ? [] : allFaceTracklets) : localFaceResults).length === 0 && (
+            <div className="col-span-full py-12 text-center text-slate-400 text-xs">
+              {faceSearchQuery
+                ? 'No matching faces found for this search.'
+                : 'No face detections indexed for this video yet. Click "Run Face Detection" above to analyze faces.'}
+            </div>
+          )}
           </>
         )}
       </div>

@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.db.models import SearchLog, Tracklet
 from app.search.query_engine import QueryEngine
 from app.search.image_search import ImageSearchService
+from app.search.multilingual import normalize_query, get_multilingual_config, set_multilingual_backend
 
 router = APIRouter(prefix="/api/v1", tags=["search"])
 
@@ -70,6 +71,17 @@ class SearchLogItem(BaseModel):
     clip_export_hash: Optional[str] = None
 
 
+class MultilingualConfigResponse(BaseModel):
+    backend: str
+    available_backends: list[str]
+    openrouter_configured: bool
+
+
+class SetMultilingualBackendRequest(BaseModel):
+    backend: str  # 'dictionary' or 'openrouter'
+    openrouter_api_key: Optional[str] = None  # if provided, save to env var
+
+
 @router.post("/search", response_model=List[SearchQueryResultItem])
 def search_footage(
     payload: SearchQueryRequest,
@@ -107,11 +119,16 @@ def search_footage(
             detail="attribute_mode must be 'boost', 'strict' or 'off'",
         )
 
+    # Multilingual normalization: Hinglish/Gujlish -> English passthrough
+    # English queries pass through unchanged (empty substitutions list)
+    _normalized_query, _substitutions = normalize_query(payload.query)
+    effective_query = _normalized_query  # always English after this point
+
     try:
         engine = QueryEngine()
         results = engine.search_tracklets(
             db=db,
-            query_text=payload.query,
+            query_text=effective_query,
             camera_ids=payload.camera_ids,
             time_start=parsed_start,
             time_end=parsed_end,
@@ -122,6 +139,11 @@ def search_footage(
             vehicle_type=payload.vehicle_type,
             attribute_mode=payload.attribute_mode,
         )
+        if _substitutions:
+            latest_log = db.query(SearchLog).order_by(SearchLog.id.desc()).first()
+            if latest_log and latest_log.query_text == effective_query:
+                latest_log.query_text = payload.query + f" [normalized: {_normalized_query}]"
+                db.commit()
         return results
     except Exception as exc:
         raise HTTPException(
@@ -292,4 +314,23 @@ def reindex_all_videos(db: Session = Depends(get_db)):
         "total_tracklets": total_indexed
     }
 
+
+@router.get("/search/multilingual/config", response_model=MultilingualConfigResponse)
+def get_multilingual_search_config() -> MultilingualConfigResponse:
+    """Get current multilingual search backend configuration."""
+    cfg = get_multilingual_config()
+    return MultilingualConfigResponse(**cfg)
+
+
+@router.post("/search/multilingual/config", response_model=MultilingualConfigResponse)
+def update_multilingual_search_config(payload: SetMultilingualBackendRequest) -> MultilingualConfigResponse:
+    """Update multilingual backend (dictionary vs openrouter) and optionally set API key."""
+    if payload.openrouter_api_key:
+        os.environ["OPENROUTER_API_KEY"] = payload.openrouter_api_key
+    try:
+        set_multilingual_backend(payload.backend)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    cfg = get_multilingual_config()
+    return MultilingualConfigResponse(**cfg)
 

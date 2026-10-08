@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 interface DashboardProps {
   metrics: {
@@ -19,12 +20,13 @@ const pipelineStages = [
 ]
 
 export default function Dashboard({ metrics }: DashboardProps) {
+  const { t } = useTranslation()
   const [assistantPrompt, setAssistantPrompt] = useState('')
   const metricCards = [
-    { label: 'Camera nodes', value: metrics.totalCameras, detail: 'Registered locations' },
-    { label: 'Video feeds', value: metrics.totalVideos, detail: 'Uploaded recordings' },
-    { label: 'Standardized', value: metrics.processedVideos, detail: 'Ready for review' },
-    { label: 'In queue', value: metrics.pendingVideos, detail: metrics.failedVideos ? `${metrics.failedVideos} failed` : 'Processing and pending', warning: metrics.pendingVideos > 0 },
+    { label: t('dashboard.cameraNodes'), value: metrics.totalCameras, detail: t('dashboard.cameraNodesDetail') },
+    { label: t('dashboard.videoFeeds'), value: metrics.totalVideos, detail: t('dashboard.videoFeedsDetail') },
+    { label: t('dashboard.standardized'), value: metrics.processedVideos, detail: t('dashboard.standardizedDetail') },
+    { label: t('dashboard.inQueue'), value: metrics.pendingVideos, detail: metrics.failedVideos ? `${metrics.failedVideos} failed` : t('dashboard.inQueueDetail'), warning: metrics.pendingVideos > 0 },
   ]
   const prompts = [
     { text: 'Show me everyone near Gate 3 between 5 PM and 7 PM', tag: 'Search' },
@@ -40,12 +42,12 @@ export default function Dashboard({ metrics }: DashboardProps) {
     <div className="mx-auto max-w-[1440px] space-y-5 pb-10 text-slate-800 dark:text-slate-100">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Operations / Overview</p>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">Situation overview</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Camera coverage, video processing, and review activity.</p>
+          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">{t('dashboard.category')}</p>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">{t('dashboard.title')}</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{t('dashboard.subtitle')}</p>
         </div>
         <Link to="/cameras" className="inline-flex h-9 items-center gap-2 rounded border border-teal-700 bg-teal-700 px-3 text-sm font-medium text-white hover:bg-teal-800">
-          View camera registry <span aria-hidden="true">→</span>
+          {t('dashboard.viewCameraRegistry')} <span aria-hidden="true">→</span>
         </Link>
       </div>
 
@@ -68,13 +70,13 @@ export default function Dashboard({ metrics }: DashboardProps) {
         <div className="flex items-start gap-3">
           <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-700" />
           <div>
-            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Live camera tools</h2>
-            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">Open a configured live feed or connect a broadcaster.</p>
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.liveCameraTools')}</h2>
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{t('dashboard.liveCameraToolsDesc')}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link to="/cameras/CAM_001/live" className="inline-flex h-8 items-center rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Watch CAM_001</Link>
-          <Link to="/live-connect" className="inline-flex h-8 items-center rounded border border-teal-700 bg-teal-700 px-3 text-xs font-medium text-white hover:bg-teal-800">Broadcast feed</Link>
+          <Link to="/live-connect" className="inline-flex h-8 items-center rounded border border-teal-700 bg-teal-700 px-3 text-xs font-medium text-white hover:bg-teal-800">{t('dashboard.broadcastFeed')}</Link>
         </div>
       </section>
 
@@ -82,10 +84,10 @@ export default function Dashboard({ metrics }: DashboardProps) {
         <section className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 xl:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
             <div>
-              <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Preprocessing pipeline</h2>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Current video preparation stages</p>
+              <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.pipeline')}</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{t('dashboard.pipelineDesc')}</p>
             </div>
-            <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />Operational</span>
+            <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />{t('dashboard.operational')}</span>
           </div>
           <div className="divide-y divide-slate-100 px-4 dark:divide-slate-700">
             {pipelineStages.map((stage, index) => (
@@ -94,7 +96,7 @@ export default function Dashboard({ metrics }: DashboardProps) {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <h3 className="text-sm font-medium text-slate-800 dark:text-slate-100">{stage.name}</h3>
-                    <span className="text-[11px] text-slate-400 dark:text-slate-500">Stage {index + 1}</span>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{t('dashboard.stage')} {index + 1}</span>
                   </div>
                   <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{stage.desc}</p>
                 </div>
