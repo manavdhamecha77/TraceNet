@@ -22,6 +22,8 @@ import PlateSearch from './pages/PlateSearch'
 import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
+import LanguageSettings from './pages/LanguageSettings'
+import { useTranslation } from 'react-i18next'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import LiveConnect from './pages/LiveConnect'
@@ -107,6 +109,7 @@ interface SystemJob {
 }
 
 function App() {
+  const { t, i18n } = useTranslation()
   const toast = useToast()
   const location = useLocation()
   const navigate = useNavigate()
@@ -576,10 +579,12 @@ function App() {
     const crumbs = [{ label: 'DRISHTI', link: '/' }]
 
     if (paths.length > 0) {
-      if (paths[0] === 'areas') {
-        crumbs.push({ label: 'Areas', link: '/areas' })
+      if (paths[0] === 'language-settings') {
+        crumbs.push({ label: t('nav.language'), link: '/language-settings' })
+      } else if (paths[0] === 'areas') {
+        crumbs.push({ label: t('nav.areas'), link: '/areas' })
       } else if (paths[0] === 'cameras') {
-        crumbs.push({ label: 'Cameras', link: '/cameras' })
+        crumbs.push({ label: t('nav.cameras'), link: '/cameras' })
         if (paths[1]) {
           const camLabel = selectedCamera ? selectedCamera.name : paths[1]
           crumbs.push({ label: camLabel, link: `/cameras/${paths[1]}` })
@@ -588,15 +593,15 @@ function App() {
           }
         }
       } else if (paths[0] === 'search') {
-        crumbs.push({ label: 'Search', link: '/search' })
+        crumbs.push({ label: t('nav.search'), link: '/search' })
       } else if (paths[0] === 'plates') {
-        crumbs.push({ label: 'Vehicle Plate Search', link: '/plates' })
+        crumbs.push({ label: t('nav.plates'), link: '/plates' })
       } else if (paths[0] === 'evidence') {
-        crumbs.push({ label: 'Evidence Vault', link: '/evidence' })
+        crumbs.push({ label: t('nav.evidence'), link: '/evidence' })
       } else if (paths[0] === 'face-search') {
-        crumbs.push({ label: 'Facial Intelligence', link: '/face-search' })
+        crumbs.push({ label: t('nav.face'), link: '/face-search' })
       } else if (paths[0] === 'alerts') {
-        crumbs.push({ label: 'Unified Alert Center', link: '/alerts' })
+        crumbs.push({ label: t('nav.alerts'), link: '/alerts' })
         if (paths[1] === 'abandoned') {
           crumbs.push({ label: 'Abandoned Objects', link: '/alerts/abandoned' })
         } else if (paths[1] === 'theft') {
@@ -613,22 +618,22 @@ function App() {
       } else if (paths[0] === 'plate-detection' || paths[0] === 'anpr-alerts') {
         crumbs.push({ label: 'Number Plate Detection', link: '/alerts/plates' })
       } else if (paths[0] === 'targets' || paths[0] === 'hot-targets') {
-        crumbs.push({ label: 'Pursuit & Hot Targets', link: '/targets' })
+        crumbs.push({ label: t('nav.targets'), link: '/targets' })
       } else if (paths[0] === 'multicam') {
-        crumbs.push({ label: 'Pursuit & Hot Targets', link: '/targets' })
-        crumbs.push({ label: 'Multi-Camera Sentinel Wave', link: '/multicam' })
+        crumbs.push({ label: t('nav.targets'), link: '/targets' })
+        crumbs.push({ label: t('nav.multicam'), link: '/multicam' })
       } else if (paths[0] === 'dashboard') {
-        crumbs.push({ label: 'Dashboard', link: '/dashboard' })
+        crumbs.push({ label: t('nav.dashboard'), link: '/dashboard' })
       } else if (paths[0] === 'models') {
+        crumbs.push({ label: t('nav.models'), link: '/models' })
       } else if (paths[0] === 'live-connect' || paths[0] === 'connect') {
-        crumbs.push({ label: 'Live Broadcast Console', link: '/live-connect' })
-        crumbs.push({ label: 'YOLO Detector Models', link: '/models' })
+        crumbs.push({ label: t('nav.live'), link: '/live-connect' })
       } else if (paths[0] === 'embedding-models') {
-        crumbs.push({ label: 'Embedding Config', link: '/embedding-models' })
+        crumbs.push({ label: t('nav.embedding'), link: '/embedding-models' })
       } else if (paths[0] === 'finetuning') {
-        crumbs.push({ label: 'YOLO Retraining', link: '/finetuning' })
+        crumbs.push({ label: t('nav.finetune'), link: '/finetuning' })
       } else if (paths[0] === 'frame-inspection') {
-        crumbs.push({ label: 'Unified Alert Center', link: '/alerts' })
+        crumbs.push({ label: t('nav.alerts'), link: '/alerts' })
         crumbs.push({ label: `Frame Inspection #${paths[1] || ''}`, link: `/frame-inspection/${paths[1] || ''}` })
       }
     }
@@ -1004,129 +1009,138 @@ function App() {
             <Link
               to="/dashboard"
               className={navLinkClass(location.pathname === '/dashboard')}
-              title={isSidebarCollapsed ? 'Situation Overview' : undefined}
+              title={isSidebarCollapsed ? t('nav.dashboard') : undefined}
             >
               <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
               </svg>
-              {!isSidebarCollapsed && <span>Situation Overview</span>}
+              {!isSidebarCollapsed && <span>{t('nav.dashboard')}</span>}
             </Link>
 
             <button
               onClick={() => setIsCopilotOpen(true)}
               className={`${navLinkClass(isCopilotOpen)} w-full text-left`}
-              title={isSidebarCollapsed ? 'Agents' : undefined}
+              title={isSidebarCollapsed ? t('nav.agent') : undefined}
             >
               <Sparkles className="h-4 w-4 shrink-0" />
-              {!isSidebarCollapsed && <span>Agents</span>}
+              {!isSidebarCollapsed && <span>{t('nav.agent')}</span>}
             </button>
 
               <Link
                 to="/areas"
                 className={navLinkClass(location.pathname === '/areas')}
-                title={isSidebarCollapsed ? 'Areas' : undefined}
+                title={isSidebarCollapsed ? t('nav.areas') : undefined}
               >
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6.5A2.5 2.5 0 016.5 4h4A2.5 2.5 0 0113 6.5v4a2.5 2.5 0 01-2.5 2.5h-4A2.5 2.5 0 014 10.5v-4zM15 13.5a2.5 2.5 0 012.5-2.5h4a2.5 2.5 0 012.5 2.5v4a2.5 2.5 0 01-2.5 2.5h-4a2.5 2.5 0 01-2.5-2.5v-4z" />
                 </svg>
-                {!isSidebarCollapsed && <span>Areas</span>}
+                {!isSidebarCollapsed && <span>{t('nav.areas')}</span>}
               </Link>
 
               <Link
                 to="/cameras"
                 className={navLinkClass(location.pathname.startsWith('/cameras') && !location.pathname.includes('/live'))}
-                title={isSidebarCollapsed ? 'Cameras' : undefined}
+                title={isSidebarCollapsed ? t('nav.cameras') : undefined}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                {!isSidebarCollapsed && <span>Cameras</span>}
+                {!isSidebarCollapsed && <span>{t('nav.cameras')}</span>}
               </Link>
 
               <Link
                 to="/live-connect"
                 className={navLinkClass(location.pathname === '/live-connect' || location.pathname === '/connect')}
-                title={isSidebarCollapsed ? 'Live Broadcaster Studio' : undefined}
+                title={isSidebarCollapsed ? t('nav.live') : undefined}
               >
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.828a5 5 0 010-7.072m7.072 0a5 5 0 010 7.072M13 12a1 1 0 11-2 0 1 1 0 012 0z" />
                 </svg>
-                {!isSidebarCollapsed && <span>Live Broadcaster</span>}
+                {!isSidebarCollapsed && <span>{t('nav.live')}</span>}
               </Link>
-
-
 
             <Link
               to="/multicam"
               className={navLinkClass(location.pathname === '/multicam')}
-              title={isSidebarCollapsed ? 'Multi-Cam Intelligence' : undefined}
+              title={isSidebarCollapsed ? t('nav.multicam') : undefined}
             >
               <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
-              {!isSidebarCollapsed && <span>Multi-Cam Intelligence</span>}
+              {!isSidebarCollapsed && <span>{t('nav.multicam')}</span>}
             </Link>
 
             <Link
               to="/search"
               className={navLinkClass(location.pathname === '/search')}
-              title={isSidebarCollapsed ? 'Search & Investigate' : undefined}
+              title={isSidebarCollapsed ? t('nav.search') : undefined}
             >
               <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              {!isSidebarCollapsed && <span>Search &amp; Investigate</span>}
+              {!isSidebarCollapsed && <span>{t('nav.search')}</span>}
             </Link>
 
             <Link
               to="/plates"
               className={navLinkClass(location.pathname === '/plates')}
-              title={isSidebarCollapsed ? 'Vehicle Plate Search' : undefined}
+              title={isSidebarCollapsed ? t('nav.plates') : undefined}
             >
               <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M3 8a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm4 3h2m2 0h2m2 0h2M7 14h10" />
               </svg>
-              {!isSidebarCollapsed && <span>Vehicle Plate Search</span>}
+              {!isSidebarCollapsed && <span>{t('nav.plates')}</span>}
             </Link>
 
             <Link
               to="/evidence"
               className={navLinkClass(location.pathname === '/evidence')}
-              title={isSidebarCollapsed ? 'Evidence Vault' : undefined}
+              title={isSidebarCollapsed ? t('nav.evidence') : undefined}
             >
               <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
-              {!isSidebarCollapsed && <span>Evidence Vault</span>}
+              {!isSidebarCollapsed && <span>{t('nav.evidence')}</span>}
             </Link>
 
             <Link
               to="/face-search"
               className={navLinkClass(location.pathname === '/face-search')}
-              title={isSidebarCollapsed ? 'Facial Intelligence' : undefined}
+              title={isSidebarCollapsed ? t('nav.face') : undefined}
             >
               <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5s-3 1.343-3 3 1.343 3 3 3zm0 2c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z" />
               </svg>
-              {!isSidebarCollapsed && <span>Facial Intelligence</span>}
+              {!isSidebarCollapsed && <span>{t('nav.face')}</span>}
+            </Link>
+
+            <Link
+              to="/language-settings"
+              className={navLinkClass(location.pathname === '/language-settings')}
+              title={isSidebarCollapsed ? t('nav.language') : undefined}
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+              </svg>
+              {!isSidebarCollapsed && <span>{t('nav.language')}</span>}
             </Link>
 
             <Link
               to="/targets"
               className={navLinkClass(location.pathname.startsWith('/targets') || location.pathname.startsWith('/hot-targets') || location.pathname === '/multicam')}
-              title={isSidebarCollapsed ? 'Pursuit & Tracking' : undefined}
+              title={isSidebarCollapsed ? t('nav.targets') : undefined}
             >
               <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
               </svg>
-              {!isSidebarCollapsed && <span>Pursuit &amp; Tracking</span>}
+              {!isSidebarCollapsed && <span>{t('nav.targets')}</span>}
             </Link>
 
             <Link
               to="/alerts"
               className={`relative ${navLinkClass(location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts' || location.pathname === '/assault-detection' || location.pathname === '/plate-detection')} ${isSidebarCollapsed ? 'justify-center px-0' : ''}`}
-              title={isSidebarCollapsed ? `Unified Alert Center${unackAlertCount > 0 ? ` (${unackAlertCount})` : ''}` : undefined}
+              title={isSidebarCollapsed ? `${t('nav.alerts')}${unackAlertCount > 0 ? ` (${unackAlertCount})` : ''}` : undefined}
             >
               <div className="relative shrink-0 flex items-center justify-center">
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1140,7 +1154,7 @@ function App() {
               </div>
               {!isSidebarCollapsed && (
                 <>
-                  <span className="truncate">Unified Alert Center</span>
+                  <span className="truncate">{t('nav.alerts')}</span>
                   {unackAlertCount > 0 && (
                     <span className="ml-auto px-1.5 py-0.5 text-[9px] font-mono font-bold rounded-full bg-rose-500 text-white shadow-xs animate-pulse leading-none">
                       {unackAlertCount}
@@ -1181,30 +1195,30 @@ function App() {
                   <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                   </svg>
-                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Detector Models</span>}
+                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{t('nav.models')}</span>}
                 </Link>
 
                 <Link
                   to="/embedding-models"
                   className={navLinkClass(location.pathname.startsWith('/embedding-models'))}
-                  title={isSidebarCollapsed ? 'CLIP Embeddings' : undefined}
+                  title={isSidebarCollapsed ? t('nav.embedding') : undefined}
                 >
                   <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
                   </svg>
-                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Embedding Config</span>}
+                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{t('nav.embedding')}</span>}
                 </Link>
 
                 <Link
                   to="/finetuning"
                   className={navLinkClass(location.pathname === '/finetuning')}
-                  title={isSidebarCollapsed ? 'YOLO Retraining' : undefined}
+                  title={isSidebarCollapsed ? t('nav.finetune') : undefined}
                 >
                   <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">YOLO Fine-Tuning</span>}
+                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{t('nav.finetune')}</span>}
                 </Link>
               </div>
             ) : (
@@ -1236,7 +1250,7 @@ function App() {
             {!isSidebarCollapsed && (
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-slate-800 dark:text-slate-300 truncate">J. Doe</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-600 truncate font-mono">Forensic Operator</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-600 truncate font-mono">{t('nav.operatorRole')}</p>
               </div>
             )}
           </div>
@@ -1269,8 +1283,45 @@ function App() {
           {/* AI Copilot global search bar */}
           <GlobalSearchBar onOpenCopilot={() => setIsCopilotOpen(true)} />
 
-          {/* Pipeline status pill & theme toggle */}
+          {/* Pipeline status pill, quick language toggle & theme toggle */}
           <div className="flex items-center gap-2.5">
+            {/* Quick Language Toggle Pill */}
+            <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-850 p-0.5 text-xs font-semibold select-none shadow-xs">
+              <button
+                onClick={() => { i18n.changeLanguage('en'); localStorage.setItem('tracenet_lang', 'en'); }}
+                className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                  (i18n.language || 'en').startsWith('en')
+                    ? 'bg-teal-700 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+                title="English"
+              >
+                EN
+              </button>
+              <button
+                onClick={() => { i18n.changeLanguage('hi'); localStorage.setItem('tracenet_lang', 'hi'); }}
+                className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                  (i18n.language || '').startsWith('hi')
+                    ? 'bg-teal-700 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+                title="हिंदी (Hindi)"
+              >
+                HI
+              </button>
+              <button
+                onClick={() => { i18n.changeLanguage('gu'); localStorage.setItem('tracenet_lang', 'gu'); }}
+                className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                  (i18n.language || '').startsWith('gu')
+                    ? 'bg-teal-700 text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+                title="ગુજરાતી (Gujarati)"
+              >
+                GU
+              </button>
+            </div>
+
             {/* Clickable Pipeline Status Pill */}
             {(() => {
               const activeJobs = systemJobs.filter(j => j.status === 'running' || j.status === 'pending');
@@ -1290,8 +1341,8 @@ function App() {
                     }`}
                   />
                   {isPipelineActive 
-                    ? `Active: ${activeJobs[0].name.substring(0, 18)}${activeJobs[0].name.length > 18 ? '...' : ''}`
-                    : 'Pipeline Idle'}
+                    ? `${t('topbar.pipelineActive')}: ${activeJobs[0].name.substring(0, 18)}${activeJobs[0].name.length > 18 ? '...' : ''}`
+                    : t('topbar.pipelineIdle')}
                 </span>
               );
             })()}
@@ -1359,6 +1410,7 @@ function App() {
               <Route path="/plate-detection" element={<PlateDetection cameras={cameras} />} />
               <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
               <Route path="/finetuning" element={<FineTuning />} />
+              <Route path="/language-settings" element={<LanguageSettings />} />
               <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/face-search" element={<FaceSearch />} />
               <Route path="/evidence" element={<EvidenceVault />} />

@@ -1,0 +1,294 @@
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Globe, Save, Check, RefreshCw } from 'lucide-react';
+import i18n from '../i18n';
+import { useToast } from '../components/Toast';
+
+const API_BASE = `http://${window.location.hostname}:8000`;
+
+const INDIC_MAP: Record<string, string> = {
+  laal: 'red', lal: 'red', kaala: 'black', kala: 'black', safed: 'white', neela: 'blue', 
+  peela: 'yellow', hara: 'green', gulabi: 'pink', gaadi: 'car', gadi: 'car', riksha: 'rickshaw', 
+  maanas: 'man', aurat: 'woman', aadmi: 'man', mahila: 'woman', chokra: 'boy', chokri: 'girl'
+};
+
+export default function LanguageSettings() {
+  const { t } = useTranslation();
+  const toast = useToast();
+  
+  const [selectedLang, setSelectedLang] = useState<string>(i18n.language || 'en');
+  const [multilingualBackend, setMultilingualBackend] = useState<'dictionary' | 'openrouter'>('dictionary');
+  const [openrouterKey, setOpenrouterKey] = useState<string>(localStorage.getItem('openrouter_api_key') || '');
+  const [saving, setSaving] = useState(false);
+  const [testQuery, setTestQuery] = useState('');
+  const [testResult, setTestResult] = useState<{ normalized: string, substitutions: string[] } | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  useEffect(() => {
+    fetchConfig();
+  }, []);
+
+  const fetchConfig = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/search/multilingual/config`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.backend === 'openrouter' || data.backend === 'dictionary') {
+          setMultilingualBackend(data.backend);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch config', error);
+      setMultilingualBackend('dictionary');
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      i18n.changeLanguage(selectedLang);
+      localStorage.setItem('tracenet_lang', selectedLang);
+      if (openrouterKey) {
+        localStorage.setItem('openrouter_api_key', openrouterKey);
+      } else {
+        localStorage.removeItem('openrouter_api_key');
+      }
+
+      await fetch(`${API_BASE}/api/v1/search/multilingual/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          backend: multilingualBackend, 
+          openrouter_api_key: openrouterKey || undefined 
+        })
+      });
+
+      toast.success(t('settings.saved'));
+    } catch (error) {
+      toast.error(t('common.error'), String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = () => {
+    setTesting(true);
+    setTimeout(() => {
+      let normalized = testQuery;
+      const substitutions: string[] = [];
+      const words = testQuery.toLowerCase().split(/\s+/);
+      
+      const replacedWords = words.map(word => {
+        if (INDIC_MAP[word]) {
+          substitutions.push(`${word} -> ${INDIC_MAP[word]}`);
+          return INDIC_MAP[word];
+        }
+        return word;
+      });
+      
+      normalized = replacedWords.join(' ');
+      
+      setTestResult({
+        normalized,
+        substitutions
+      });
+      setTesting(false);
+    }, 400);
+  };
+
+  const changeLangImmediately = (lang: string) => {
+    setSelectedLang(lang);
+    i18n.changeLanguage(lang);
+    localStorage.setItem('tracenet_lang', lang);
+    const names: Record<string, string> = { en: 'English', hi: 'हिंदी', gu: 'ગુજરાતી' };
+    toast.success(t('settings.switched', { lang: names[lang] || lang }));
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto bg-slate-950 p-6">
+      <div className="max-w-4xl mx-auto space-y-6">
+        
+        <div className="flex items-center space-x-4 mb-8">
+          <Globe className="h-8 w-8 text-blue-400" />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-100">{t('settings.title')}</h1>
+            <p className="text-slate-400">Configure interface language and search intelligence</p>
+          </div>
+        </div>
+
+        {/* Section 1: Interface Language */}
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-slate-100 mb-2">{t('settings.language')}</h2>
+          <p className="text-slate-400 mb-6">{t('settings.languageDesc')}</p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button
+              onClick={() => changeLangImmediately('en')}
+              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                selectedLang === 'en' ? 'border-blue-500 bg-blue-500/10 shadow-md' : 'border-slate-700 bg-slate-800 hover:border-slate-600'
+              }`}
+            >
+              <div className="text-2xl mb-2">🇬🇧</div>
+              <div className="font-semibold text-slate-200">English</div>
+              <div className="text-xs text-slate-400 mt-1">Default (EN)</div>
+            </button>
+            <button
+              onClick={() => changeLangImmediately('hi')}
+              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                selectedLang === 'hi' ? 'border-blue-500 bg-blue-500/10 shadow-md' : 'border-slate-700 bg-slate-800 hover:border-slate-600'
+              }`}
+            >
+              <div className="text-2xl mb-2">🇮🇳</div>
+              <div className="font-semibold text-slate-200">हिंदी</div>
+              <div className="text-xs text-slate-400 mt-1">Hindi (HI)</div>
+            </button>
+            <button
+              onClick={() => changeLangImmediately('gu')}
+              className={`p-4 rounded-lg border-2 text-left transition-all ${
+                selectedLang === 'gu' ? 'border-blue-500 bg-blue-500/10 shadow-md' : 'border-slate-700 bg-slate-800 hover:border-slate-600'
+              }`}
+            >
+              <div className="text-2xl mb-2">🇮🇳</div>
+              <div className="font-semibold text-slate-200">ગુજરાતી</div>
+              <div className="text-xs text-slate-400 mt-1">Gujarati (GU)</div>
+            </button>
+          </div>
+        </div>
+
+        {/* Section 2: Multilingual Search Engine */}
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-slate-100 mb-2">{t('settings.multilingual')}</h2>
+          <p className="text-slate-400 mb-6">{t('settings.multilingualDesc')}</p>
+
+          <div className="space-y-4">
+            <label className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${
+              multilingualBackend === 'dictionary' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 bg-slate-800'
+            }`}>
+              <div className="flex items-start">
+                <input
+                  type="radio"
+                  name="backend"
+                  value="dictionary"
+                  checked={multilingualBackend === 'dictionary'}
+                  onChange={() => setMultilingualBackend('dictionary')}
+                  className="mt-1 mr-3 h-4 w-4 text-blue-500 focus:ring-blue-500 border-slate-600 bg-slate-900"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-200">{t('settings.dictionary')}</span>
+                    <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">RECOMMENDED FOR LOW-END LAPTOP</span>
+                  </div>
+                </div>
+              </div>
+            </label>
+
+            <label className={`block p-4 rounded-lg border-2 cursor-pointer transition-all ${
+              multilingualBackend === 'openrouter' ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 bg-slate-800'
+            }`}>
+              <div className="flex items-start">
+                <input
+                  type="radio"
+                  name="backend"
+                  value="openrouter"
+                  checked={multilingualBackend === 'openrouter'}
+                  onChange={() => setMultilingualBackend('openrouter')}
+                  className="mt-1 mr-3 h-4 w-4 text-blue-500 focus:ring-blue-500 border-slate-600 bg-slate-900"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-200">{t('settings.openrouter')}</span>
+                    <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded">REQUIRES API KEY</span>
+                  </div>
+                  
+                  {multilingualBackend === 'openrouter' && (
+                    <div className="mt-4 space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          {t('settings.apiKey')}
+                        </label>
+                        <input
+                          type="password"
+                          value={openrouterKey}
+                          onChange={(e) => setOpenrouterKey(e.target.value)}
+                          placeholder={t('settings.apiKeyPlaceholder')}
+                          className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">
+                          {t('settings.apiKeyHelp')}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2 text-xs text-slate-400">
+                        <Check className="h-4 w-4 text-green-500" />
+                        <span>Using: meta-llama/llama-3.2-3b-instruct:free</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* Section 3: Test Multilingual Normalization */}
+        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
+          <h2 className="text-xl font-semibold text-slate-100 mb-4">{t('settings.testQuery')}</h2>
+          
+          <div className="flex space-x-2 mb-4">
+            <input
+              type="text"
+              value={testQuery}
+              onChange={(e) => setTestQuery(e.target.value)}
+              placeholder={t('settings.testPlaceholder')}
+              className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleTest}
+              disabled={!testQuery || testing}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            >
+              {testing ? <RefreshCw className="h-5 w-5 animate-spin" /> : t('settings.testButton')}
+            </button>
+          </div>
+
+          {testResult && (
+            <div className="bg-slate-950 border border-slate-800 rounded p-4">
+              <div className="mb-3">
+                <div className="text-sm text-slate-400 mb-1">{t('settings.normalized')}:</div>
+                <div className="text-lg text-emerald-400 font-medium">{testResult.normalized}</div>
+              </div>
+              {testResult.substitutions.length > 0 && (
+                <div>
+                  <div className="text-sm text-slate-400 mb-1">{t('settings.substitutions')}:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {testResult.substitutions.map((sub, i) => (
+                      <span key={i} className="text-xs bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300">
+                        {sub}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium flex items-center shadow-lg shadow-blue-500/20 disabled:opacity-50"
+          >
+            {saving ? (
+              <RefreshCw className="h-5 w-5 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-5 w-5 mr-2" />
+            )}
+            {t('settings.save')}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}

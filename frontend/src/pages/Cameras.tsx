@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Filter, RefreshCw, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/Toast'
 
 import { API_BASE } from '../config/api'
@@ -122,6 +123,7 @@ const inputCls = "w-full rounded border border-slate-200 dark:border-slate-700 b
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export default function Cameras({ cameras, areas, models, onOpenRegisterModal, onRefreshCameras }: CamerasProps) {
+  const { t } = useTranslation()
   const toast = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const areaFilter = searchParams.get('area') || searchParams.get('area_id') || ''
@@ -462,8 +464,8 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
       {/* ── PAGE HEADER ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Camera Nodes</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Geographic grid, node statuses, and video archive registry.</p>
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('cameras.title')}</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t('cameras.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Link
@@ -471,7 +473,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
             className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded text-xs font-semibold transition-colors"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Live Broadcaster</span>
+            <span>{t('nav.live')}</span>
           </Link>
           <button
             onClick={onOpenRegisterModal}
@@ -480,7 +482,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
             </svg>
-            Register Camera
+            {t('cameras.registerCamera')}
           </button>
         </div>
       </div>
@@ -529,7 +531,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                 onChange={(e) => handleSelectAreaFilter(e.target.value)}
                 className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-teal-600"
               >
-                <option value="">All Areas ({localCameras.length})</option>
+                <option value="">{t('cameras.allAreas')} ({localCameras.length})</option>
                 {areas.map(area => {
                   const count = localCameras.filter(c => c.area_id === area.id).length
                   return (
@@ -548,13 +550,13 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
           <thead className="bg-slate-50 dark:bg-slate-700/60 text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider font-semibold">
             <tr>
               <th className="px-4 py-2.5 w-[72px]">Preview</th>
-              <th className="px-4 py-2.5">Camera / ID</th>
-              <th className="px-4 py-2.5">Area / Zone</th>
+              <th className="px-4 py-2.5">{t('cameras.colCamera')} / ID</th>
+              <th className="px-4 py-2.5">{t('cameras.colArea')}</th>
               <th className="px-4 py-2.5">Neighbors</th>
-              <th className="px-4 py-2.5">Status</th>
+              <th className="px-4 py-2.5">{t('cameras.colStatus')}</th>
               <th className="px-4 py-2.5">Assigned Model</th>
-              <th className="px-4 py-2.5 text-center">Feeds</th>
-              <th className="px-4 py-2.5 text-right w-[110px]">Actions</th>
+              <th className="px-4 py-2.5 text-center">{t('cameras.colVideos')}</th>
+              <th className="px-4 py-2.5 text-right w-[110px]">{t('cameras.colActions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">

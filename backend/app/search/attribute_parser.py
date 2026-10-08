@@ -32,6 +32,33 @@ COLOR_SYNONYMS = {
     "brown": "brown", "tan": "brown", "beige": "brown", "khaki": "brown",
     "pink": "pink", "magenta": "pink",
     "purple": "purple", "violet": "purple",
+    # Hindi / Hinglish color aliases
+    "laal": "red", "lal": "red", "laali": "red",
+    "kaala": "black", "kala": "black", "kaali": "black", "kali": "black", "kalo": "black",
+    "safed": "white", "chitta": "white", "dholo": "white", "dholi": "white", "ujlo": "white",
+    "neela": "blue", "nila": "blue", "nilo": "blue", "neeli": "blue",
+    "peela": "yellow", "pila": "yellow", "pilo": "yellow", "peeli": "yellow",
+    "hara": "green", "hari": "green", "lilo": "green", "lili": "green", "lilu": "green",
+    "gulabi": "pink", "gulaabi": "pink",
+    "bhura": "brown", "bhurak": "brown", "bhoora": "brown",
+    "narangi": "orange", "kesari": "orange",
+    "jamuni": "purple", "jambli": "purple",
+    "sunehra": "yellow", "sona": "yellow",
+    # Gujarati native script (common Unicode ranges)
+    "\u0aaa\u0ac0\u0ab3\u0acb": "yellow",  # પીળો
+    "\u0a95\u0abe\u0ab3\u0acb": "black",  # કાળો
+    "\u0ab2\u0abe\u0ab2": "red",  # લાલ
+    "\u0ab8\u0aab\u0ac7\u0aa6": "white",  # સફેદ
+    # Devanagari native script
+    "\u0932\u093e\u0932": "red",   # लाल
+    "\u0915\u093e\u0932\u093e": "black",  # काला
+    "\u0938\u092b\u0947\u0926": "white",  # सफेद
+    "\u0928\u0940\u0932\u093e": "blue",   # नीला
+    "\u092a\u0940\u0932\u093e": "yellow", # पीला
+    "\u0939\u0930\u093e": "green",  # हरा
+    "\u0917\u0941\u0932\u093e\u092c\u0940": "pink",  # गुलाबी
+    "\u092d\u0942\u0930\u093e": "brown",  # भूरा
+    "\u0928\u093e\u0930\u0902\u0917\u0940": "orange", # नारंगी
 }
 
 UPPER_GARMENTS = {
@@ -41,11 +68,12 @@ UPPER_GARMENTS = {
 LOWER_GARMENTS = {"pants", "pant", "trousers", "jeans", "shorts", "skirt", "leggings", "lower"}
 HEAD_ITEMS = {"cap", "hat", "helmet", "turban", "scarf", "hijab", "dupatta", "beanie"}
 ACCESSORIES = {"backpack", "bag", "handbag", "umbrella", "luggage", "suitcase"}
-PERSON_WORDS = {"man", "men", "woman", "women", "boy", "girl", "person", "people", "pedestrian", "male", "female"}
+PERSON_WORDS = {"man", "men", "woman", "women", "boy", "girl", "person", "people", "pedestrian", "male", "female", "maanas", "manas", "aurat", "bai"}
 VEHICLE_WORDS = {
     "car", "hatchback", "sedan", "suv", "jeep", "truck", "lorry", "bus", "van", "bike",
     "motorcycle", "motorbike", "scooter", "scooty", "auto", "rickshaw", "cycle", "bicycle",
     "tempo", "taxi", "two-wheeler", "vehicle", "hcv", "lcv", "three-wheeler",
+    "gaadi", "gadi", "riksha", "scooty", "tempo"
 }
 BODY_STYLE_WORDS = {"hatchback", "sedan", "suv", "jeep"}
 _FILLER = {"and", "&", "or", "with", "a", "an", "the"}

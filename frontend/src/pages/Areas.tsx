@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Grid2X2, List, Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { API_BASE } from '../config/api'
 import { useToast } from '../components/Toast'
 
@@ -22,6 +23,7 @@ const imageUrl = (path?: string | null) => {
 }
 
 export default function Areas() {
+  const { t } = useTranslation()
   const toast = useToast()
   const [areas, setAreas] = useState<Area[]>([])
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('tracenet-area-view') as 'grid' | 'list') || 'grid')
@@ -125,15 +127,15 @@ export default function Areas() {
     <div className="space-y-5 pb-16 text-slate-800 dark:text-slate-100">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Areas</h2>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Organize camera nodes by geographic or operational area.</p>
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('areas.title')}</h2>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{t('areas.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded border border-slate-200 dark:border-slate-700 p-0.5">
             <button aria-label="Grid view" onClick={() => setViewMode('grid')} className={`rounded p-1.5 ${view === 'grid' ? 'bg-teal-700/10 text-teal-700 dark:text-teal-300' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}><Grid2X2 className="h-4 w-4" /></button>
             <button aria-label="List view" onClick={() => setViewMode('list')} className={`rounded p-1.5 ${view === 'list' ? 'bg-teal-700/10 text-teal-700 dark:text-teal-300' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}><List className="h-4 w-4" /></button>
           </div>
-          <button onClick={openCreate} className="flex items-center gap-1.5 rounded bg-teal-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-800"><Plus className="h-3.5 w-3.5" /> New Area</button>
+          <button onClick={openCreate} className="flex items-center gap-1.5 rounded bg-teal-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-800"><Plus className="h-3.5 w-3.5" /> {t('areas.newArea')}</button>
         </div>
       </div>
 
@@ -143,13 +145,13 @@ export default function Areas() {
           return (
             <article key={area.id} className={`overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 ${view === 'list' ? 'flex items-center' : ''}`}>
               <div className={view === 'list' ? 'h-20 w-32 shrink-0' : 'h-36'}>
-                {thumbnail ? <img src={thumbnail} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center bg-slate-100 text-xs text-slate-500 dark:bg-slate-900 dark:text-slate-400">No thumbnail</div>}
+                {thumbnail ? <img src={thumbnail} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center bg-slate-100 text-xs text-slate-500 dark:bg-slate-900 dark:text-slate-400">{t('areas.noThumbnail')}</div>}
               </div>
               <div className="min-w-0 flex-1 p-3.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h3 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{area.name}</h3>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{area.camera_count} camera{area.camera_count === 1 ? '' : 's'}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{area.camera_count} {t('areas.camerasCount')}</p>
                   </div>
                   <div className="flex shrink-0 gap-1">
                     <button onClick={() => openEdit(area)} aria-label={`Edit ${area.name}`} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-teal-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-teal-300"><Pencil className="h-3.5 w-3.5" /></button>
@@ -157,7 +159,7 @@ export default function Areas() {
                   </div>
                 </div>
                 {area.description && <p className="mt-2 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{area.description}</p>}
-                <Link to={`/cameras?area=${encodeURIComponent(area.id)}`} className="mt-3 inline-block text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">View camera directory ({area.camera_count}) →</Link>
+                <Link to={`/cameras?area=${encodeURIComponent(area.id)}`} className="mt-3 inline-block text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">{t('areas.viewCameras')} ({area.camera_count}) →</Link>
               </div>
             </article>
           )

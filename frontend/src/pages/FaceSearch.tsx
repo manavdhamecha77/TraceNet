@@ -154,13 +154,14 @@ export default function FaceSearch() {
   const handleLabelFace = async (id: string) => {
     if (!labelInput.trim()) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/face-tracklets/${id}/label`, {
+      const res = await fetch(`${API_BASE}/api/v1/face-tracklets/${encodeURIComponent(id)}/label`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: labelInput.trim() })
       })
       if (res.ok) {
-        setResults(prev => prev.map(r => r.face_tracklet_id === id ? { ...r, label: labelInput.trim() } : r))
+        const val = labelInput.trim()
+        setResults(prev => prev.map((r: any) => ((r.id || r.face_tracklet_id) === id ? { ...r, label: val } : r)))
         setLabelingId(null)
         setLabelInput('')
       }
@@ -387,68 +388,82 @@ export default function FaceSearch() {
       {/* Results */}
       {results.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {results.map((r, idx) => (
-            <div key={r.face_tracklet_id + idx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col group shadow-sm">
-              <div className="relative aspect-square bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-2">
-                <img
-                  src={r.best_crop_path.startsWith('http') ? r.best_crop_path : `${API_BASE}${r.best_crop_path.startsWith('/data/') ? r.best_crop_path : '/' + r.best_crop_path}`}
-                  alt="Face crop"
-                  className="w-full h-full object-contain rounded"
-                />
-                {(activeTab === 'text' || activeTab === 'image') && r.score && (
-                  <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow">
-                    {(r.score * 100).toFixed(0)}%
-                  </div>
-                )}
-                {r.label && (
-                  <div className="absolute bottom-2 left-2 bg-emerald-600/90 text-white text-xs font-bold px-2 py-0.5 rounded backdrop-blur-sm border border-emerald-500/50 shadow flex items-center gap-1">
-                    <Tag className="h-3 w-3" />
-                    {r.label}
-                  </div>
-                )}
-              </div>
-              <div className="p-3 space-y-3 flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-bold mb-1">
-                    <CameraIcon className="h-3.5 w-3.5" />
-                    <span className="truncate">{r.camera_name || r.camera_id}</span>
-                  </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                    {new Date(r.timestamp_start_seconds * 1000).toISOString().substr(11, 8)}
-                  </div>
-                </div>
+          {results.map((r: any, idx) => {
+            const cardId = String(r.id || r.face_tracklet_id || `${r.video_id}_face_${idx}`)
+            const cropPath = r.best_crop_path || ''
+            const cropUrl = cropPath.startsWith('http') ? cropPath : `${API_BASE}${cropPath.startsWith('/data/') ? cropPath : '/' + cropPath}`
 
-                <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  {labelingId === r.face_tracklet_id ? (
-                    <div className="flex gap-1 w-full">
-                      <input
-                        autoFocus
-                        type="text"
-                        value={labelInput}
-                        onChange={e => setLabelInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleLabelFace(r.face_tracklet_id)}
-                        className="w-full text-xs px-2 py-1 border border-teal-600 rounded bg-teal-50 dark:bg-teal-900/20 text-slate-800 dark:text-slate-100 outline-none"
-                        placeholder="Name..."
-                      />
-                      <button onClick={() => handleLabelFace(r.face_tracklet_id)} className="bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white px-2 py-1 rounded text-xs font-semibold">
-                        OK
-                      </button>
+            return (
+              <div key={cardId} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden flex flex-col group shadow-sm">
+                <div className="relative aspect-square bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-2">
+                  <img
+                    src={cropUrl}
+                    alt="Face crop"
+                    className="w-full h-full object-contain rounded"
+                  />
+                  {(activeTab === 'text' || activeTab === 'image') && r.score !== undefined && (
+                    <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow">
+                      {(r.score * 100).toFixed(0)}%
                     </div>
-                  ) : (
-                    <button onClick={() => { setLabelingId(r.face_tracklet_id); setLabelInput(r.label || '') }} className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[11px] font-bold transition-colors">
-                      Tag Face
-                    </button>
                   )}
-                  <Link
-                    to={`/cameras/${r.camera_id}/videos/${r.video_id}?seek=${r.timestamp_start_seconds}&mode=faces`}
-                    className="flex-1 py-1.5 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 text-teal-800 dark:text-teal-300 rounded text-[11px] font-bold text-center transition-colors border border-teal-200 dark:border-teal-800"
-                  >
-                    Seek Video
-                  </Link>
+                  {r.label && (
+                    <div className="absolute bottom-2 left-2 bg-emerald-600/90 text-white text-xs font-bold px-2 py-0.5 rounded backdrop-blur-sm border border-emerald-500/50 shadow flex items-center gap-1">
+                      <Tag className="h-3 w-3" />
+                      {r.label}
+                    </div>
+                  )}
+                </div>
+                <div className="p-3 space-y-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-bold mb-1">
+                      <CameraIcon className="h-3.5 w-3.5" />
+                      <span className="truncate">{r.camera_name || r.camera_id}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      {typeof r.timestamp_start_seconds === 'number'
+                        ? new Date(r.timestamp_start_seconds * 1000).toISOString().substr(11, 8)
+                        : '--:--:--'}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    {labelingId === cardId ? (
+                      <div className="flex gap-1 w-full">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={labelInput}
+                          onChange={e => setLabelInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleLabelFace(cardId)
+                            if (e.key === 'Escape') { setLabelingId(null); setLabelInput('') }
+                          }}
+                          className="w-full text-xs px-2 py-1 border border-teal-600 rounded bg-teal-50 dark:bg-teal-900/20 text-slate-800 dark:text-slate-100 outline-none"
+                          placeholder="Name..."
+                        />
+                        <button onClick={() => handleLabelFace(cardId)} className="bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white px-2 py-1 rounded text-xs font-semibold" title="Save">
+                          OK
+                        </button>
+                        <button onClick={() => { setLabelingId(null); setLabelInput('') }} className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded text-xs font-semibold" title="Cancel">
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setLabelingId(cardId); setLabelInput(r.label || '') }} className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[11px] font-bold transition-colors">
+                        Tag Face
+                      </button>
+                    )}
+                    <Link
+                      to={`/cameras/${r.camera_id}/videos/${r.video_id}?seek=${r.timestamp_start_seconds || 0}&mode=faces`}
+                      className="flex-1 py-1.5 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 text-teal-800 dark:text-teal-300 rounded text-[11px] font-bold text-center transition-colors border border-teal-200 dark:border-teal-800"
+                    >
+                      Seek Video
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
