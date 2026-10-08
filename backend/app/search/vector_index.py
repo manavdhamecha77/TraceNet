@@ -23,8 +23,58 @@ def get_qdrant_client() -> QdrantClient:
     if _qdrant_client_instance is None:
         db_dir = get_data_path("vector_db")
         os.makedirs(db_dir, exist_ok=True)
-        _qdrant_client_instance = QdrantClient(path=db_dir)
+        try:
+            _qdrant_client_instance = QdrantClient(path=db_dir)
+        except Exception as e:
+            # No silent in-memory fallback: it would serve empty searches and lose every vector indexed
+            # until restart. Local Qdrant allows one process; stop the other server / sync / script first.
+            raise RuntimeError(
+                f"Vector index at {db_dir} is locked by another process (is a second backend or "
+                f"`app.storage.sync` running?). Stop it and retry. Details: {e}"
+            ) from e
     return _qdrant_client_instance
+
+
+def normalize_legacy_object_types(db: Session) -> int:
+    """Rewrite legacy object_type values (e.g. 'HCV', 'LCV', 'Three-wheeler', stored before class names were
+    canonicalised) to 'person' / 'vehicle' in both Qdrant and SQLite, so the person/vehicle filter finds them.
+    Idempotent; Qdrant is updated first so a failure leaves SQLite untouched and the next start retries."""
+    from qdrant_client import models as qm
+    from app.attributes.color_extractor import canonical_object_type
+
+    legacy = (
+        db.query(Tracklet.object_type, Tracklet.class_name)
+        .filter(~Tracklet.object_type.in_(["person", "vehicle"]))
+        .distinct()
+        .all()
+    )
+    if not legacy:
+        return 0
+    client = get_qdrant_client()
+    has_collection = client.collection_exists(COLLECTION_NAME)
+    fixed = 0
+    for object_type, class_name in legacy:
+        canonical = canonical_object_type(class_name, object_type)
+        if canonical not in ("person", "vehicle"):
+            continue
+        if has_collection:
+            client.set_payload(
+                collection_name=COLLECTION_NAME,
+                payload={"object_type": canonical},
+                points=qm.Filter(must=[
+                    qm.FieldCondition(key="object_type", match=qm.MatchValue(value=object_type)),
+                    qm.FieldCondition(key="class_name", match=qm.MatchValue(value=class_name)),
+                ]),
+                wait=True,
+            )
+        fixed += (
+            db.query(Tracklet)
+            .filter(Tracklet.object_type == object_type, Tracklet.class_name == class_name)
+            .update({Tracklet.object_type: canonical}, synchronize_session=False)
+        )
+        db.commit()
+        logger.info(f"Normalised legacy object_type '{object_type}' (class '{class_name}') -> '{canonical}'")
+    return fixed
 
 
 def get_vector_index() -> VectorIndexService:

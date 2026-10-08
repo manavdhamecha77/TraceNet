@@ -620,6 +620,15 @@ def _start_mediamtx_server_locked():
 def load_startup_singletons() -> None:
     """Start infrastructure without blocking API readiness on optional ML downloads."""
     print("Startup: CLIP encoder will load lazily when search or embedding work begins.")
+    try:
+        from app.search.vector_index import normalize_legacy_object_types
+
+        with SessionLocal() as db:
+            fixed = normalize_legacy_object_types(db)
+        if fixed:
+            print(f"Startup: normalised object_type on {fixed} legacy tracklets (person/vehicle filter).")
+    except Exception as exc:
+        print(f"Startup Warning: legacy object_type normalisation skipped: {exc}")
     start_mediamtx_server()
 
 # Enable CORS for frontend integration (allow all origins for LAN / multi-device access)
