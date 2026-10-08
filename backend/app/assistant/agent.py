@@ -6,17 +6,14 @@ from sqlalchemy.orm import Session
 from loguru import logger
 
 from app.assistant.llm_provider import BaseLLMProvider
+from app.assistant.guard import REFUSAL, is_off_topic
 from app.assistant.tools import TOOL_SCHEMAS, ToolExecutor
 
 SYSTEM_PROMPT = """You are TraceNet Copilot, a domain-specific AI Digital Forensics & Video Analytics Assistant for Smart City CCTV Surveillance (Project DRISHTI).
 
-STRICT DOMAIN BOUNDARY & REFUSAL POLICY:
-- You are strictly specialized ONLY in Smart City CCTV Surveillance, Digital Forensics, CCTV Video Analytics, Camera Node Topography, Target Search (people and vehicles), Security Alerts (loitering, abandoned objects, chain snatching/theft, assault/fighting), Multi-Camera Trajectory Reconstruction, Pursuit Waves, and ML Model Management.
-- You MUST REFUSE any requests unrelated to this platform. If the user asks for help with math problems, coding/programming, creative writing, homework, general science, finance, entertainment, or general conversational topics outside smart city surveillance:
-  * Maintain a polite and professional tone.
-  * Explicitly DECLINE the request.
-  * State clearly that you are domain-locked to Project DRISHTI Smart City Surveillance.
-  * Standard Refusal Response: "I am specialized exclusively for TraceNet Smart City CCTV Surveillance and Digital Forensics (Project DRISHTI). I cannot assist with off-topic queries such as general math, programming, or unrelated subjects. Please ask a query related to camera nodes, video footage search, security alerts, or forensic audit logs."
+DOMAIN BOUNDARY:
+- You serve ONLY Smart City CCTV Surveillance and Digital Forensics on this platform: camera nodes, footage search for people and vehicles, security alerts (loitering, abandoned objects, chain snatching/theft, assault/fighting, accidents), multi-camera tracking, pursuit waves, forensic audit logs and ML model management.
+- Every request you receive has already passed an off-topic filter, so it IS about this platform. Never decline it: answer it using your tools, even when it is short, informal, or mentions places such as gates, stations or markets.
 
 Core Platform Capabilities & Available Tools:
 1. Search CCTV video tracklets using natural language descriptions or visual attributes (`search_tracklets`).
@@ -33,10 +30,30 @@ Core Platform Capabilities & Available Tools:
 12. Trigger vector re-indexing for a video feed (`trigger_video_reindex`).
 
 Instructions for In-Domain Queries:
+- Officers may write in Hindi, Gujarati or romanised Hinglish/Gujlish (e.g. "laal gaadi dikhao" = "show the red car"). These are normal in-domain requests, never refuse them for their language; an English rendering is added in brackets when available. Answer in English.
 - Always use relevant tool calls (`search_tracklets`, `list_cameras`, `get_camera_details`, `get_system_alerts`, `get_search_logs`, `get_dashboard_metrics`, `list_models`, `assign_camera_model`, `trigger_video_reindex`, `reconstruct_trajectory`, `activate_pursuit_wave`, `get_chain_snatching_alerts`, `analyze_chain_snatching`, `get_assault_alerts`, `detect_assault`) to query actual database evidence before making assertions.
 - Format answers with clean GitHub Markdown.
 - Highlight key forensic parameters (camera name/ID, timestamps, similarity confidence scores, tracklet IDs).
 """
+
+
+def _with_english_rendering(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Append an English rendering to the latest user message when it contains Hindi / Gujarati / Hinglish
+    terms, so small local models recognise the request as in-domain and can call the right tools."""
+    idx = next((i for i in range(len(messages) - 1, -1, -1) if messages[i].get("role") == "user"), None)
+    if idx is None or not messages[idx].get("content"):
+        return messages
+    try:
+        from app.search.multilingual import normalize_query
+
+        english, substitutions = normalize_query(str(messages[idx]["content"]))
+    except Exception:
+        return messages
+    if not substitutions:
+        return messages
+    updated = list(messages)
+    updated[idx] = {**messages[idx], "content": f"{messages[idx]['content']}\n[English: {english}]"}
+    return updated
 
 
 class AssistantAgent:
@@ -51,6 +68,12 @@ class AssistantAgent:
         db: Session,
         max_tool_loops: int = 3
     ) -> Dict[str, Any]:
+        last_user = next((m for m in reversed(messages) if m.get("role") == "user"), None)
+        if last_user and not last_user.get("image_b64") and is_off_topic(str(last_user.get("content") or "")):
+            logger.info("Copilot domain guard: refused an off-topic request without calling the LLM.")
+            return {"role": "assistant", "content": REFUSAL, "executed_tools": [], "attachments": []}
+
+        messages = _with_english_rendering(messages)
         executor = ToolExecutor(db)
         # Keep only the last 6 messages to stay well within API token rate limits (TPM)
         history = list(messages[-6:])

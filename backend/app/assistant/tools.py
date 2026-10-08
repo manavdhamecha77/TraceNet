@@ -567,7 +567,6 @@ class ToolExecutor:
                     return {"status": "error", "message": f"Video '{video_id}' not found."}
 
                 from app.alerts.chain_snatching import ChainSnatchingAnalyzer
-                from app.db.models import CameraProfile, MLModel
                 cam = self.db.query(CameraProfile).filter(CameraProfile.camera_id == video.camera_id).first()
                 model_classes = []
                 if cam and cam.model_id:
