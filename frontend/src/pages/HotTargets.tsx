@@ -544,11 +544,13 @@ export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
           <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400 animate-pulse">Calculating camera journey...</div>
         ) : journeyData ? (
           <JourneyMapScrubber
-            steps={journeyData.trajectory || []}
+            steps={journeyData.journey_steps || journeyData.trajectory || []}
             activeStep={activeJourneyStep}
             onSelectStep={(s) => setActiveJourneyStep(s)}
             totalDistanceMeters={journeyData.total_distance_meters || 0}
             totalDurationSeconds={journeyData.total_duration_seconds || 0}
+            rejectedCameras={journeyData.rejected_cameras || []}
+            limitation={journeyData.limitation}
           />
         ) : (
           <div className="py-8 text-center">
@@ -591,11 +593,13 @@ export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
               </div>
             ) : journeyData ? (
               <JourneyMapScrubber
-                steps={journeyData.trajectory || []}
+                steps={journeyData.journey_steps || journeyData.trajectory || []}
                 activeStep={activeJourneyStep}
                 onSelectStep={(s) => setActiveJourneyStep(s)}
                 totalDistanceMeters={journeyData.total_distance_meters || 0}
                 totalDurationSeconds={journeyData.total_duration_seconds || 0}
+                rejectedCameras={journeyData.rejected_cameras || []}
+                limitation={journeyData.limitation}
               />
             ) : (
               <div className="py-10 text-center text-xs text-rose-700 dark:text-rose-300">

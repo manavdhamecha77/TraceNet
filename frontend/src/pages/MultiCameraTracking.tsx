@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Navigation, Radar, Play, RefreshCw } from 'lucide-react'
-import { JourneyMapScrubber, type JourneyStep } from '../components/JourneyMapScrubber'
+import { JourneyMapScrubber, type JourneyStep, type RejectedCamera } from '../components/JourneyMapScrubber'
 import { PursuitWaveHUD, type PursuitSession } from '../components/PursuitWaveHUD'
 import { LumpiBenchmarkPanel } from '../components/LumpiBenchmarkPanel'
 import { LumpiReplayPanel } from '../components/LumpiReplayPanel'
@@ -32,6 +32,7 @@ export const MultiCameraTracking: React.FC = () => {
 
   // Journey Map State
   const [journeySteps, setJourneySteps] = useState<JourneyStep[]>([])
+  const [journeyMeta, setJourneyMeta] = useState<{ rejected: RejectedCamera[]; limitation?: string }>({ rejected: [] })
   const [totalDistance, setTotalDistance] = useState<number>(0)
   const [totalDuration, setTotalDuration] = useState<number>(0)
   const [activeStepNo, setActiveStepNo] = useState<number>(1)
@@ -224,10 +225,16 @@ export const MultiCameraTracking: React.FC = () => {
       if (res.ok) {
         const data = await res.json()
         setJourneySteps(data.journey_steps || [])
+        setJourneyMeta({ rejected: data.rejected_cameras || [], limitation: data.limitation })
         setTotalDistance(data.total_distance_meters || 0)
         setTotalDuration(data.total_duration_seconds || 0)
         setActiveStepNo(1)
-        toast.success('Trajectory Reconstructed', `Mapped ${(data.journey_steps || []).length} camera hops across nodes.`)
+        const hops = Math.max((data.journey_steps || []).length - 1, 0)
+        if (hops > 0) {
+          toast.success('Trajectory Reconstructed', `Linked ${hops} camera ${hops === 1 ? 'hop' : 'hops'} for review.`)
+        } else {
+          toast.info('No Route Claimed', 'No other camera had a distinctive match; see "not linked: why" below the map.')
+        }
       } else {
         const err = await res.json()
         toast.error('Reconstruction Error', err.detail || 'Trajectory reconstruction failed.')
@@ -502,6 +509,8 @@ export const MultiCameraTracking: React.FC = () => {
           onSelectStep={handleSelectStepHop}
           totalDistanceMeters={totalDistance}
           totalDurationSeconds={totalDuration}
+          rejectedCameras={journeyMeta.rejected}
+          limitation={journeyMeta.limitation}
         />
       )}
     </div>

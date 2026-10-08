@@ -15,10 +15,19 @@ export interface JourneyStep {
   timestamp_end_seconds: number
   abs_timestamp: number
   confidence: number
+  is_origin?: boolean
+  visual_similarity?: number
+  distinctiveness_z?: number | null
   best_crop_path: string
   caption?: string
   speed_to_here_kmh: number
   dist_from_prev_m: number
+}
+
+export interface RejectedCamera {
+  camera_id: string
+  best_similarity: number
+  reason: string
 }
 
 interface JourneyMapScrubberProps {
@@ -27,6 +36,8 @@ interface JourneyMapScrubberProps {
   onSelectStep: (stepNumber: number) => void
   totalDistanceMeters: number
   totalDurationSeconds: number
+  rejectedCameras?: RejectedCamera[]
+  limitation?: string
 }
 
 export const JourneyMapScrubber: React.FC<JourneyMapScrubberProps> = ({
@@ -34,9 +45,12 @@ export const JourneyMapScrubber: React.FC<JourneyMapScrubberProps> = ({
   activeStep,
   onSelectStep,
   totalDistanceMeters,
-  totalDurationSeconds
+  totalDurationSeconds,
+  rejectedCameras = [],
+  limitation,
 }) => {
   if (!steps || steps.length === 0) return null
+  const hops = Math.max(steps.length - 1, 0)
 
   return (
     <div className="w-full rounded-md border border-slate-200 bg-white p-4 text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
@@ -45,7 +59,7 @@ export const JourneyMapScrubber: React.FC<JourneyMapScrubberProps> = ({
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-teal-50 text-teal-800 font-semibold border border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800">
             <Navigation className="w-3.5 h-3.5" />
-            {steps.length} Camera Hops
+            {hops} Camera {hops === 1 ? 'Hop' : 'Hops'}
           </span>
           <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
             <MapPin className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
@@ -101,7 +115,11 @@ export const JourneyMapScrubber: React.FC<JourneyMapScrubberProps> = ({
                   </span>
                   <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
                     <ShieldCheck className="w-3 h-3" />
-                    {(st.confidence * 100).toFixed(0)}% Match
+                    {st.is_origin
+                      ? 'Origin sighting'
+                      : `${((st.visual_similarity ?? st.confidence) * 100).toFixed(0)}% similar${
+                          st.distinctiveness_z != null ? ` · stands out z=${st.distinctiveness_z.toFixed(1)}` : ''
+                        }`}
                   </span>
                 </div>
 
@@ -138,6 +156,28 @@ export const JourneyMapScrubber: React.FC<JourneyMapScrubberProps> = ({
           )
         })}
       </div>
+
+      {hops === 0 && (
+        <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+          No other camera had a sighting that clearly stands out from this target&apos;s look-alikes, so no route
+          is claimed.
+        </p>
+      )}
+      {rejectedCameras.length > 0 && (
+        <details className="mt-2 text-[11px] text-slate-600 dark:text-slate-400">
+          <summary className="cursor-pointer select-none">
+            {rejectedCameras.length} camera{rejectedCameras.length === 1 ? '' : 's'} not linked: why
+          </summary>
+          <ul className="mt-1 space-y-0.5 pl-4 list-disc">
+            {rejectedCameras.map((rc) => (
+              <li key={rc.camera_id}>
+                <span className="font-mono">{rc.camera_id}</span>: {rc.reason}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {limitation && <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{limitation}</p>}
     </div>
   )
 }
