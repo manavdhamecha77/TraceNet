@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import DATA_DIR
+from app.storage.media import _ABS_DATA_PATH, is_media
 
 DB_NAME = "drishti.db"
 VECTOR_DB_DIR = "vector_db"
@@ -55,8 +56,6 @@ EXCLUDED_TOP_LEVEL = {
 }
 EXCLUDED_SUFFIXES = (".lock", "-journal", "-wal", "-shm", ".tmp", ".part")
 
-# Absolute path containing ...<sep>backend<sep>data<sep><rest>, from any machine / OS.
-_ABS_DATA_PATH = re.compile(r"^(?:[A-Za-z]:)?[\\/].*?[\\/]backend[\\/]data[\\/](.+)$")
 
 
 # --------------------------------------------------------------------------- helpers
@@ -83,13 +82,17 @@ def _is_excluded(rel: str) -> bool:
 
 
 def list_data_files(data_dir: Path) -> list[str]:
-    """Relative POSIX paths of every syncable file under data_dir (the SQLite DB is handled separately)."""
+    """Relative POSIX paths of every snapshot file under data_dir.
+
+    The SQLite DB is handled separately, and media (videos, model weights) is not part of the snapshot:
+    it lives once in the S3-primary media store (app.storage.media) and is fetched on demand.
+    """
     rels = []
     for path in data_dir.rglob("*"):
         if not path.is_file():
             continue
         rel = path.relative_to(data_dir).as_posix()
-        if rel == DB_NAME or _is_excluded(rel):
+        if rel == DB_NAME or _is_excluded(rel) or is_media(rel):
             continue
         rels.append(rel)
     return sorted(rels)
@@ -273,6 +276,13 @@ def cmd_push(args) -> None:
     s3, bucket = _clients(args)
     data_dir = Path(args.data_dir)
 
+    if Path(args.data_dir) == Path(DATA_DIR):
+        from app.storage import media
+
+        print("Step 1/2: media (videos + model weights) -> S3 media store")
+        media.migrate(dry_run=args.dry_run)
+        print("Step 2/2: golden snapshot (DB, vector index, crops, thumbnails)")
+
     with tempfile.TemporaryDirectory() as tmp:
         sources = {rel: data_dir / rel for rel in list_data_files(data_dir)}
         if (data_dir / DB_NAME).exists():
@@ -402,7 +412,14 @@ def cmd_pull(args) -> None:
                     "pulled_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}, indent=1),
         encoding="utf-8",
     )
+    if args.with_media and Path(args.data_dir) == Path(DATA_DIR):
+        from app.storage import media
+
+        print("Prefetching all videos + model weights from the S3 media store...")
+        media.prefetch()
     print(f"Pulled golden snapshot ({manifest['created_at']}). Start the backend as usual.")
+    if not args.with_media:
+        print("Videos and model weights are fetched from S3 on first use (add --with-media to download all now).")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -414,6 +431,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--dry-run", action="store_true", help="show what would change without transferring")
     parser.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     parser.add_argument("--force", action="store_true", help="run even if the API server is up (not recommended)")
+    parser.add_argument("--with-media", action="store_true", help="pull: also download all videos + model weights now")
     args = parser.parse_args(argv)
     {"check": cmd_check, "status": cmd_status, "push": cmd_push, "pull": cmd_pull}[args.command](args)
 

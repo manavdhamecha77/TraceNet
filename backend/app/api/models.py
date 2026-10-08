@@ -81,6 +81,10 @@ async def upload_and_register_model(
             detail=f"Failed to write weights file to disk: {str(e)}"
         )
 
+    # Keep the S3-primary media store in sync (never fails the upload; local copy is the fallback)
+    from app.storage import media
+    media.put(target_path)
+
     # 2. Extract classes
     class_list = []
     
@@ -195,7 +199,9 @@ def delete_model(model_id: str, db: Session = Depends(get_db)):
         db.delete(model)
         db.commit()
         
-        # Remove file from disk
+        # Remove file from disk and from the S3 media store (bucket versioning keeps it recoverable)
+        from app.storage import media
+        media.delete(media.to_local_data_path(file_path))
         if os.path.exists(file_path):
             os.remove(file_path)
             logger.info(f"Removed weights file {file_path} from disk.")

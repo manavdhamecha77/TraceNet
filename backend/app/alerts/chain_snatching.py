@@ -190,8 +190,9 @@ class ChainSnatchingAnalyzer:
             camera_dir_name = f"{camera_id}_{sanitize_filename(camera_name)}"
             camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
             video_path = os.path.join(camera_dir, "original_assets", video_record.standardized_filename)
-            
-            if not os.path.exists(video_path):
+
+            from app.storage.media import ensure_local
+            if not ensure_local(video_path):
                 return mapping
                 
             # Create folder

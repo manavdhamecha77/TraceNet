@@ -169,11 +169,54 @@ def load_detection_model(model_path: str) -> YOLO:
             path = fallback_path
 
     if not path.exists():
+        # Stored paths may come from another machine or live only in the S3 media store
+        from app.storage.media import resolve_model_file
+
+        resolved = resolve_model_file(model_path) or resolve_model_file(str(path))
+        if resolved:
+            path = Path(resolved)
+    if not path.exists():
         raise FileNotFoundError(
-            f"Detection model not found at '{path}'. Place best.pt there before running."
+            f"Detection model not found at '{path}' (locally or in the S3 media store). Place best.pt there before running."
         )
     logger.info(f"Loading detection model from {path}")
     return YOLO(str(path))
+
+
+def resolve_camera_detection_model(db, camera) -> tuple[Optional[str], Optional[str]]:
+    """(weights path, model id) for a camera's ingest detector.
+
+    Uses the camera's assigned model (theft > abandoned > assault > general, as the alert analysers reuse
+    these detections), then falls back to the configured default, the registry's default / general model,
+    and finally the bundled app/detection/weights/best.pt. Paths are resolved locally or via S3.
+    """
+    from app.db.models import MLModel
+    from app.storage.media import resolve_model_file
+
+    if camera is not None:
+        for model_id in (camera.theft_model_id, camera.abandoned_model_id, camera.assault_model_id, camera.model_id):
+            if not model_id or model_id == "OFF":
+                continue
+            record = db.query(MLModel).filter(MLModel.id == model_id).first()
+            path = resolve_model_file(record.file_path) if record else None
+            if path:
+                return path, record.id
+            logger.warning(f"Assigned model '{model_id}' for camera {camera.camera_id} is unavailable; using the default detector.")
+            break
+
+    path = resolve_model_file(get_settings().detection_model_path)
+    if path:
+        return path, None
+    registry = (
+        db.query(MLModel).filter(MLModel.is_default == True).all()  # noqa: E712
+        + db.query(MLModel).filter(MLModel.category == "general").order_by(MLModel.created_at).all()
+    )
+    for record in registry:
+        path = resolve_model_file(record.file_path)
+        if path:
+            return path, record.id
+    bundled = Path(__file__).resolve().parent / "weights" / "best.pt"
+    return (str(bundled), None) if bundled.exists() else (None, None)
 
 
 class DetectionService:
@@ -388,10 +431,17 @@ class DetectionService:
         return artifact
 
 
-def resolve_standardized_video_path(video_asset: VideoAsset) -> str:
+def resolve_standardized_video_path(video_asset: VideoAsset, fetch: bool = True) -> str:
+    """Local path of the 720p standardized video; with fetch=True it is downloaded from the S3 media
+    store first when this machine has no copy yet."""
     camera_name = sanitize_filename(video_asset.camera.name if video_asset.camera else video_asset.camera_id)
     camera_dir = f"{video_asset.camera_id}_{camera_name}"
     standardized_filename = video_asset.standardized_filename
     from app.config import get_data_path
 
-    return get_data_path(os.path.join("cameras", camera_dir, "original_assets", standardized_filename))
+    path = get_data_path(os.path.join("cameras", camera_dir, "original_assets", standardized_filename))
+    if fetch:
+        from app.storage.media import ensure_local
+
+        ensure_local(path)
+    return path

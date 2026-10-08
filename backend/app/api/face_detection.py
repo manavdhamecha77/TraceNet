@@ -226,6 +226,8 @@ def upload_face_model(name: str = Form(...), file: UploadFile = File(...)):
                 status_code=400,
                 detail=f"Face model must have exactly 1 class. Found {len(classes)} classes: {classes}"
             )
+        from app.storage import media
+        media.put(file_path)
         return {
             "success": True,
             "path": f"models/face_detection/{name}.pt",

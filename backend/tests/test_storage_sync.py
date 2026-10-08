@@ -57,9 +57,9 @@ def test_list_data_files_skips_secrets_locks_and_db(tmp_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"x")
 
+    # models/vehicle.pt is media: it lives in the S3 media store, not in the golden snapshot
     assert list_data_files(tmp_path) == [
         "chain_snatching_config.json",
-        "models/vehicle.pt",
         "processed/detections/v1/crops/t1.jpg",
         "vector_db/meta.json",
     ]

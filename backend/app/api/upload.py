@@ -5,14 +5,15 @@ import hashlib
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, BackgroundTasks, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from loguru import logger
 
 from app.db.session import get_db, SessionLocal
 from app.db.models import CameraProfile, VideoAsset, LoiteringZone, MLModel, ModelExecutionLog
-from app.detection.detector import DetectionService
+from app.detection.detector import DetectionService, resolve_camera_detection_model, resolve_standardized_video_path
+from app.storage import media
 from app.embeddings.tracklet_embeddings import TrackletEmbeddingService
 from app.preprocess.storage import MockStorageProvider
 from app.preprocess.preprocessor import VideoPreprocessor
@@ -112,6 +113,12 @@ def process_video_background(
             update_system_job_progress(db, job_id, progress=40.0, status="running")
             logger.info(f"Asset {asset_id} transcoding completed. Standardized video viewable.")
 
+        # 3b. Archive the original evidence file and the standardized video to the S3-primary media
+        #     store in the background. Failures are logged and never stop ingestion: the local copies
+        #     are the fallback.
+        media.put_background(raw_filepath, metadata={"sha256": intake_sha256, "camera-id": camera_id})
+        media.put_background(pipeline_results["standardized_video_path"])
+
         # 4. Run detection + tracking on the standardized video output
         video = db.query(VideoAsset).filter(VideoAsset.id == asset_id).first()
         if video:
@@ -122,26 +129,14 @@ def process_video_background(
 
         detection_output_dir = get_data_path(os.path.join("processed/detections", asset_id))
         
-        # Resolve camera-assigned model path if it exists
-        model_path = None
-        assigned_model_id = None
-        
+        # Resolve the camera's detector (local copy, path from another machine, or S3), with fallbacks
         camera_record = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
-        if camera_record:
-            active_model_id = None
-            for m_id in [camera_record.theft_model_id, camera_record.abandoned_model_id, camera_record.assault_model_id, camera_record.model_id]:
-                if m_id and m_id != "OFF":
-                    active_model_id = m_id
-                    break
-            
-            if active_model_id:
-                model_record = db.query(MLModel).filter(MLModel.id == active_model_id).first()
-                if model_record and os.path.exists(model_record.file_path):
-                    model_path = model_record.file_path
-                    assigned_model_id = model_record.id
-                    logger.info(f"Using active model '{model_record.name}' ({model_path}) for camera {camera_id}")
-            else:
-                logger.warning("Assigned model record or file not found. Falling back to default detector.")
+        model_path, assigned_model_id = resolve_camera_detection_model(db, camera_record)
+        if not model_path:
+            raise RuntimeError(
+                "No detection model available: register one on the Models page or place weights in backend/data/models/."
+            )
+        logger.info(f"Using detection model {model_path} (model id {assigned_model_id}) for camera {camera_id}")
 
         import time
         start_inference = time.time()
@@ -602,6 +597,7 @@ def delete_video_permanently(video_id: str, db: Session = Depends(get_db)):
     try:
         storage = MockStorageProvider()
         raw_name = f"{video.id}_{video.original_filename}"
+        media.delete(get_data_path(os.path.join("minio_mock", raw_name)))  # S3 copy (versioned, recoverable)
         if storage.exists(raw_name):
             raw_path = storage.get_file_path(raw_name)
             if os.path.exists(raw_path):
@@ -619,6 +615,7 @@ def delete_video_permanently(video_id: str, db: Session = Depends(get_db)):
             
             # Standardized video file
             standardized_video_path = os.path.join(camera_dir, "original_assets", video.standardized_filename)
+            media.delete(standardized_video_path)
             if os.path.exists(standardized_video_path):
                 os.remove(standardized_video_path)
                 
@@ -681,11 +678,19 @@ def stream_video(video_id: str, db: Session = Depends(get_db)):
                     target_path = os.path.join(root, video.standardized_filename)
                     break
 
-    # Strategy 3: Check minio_mock raw upload folder
+    # Strategy 3: Check minio_mock raw upload folder (stored as "{asset_id}_{original_filename}")
+    raw_path = get_data_path(os.path.join("minio_mock", f"{video.id}_{video.original_filename}"))
     if not target_path or not os.path.exists(target_path):
-        raw_path = get_data_path(os.path.join("minio_mock", video.original_filename))
         if os.path.exists(raw_path):
             target_path = raw_path
+
+    # Strategy 4: S3-primary media store. Stream straight from S3 through a short-lived signed URL
+    # instead of making the viewer wait for the whole file to be cached locally.
+    if not target_path or not os.path.exists(target_path):
+        standardized_path = resolve_standardized_video_path(video, fetch=False)
+        signed = media.presigned_url(standardized_path) or media.presigned_url(raw_path)
+        if signed:
+            return RedirectResponse(signed, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     if not target_path or not os.path.exists(target_path):
         logger.error(f"Video file '{video.standardized_filename}' not found for video {video_id}")

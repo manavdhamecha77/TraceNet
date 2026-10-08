@@ -346,9 +346,10 @@ def _resolve_replay_weights(req: LumpiReplayBuildRequest, db: Session) -> Option
         m = db.query(MLModel).filter(MLModel.id == req.model_id).first()
         if not m:
             raise HTTPException(status_code=404, detail=f"Model '{req.model_id}' is not registered.")
-        for cand in (m.file_path, get_data_path(m.file_path), get_data_path(f"models/{_os.path.basename(m.file_path)}")):
-            if cand and _os.path.exists(cand):
-                return cand
+        from app.storage.media import resolve_model_file
+        resolved = resolve_model_file(m.file_path)
+        if resolved:
+            return resolved
         raise HTTPException(status_code=404, detail=f"Weights for model '{m.name}' not found on disk.")
     if req.weights_path:
         p = req.weights_path if _os.path.isabs(req.weights_path) else get_data_path(req.weights_path)

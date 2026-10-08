@@ -90,7 +90,10 @@ def _resolve_video_path(db: Session, video: VideoAsset, camera_id: str) -> str:
     camera_name = camera.name if camera else camera_id
     camera_dir_name = f"{camera_id}_{sanitize_filename(camera_name)}"
     camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
-    return os.path.join(camera_dir, "original_assets", video.standardized_filename)
+    path = os.path.join(camera_dir, "original_assets", video.standardized_filename)
+    from app.storage.media import ensure_local
+    ensure_local(path)  # fetch from the S3 media store when this machine has no copy
+    return path
 
 
 # --------------------------------------------------------------------------- vehicle linking (manual scans)

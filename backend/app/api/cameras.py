@@ -295,20 +295,9 @@ def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
         )
         job_id = job.id
 
-        # Resolve camera-assigned model path if it exists
-        model_path = None
-        assigned_model_id = None
-        active_model_id = None
-        for m_id in [camera.theft_model_id, camera.abandoned_model_id, camera.assault_model_id, camera.model_id]:
-            if m_id and m_id != "OFF":
-                active_model_id = m_id
-                break
-        
-        if active_model_id:
-            model_record = db.query(MLModel).filter(MLModel.id == active_model_id).first()
-            if model_record and os.path.exists(model_record.file_path):
-                model_path = model_record.file_path
-                assigned_model_id = model_record.id
+        # Resolve the camera's detector (local copy, path from another machine, or S3), with fallbacks
+        from app.detection.detector import resolve_camera_detection_model
+        model_path, assigned_model_id = resolve_camera_detection_model(db, camera)
 
         logger.info(f"Sync: Starting detection re-run for {len(video_ids)} videos on camera {camera_id} using model {assigned_model_id}")
 
@@ -337,7 +326,8 @@ def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
             standardized_video_path = os.path.join(camera_dir, "original_assets", video.standardized_filename)
             detection_output_dir = get_data_path(os.path.join("processed/detections", video_id))
 
-            if not os.path.exists(standardized_video_path):
+            from app.storage.media import ensure_local
+            if not ensure_local(standardized_video_path):
                 logger.warning(f"Sync: Standardized video not found at {standardized_video_path}, skipping.")
                 video.processing_status = "failed"
                 db.commit()

@@ -41,18 +41,16 @@ class InferenceWorker(threading.Thread):
             # recorded chunk is checked into the camera's archive, exactly like an uploaded video.
             if self.config.live_detector == "vehicle":
                 fixed = get_data_path("models/vehicle_detector.pt")
-                if os.path.exists(fixed):
+                from app.storage.media import ensure_local
+                if ensure_local(fixed):
                     model_path = fixed
                 else:
                     logger.warning("InferenceWorker: data/models/vehicle_detector.pt missing; falling back to the camera's model")
             if not model_path and cam and cam.model_id:
                 model_db = db.query(MLModel).filter(MLModel.id == cam.model_id).first()
                 if model_db:
-                    for candidate in (model_db.file_path, get_data_path(model_db.file_path),
-                                      get_data_path(f"models/{os.path.basename(model_db.file_path)}")):
-                        if candidate and os.path.exists(candidate):
-                            model_path = candidate
-                            break
+                    from app.storage.media import resolve_model_file
+                    model_path = resolve_model_file(model_db.file_path)
             if not model_path:
                 from app.config import BACKEND_DIR
                 app_weights = os.path.join(BACKEND_DIR, "app", "detection", "weights", "best.pt")

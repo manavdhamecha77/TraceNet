@@ -76,7 +76,9 @@ class PlateDetector:
         if self.model is not None:
             return
 
-        actual_model_path = Path(self.model_path)
+        from app.storage.media import resolve_model_file
+
+        actual_model_path = Path(resolve_model_file(self.model_path) or self.model_path)
         if not actual_model_path.exists():
             fallback = WEIGHTS_DIR / actual_model_path.name
             if fallback.exists():
@@ -88,7 +90,7 @@ class PlateDetector:
         logger.info(f"Loading license plate detector: {actual_model_path}")
         self.model = YOLO(str(actual_model_path)).to(self.device)
 
-        actual_vehicle_path = Path(self.vehicle_model_path)
+        actual_vehicle_path = Path(resolve_model_file(self.vehicle_model_path) or self.vehicle_model_path)
         if not actual_vehicle_path.exists():
             fallback_v = WEIGHTS_DIR / actual_vehicle_path.name
             if fallback_v.exists():
