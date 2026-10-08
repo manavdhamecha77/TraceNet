@@ -613,10 +613,13 @@ from app.api.multicam import router as multicam_router
 from app.api.reports import router as reports_router
 from app.api.areas import router as areas_router
 
+from app.api.cctv_wall import router as cctv_wall_router
+
 # Register routes
 app.include_router(health_router, tags=["Health"])
 app.include_router(cameras_router, prefix=settings.api_prefix, tags=["Cameras"])
 app.include_router(areas_router, tags=["Areas"])
+app.include_router(cctv_wall_router, tags=["CCTV Wall"])
 app.include_router(detections_router, prefix=settings.api_prefix, tags=["Detection"])
 app.include_router(upload_router, prefix=settings.api_prefix, tags=["Videos"])
 app.include_router(models_router, prefix=settings.api_prefix, tags=["Models"])

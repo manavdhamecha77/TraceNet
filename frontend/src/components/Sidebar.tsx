@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Bell, Boxes, Camera, ChevronLeft, FolderKanban, Map, Plus, Radio, ScanSearch, Settings, Sparkles, UsersRound } from 'lucide-react'
+import { Bell, Boxes, Camera, ChevronLeft, FolderKanban, Map, Plus, Radio, ScanSearch, Settings, Sparkles, UsersRound, Video } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +22,7 @@ export default function Sidebar({ collapsed, onToggle, onOpenAgents, onStartNewC
     { to: '/dashboard', label: t('nav.dashboard'), icon: FolderKanban, active: location.pathname === '/dashboard' || location.pathname === '/' },
     { to: '/areas', label: t('nav.areas'), icon: Map, active: location.pathname === '/areas' },
     { to: '/cameras', label: t('nav.cameras'), icon: Camera, active: location.pathname.startsWith('/cameras') && !location.pathname.includes('/live') },
+    { to: '/cctv-wall', label: t('nav.cctvWall'), icon: Video, active: location.pathname === '/cctv-wall' },
     { to: '/live-connect', label: t('nav.live'), icon: Radio, active: location.pathname === '/live-connect' || location.pathname === '/connect' },
     { to: '/multicam', label: t('nav.multicam'), icon: Boxes, active: location.pathname === '/multicam' },
     { to: '/search', label: t('nav.search'), icon: ScanSearch, active: location.pathname === '/search' },

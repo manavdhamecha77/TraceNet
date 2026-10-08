@@ -3,6 +3,7 @@
     "dashboard": "Situation Overview",
     "areas": "Areas",
     "cameras": "Cameras",
+    "cctvWall": "CCTV Stream Wall",
     "live": "Live Broadcaster",
     "multicam": "Multi-Cam Intelligence",
     "search": "Search & Investigate",

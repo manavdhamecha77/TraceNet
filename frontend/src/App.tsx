@@ -23,6 +23,7 @@ import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LanguageSettings from './pages/LanguageSettings'
+import CCTVWall from './pages/CCTVWall'
 import { useTranslation } from 'react-i18next'
 import LoiteringZoneEditor from './components/LoiteringZoneEditor'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -583,6 +584,8 @@ function App() {
         crumbs.push({ label: t('nav.language'), link: '/language-settings' })
       } else if (paths[0] === 'areas') {
         crumbs.push({ label: t('nav.areas'), link: '/areas' })
+      } else if (paths[0] === 'cctv-wall' || paths[0] === 'control-room') {
+        crumbs.push({ label: t('nav.cctvWall'), link: '/cctv-wall' })
       } else if (paths[0] === 'cameras') {
         crumbs.push({ label: t('nav.cameras'), link: '/cameras' })
         if (paths[1]) {
@@ -1049,6 +1052,15 @@ function App() {
               </Link>
 
               <Link
+                to="/cctv-wall"
+                className={navLinkClass(location.pathname === '/cctv-wall' || location.pathname === '/control-room')}
+                title={isSidebarCollapsed ? t('nav.cctvWall') : undefined}
+              >
+                <Video className="h-4 w-4 shrink-0 text-emerald-400" />
+                {!isSidebarCollapsed && <span>{t('nav.cctvWall')}</span>}
+              </Link>
+
+              <Link
                 to="/live-connect"
                 className={navLinkClass(location.pathname === '/live-connect' || location.pathname === '/connect')}
                 title={isSidebarCollapsed ? t('nav.live') : undefined}
@@ -1367,6 +1379,8 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard metrics={metrics} />} />
               <Route path="/areas" element={<Areas />} />
+              <Route path="/cctv-wall" element={<CCTVWall />} />
+              <Route path="/control-room" element={<CCTVWall />} />
               <Route
                 path="/cameras"
                 element={
