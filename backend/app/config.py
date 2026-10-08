@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     aws_region: str = "ap-southeast-2"
     s3_bucket: str | None = None
 
+    # Optional cloud translation for multilingual search; set only in backend/.env, never via the API
+    openrouter_api_key: str | None = None
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

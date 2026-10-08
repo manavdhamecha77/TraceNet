@@ -64,25 +64,42 @@ class ConfigPayload(BaseModel):
     provider: str = Field(default="ollama", description="'ollama' | 'cloud'")
     ollama_host: str = Field(default="http://localhost:11434")
     ollama_model: str = Field(default="qwen2.5:3b")
-    cloud_api_key: Optional[str] = Field(default="")
+    cloud_api_key: Optional[str] = Field(default="", description="New key; leave empty to keep the saved one")
+    clear_cloud_api_key: bool = Field(default=False, description="Remove the saved key")
     cloud_model: str = Field(default="gpt-4o-mini")
     cloud_base_url: str = Field(default="https://api.openai.com/v1")
 
 
+def public_assistant_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Config safe to send to a browser: the API key itself never leaves the server."""
+    key = (cfg.get("cloud_api_key") or "").strip()
+    public = {k: v for k, v in cfg.items() if k != "cloud_api_key"}
+    public["cloud_api_key"] = ""
+    public["cloud_api_key_set"] = bool(key)
+    public["cloud_api_key_hint"] = f"…{key[-4:]}" if len(key) >= 8 else ""
+    return public
+
+
 @router.get("/config")
 def get_assistant_config():
-    """Retrieve active AI assistant provider and model settings."""
-    return load_assistant_config()
+    """Retrieve active AI assistant provider and model settings (API key masked)."""
+    return public_assistant_config(load_assistant_config())
 
 
 @router.post("/config")
 def save_assistant_config(payload: ConfigPayload):
-    """Update AI assistant provider and model configuration."""
-    cfg = payload.dict()
+    """Update AI assistant provider and model configuration.
+
+    An empty ``cloud_api_key`` keeps the saved key (the browser never receives it, so it cannot echo it
+    back); ``clear_cloud_api_key`` removes it."""
+    existing_key = (load_assistant_config().get("cloud_api_key") or "").strip()
+    cfg = payload.dict(exclude={"clear_cloud_api_key"})
+    new_key = (payload.cloud_api_key or "").strip()
+    cfg["cloud_api_key"] = "" if payload.clear_cloud_api_key else (new_key or existing_key)
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
-    return {"status": "success", "message": "Assistant configuration updated.", "config": cfg}
+    return {"status": "success", "message": "Assistant configuration updated.", "config": public_assistant_config(cfg)}
 
 
 @router.get("/ollama-models")

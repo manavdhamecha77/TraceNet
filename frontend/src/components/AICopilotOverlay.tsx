@@ -380,6 +380,9 @@ export default function AICopilotOverlay({
     ollama_host: 'http://localhost:11434',
     ollama_model: 'qwen2.5:3b',
     cloud_api_key: '',
+    cloud_api_key_set: false,
+    cloud_api_key_hint: '',
+    clear_cloud_api_key: false,
     cloud_model: 'gpt-4o-mini',
     cloud_base_url: 'https://api.openai.com/v1',
   })
@@ -558,6 +561,9 @@ export default function AICopilotOverlay({
         body: JSON.stringify(config),
       })
       if (res.ok) {
+        const saved = await res.json()
+        // The server never returns the key itself, only whether one is saved
+        setConfig((prev) => ({ ...prev, ...saved.config, clear_cloud_api_key: false }))
         setIsSettingsOpen(false)
       } else {
         const err = await res.json()
@@ -1453,10 +1459,25 @@ const SLASH_COMMANDS = [
                     <input
                       type="password"
                       value={config.cloud_api_key}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, cloud_api_key: e.target.value }))}
-                      placeholder="sk-..."
+                      onChange={(e) => setConfig((prev) => ({ ...prev, cloud_api_key: e.target.value, clear_cloud_api_key: false }))}
+                      placeholder={
+                        config.cloud_api_key_set && !config.clear_cloud_api_key
+                          ? `Saved key ${config.cloud_api_key_hint} (leave blank to keep it)`
+                          : 'sk-...'
+                      }
+                      autoComplete="off"
                       className="w-full bg-slate-950 border border-slate-700 focus:border-teal-500 rounded-xl px-3 py-2 text-slate-200 focus:outline-none font-mono"
                     />
+                    {config.cloud_api_key_set && (
+                      <label className="flex items-center gap-2 text-[11px] text-slate-400">
+                        <input
+                          type="checkbox"
+                          checked={config.clear_cloud_api_key}
+                          onChange={(e) => setConfig((prev) => ({ ...prev, clear_cloud_api_key: e.target.checked, cloud_api_key: '' }))}
+                        />
+                        Remove the saved key on save
+                      </label>
+                    )}
                   </div>
 
                   {/* Cloud Model Selector Dropdown */}

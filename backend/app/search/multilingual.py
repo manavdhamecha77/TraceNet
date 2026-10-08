@@ -104,12 +104,19 @@ _DICT_PATTERN = re.compile(
     re.IGNORECASE | re.UNICODE
 )
 
+def _openrouter_key() -> str:
+    """OPENROUTER_API_KEY from backend/.env (or the process environment). Never accepted over the API."""
+    from app.config import get_settings
+
+    return (get_settings().openrouter_api_key or os.environ.get("OPENROUTER_API_KEY", "")).strip()
+
+
 def normalize_query(query: str, backend: str = "dictionary") -> tuple[str, list[str]]:
     global _ACTIVE_BACKEND
     actual_backend = backend if backend != "dictionary" else _ACTIVE_BACKEND
     
     if actual_backend == "openrouter":
-        api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        api_key = _openrouter_key()
         if not api_key:
             fallback_query, fallback_subs = normalize_query(query, "dictionary")
             return fallback_query, fallback_subs + ["[OpenRouter fallback: missing API key]"]
@@ -161,7 +168,7 @@ def get_multilingual_config() -> dict:
     return {
         "backend": _ACTIVE_BACKEND,
         "available_backends": ["dictionary", "openrouter"],
-        "openrouter_configured": bool(os.environ.get("OPENROUTER_API_KEY", ""))
+        "openrouter_configured": bool(_openrouter_key())
     }
 
 def set_multilingual_backend(backend: str) -> None:

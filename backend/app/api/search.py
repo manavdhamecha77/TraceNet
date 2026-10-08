@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from loguru import logger
 
@@ -78,8 +78,11 @@ class MultilingualConfigResponse(BaseModel):
 
 
 class SetMultilingualBackendRequest(BaseModel):
+    # Unknown fields are rejected so an API key can never be "saved" through this unauthenticated endpoint;
+    # the OpenRouter key is read from OPENROUTER_API_KEY in backend/.env.
+    model_config = ConfigDict(extra="forbid")
+
     backend: str  # 'dictionary' or 'openrouter'
-    openrouter_api_key: Optional[str] = None  # if provided, save to env var
 
 
 @router.post("/search", response_model=List[SearchQueryResultItem])
@@ -324,9 +327,7 @@ def get_multilingual_search_config() -> MultilingualConfigResponse:
 
 @router.post("/search/multilingual/config", response_model=MultilingualConfigResponse)
 def update_multilingual_search_config(payload: SetMultilingualBackendRequest) -> MultilingualConfigResponse:
-    """Update multilingual backend (dictionary vs openrouter) and optionally set API key."""
-    if payload.openrouter_api_key:
-        os.environ["OPENROUTER_API_KEY"] = payload.openrouter_api_key
+    """Switch the multilingual backend (dictionary vs openrouter). The OpenRouter key comes from backend/.env."""
     try:
         set_multilingual_backend(payload.backend)
     except ValueError as e:

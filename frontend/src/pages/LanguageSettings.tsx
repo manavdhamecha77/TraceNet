@@ -18,13 +18,16 @@ export default function LanguageSettings() {
   
   const [selectedLang, setSelectedLang] = useState<string>(i18n.language || 'en');
   const [multilingualBackend, setMultilingualBackend] = useState<'dictionary' | 'openrouter'>('dictionary');
-  const [openrouterKey, setOpenrouterKey] = useState<string>(localStorage.getItem('openrouter_api_key') || '');
+  // The OpenRouter key lives only in backend/.env (OPENROUTER_API_KEY); the page just shows whether it is set.
+  const [openrouterConfigured, setOpenrouterConfigured] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testQuery, setTestQuery] = useState('');
   const [testResult, setTestResult] = useState<{ normalized: string, substitutions: string[] } | null>(null);
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
+    // Older versions kept the key in browser storage; remove any leftover copy.
+    try { localStorage.removeItem('openrouter_api_key'); } catch { /* storage unavailable */ }
     fetchConfig();
   }, []);
 
@@ -36,6 +39,7 @@ export default function LanguageSettings() {
         if (data.backend === 'openrouter' || data.backend === 'dictionary') {
           setMultilingualBackend(data.backend);
         }
+        setOpenrouterConfigured(Boolean(data.openrouter_configured));
       }
     } catch (error) {
       console.error('Failed to fetch config', error);
@@ -48,20 +52,12 @@ export default function LanguageSettings() {
     try {
       i18n.changeLanguage(selectedLang);
       localStorage.setItem('tracenet_lang', selectedLang);
-      if (openrouterKey) {
-        localStorage.setItem('openrouter_api_key', openrouterKey);
-      } else {
-        localStorage.removeItem('openrouter_api_key');
-      }
-
-      await fetch(`${API_BASE}/api/v1/search/multilingual/config`, {
+      const res = await fetch(`${API_BASE}/api/v1/search/multilingual/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          backend: multilingualBackend, 
-          openrouter_api_key: openrouterKey || undefined 
-        })
+        body: JSON.stringify({ backend: multilingualBackend })
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       toast.success(t('settings.saved'));
     } catch (error) {
@@ -203,16 +199,18 @@ export default function LanguageSettings() {
                   {multilingualBackend === 'openrouter' && (
                     <div className="mt-4 space-y-3">
                       <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                        <span className="block text-sm font-medium text-slate-300 mb-1">
                           {t('settings.apiKey')}
-                        </label>
-                        <input
-                          type="password"
-                          value={openrouterKey}
-                          onChange={(e) => setOpenrouterKey(e.target.value)}
-                          placeholder={t('settings.apiKeyPlaceholder')}
-                          className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                        />
+                        </span>
+                        {openrouterConfigured ? (
+                          <p className="text-sm text-green-400">Configured on the server.</p>
+                        ) : (
+                          <p className="text-sm text-amber-400">
+                            Not configured: add <code className="font-mono">OPENROUTER_API_KEY=...</code> to{' '}
+                            <code className="font-mono">backend/.env</code> and restart the backend. Until then the
+                            dictionary is used.
+                          </p>
+                        )}
                         <p className="text-xs text-slate-400 mt-1">
                           {t('settings.apiKeyHelp')}
                         </p>
