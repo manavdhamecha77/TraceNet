@@ -425,7 +425,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
       {/* ── PAGE HEADER ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">Camera Nodes</h2>
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Camera Nodes</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Geographic grid, node statuses, and video archive registry.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -452,50 +452,50 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
       {/* isolation:isolate creates a new CSS stacking context, containing Leaflet's
           internal z-index values (200–650) so they never bleed above fixed modals */}
       <section
-        className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs"
+        className="mx-0 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800 md:mx-[15%]"
         style={{ isolation: 'isolate' }}
       >
-        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wider">
           Sensor Grid — Topographical Map
         </div>
-        <div ref={mainMapRef} className="h-72 w-full" />
+        <div ref={mainMapRef} className="h-[27rem] w-full" />
       </section>
 
       {/* ── DEVICE TABLE ── */}
-      <section className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
-        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+      <section className="mx-0 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800 md:mx-4">
+        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wider">
           Device Directory — {localCameras.length} Node{localCameras.length !== 1 ? 's' : ''} Registered
         </div>
 
         {/* Table must NOT be overflow-x-auto — dropdown would clip */}
-        <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-left">
-          <thead className="bg-slate-50 dark:bg-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">
+        <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-700 text-left">
+          <thead className="bg-slate-50 dark:bg-slate-700/60 text-[10px] text-slate-500 dark:text-slate-300 uppercase tracking-wider font-semibold">
             <tr>
-              <th className="px-3 py-2.5 w-[72px]">Preview</th>
-              <th className="px-3 py-2.5">Camera / ID</th>
-              <th className="px-3 py-2.5">Zone</th>
-              <th className="px-3 py-2.5">Neighbors</th>
-              <th className="px-3 py-2.5">Status</th>
-              <th className="px-3 py-2.5">Assigned Model</th>
-              <th className="px-3 py-2.5 text-center">Feeds</th>
-              <th className="px-3 py-2.5 text-right w-[110px]">Actions</th>
+              <th className="px-4 py-2.5 w-[72px]">Preview</th>
+              <th className="px-4 py-2.5">Camera / ID</th>
+              <th className="px-4 py-2.5">Zone</th>
+              <th className="px-4 py-2.5">Neighbors</th>
+              <th className="px-4 py-2.5">Status</th>
+              <th className="px-4 py-2.5">Assigned Model</th>
+              <th className="px-4 py-2.5 text-center">Feeds</th>
+              <th className="px-4 py-2.5 text-right w-[110px]">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
             {localCameras.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-16 text-xs text-slate-400 dark:text-slate-600">
+                <td colSpan={8} className="text-center py-16 text-xs text-slate-500 dark:text-slate-400">
                   No camera nodes configured. Use <strong>Register Camera</strong> to add the first node.
                 </td>
               </tr>
             ) : localCameras.map(cam => {
               const thumb = thumbnails[cam.camera_id]
               return (
-                <tr key={cam.camera_id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                <tr key={cam.camera_id} className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors">
 
                   {/* THUMBNAIL — 16:9 inside fixed box */}
-                  <td className="px-3 py-2.5">
-                    <div className="w-[64px] h-[36px] rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-900 shrink-0">
+                  <td className="px-4 py-2.5">
+                    <div className="w-[64px] h-[36px] rounded border border-slate-200 dark:border-slate-600 overflow-hidden bg-slate-100 dark:bg-slate-900 shrink-0">
                       <img
                         src={thumb || '/images/defaults/default_camera_thumbnail.webp'}
                         alt=""
@@ -506,7 +506,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                   </td>
 
                   {/* NAME / ID */}
-                  <td className="px-3 py-2.5 whitespace-nowrap">
+                  <td className="px-4 py-2.5 whitespace-nowrap">
                     <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-100">
                       {cam.name}
                       {cam.is_streaming && (
@@ -520,28 +520,28 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                   </td>
 
                   {/* ZONE */}
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
+                  <td className="px-4 py-2.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
                     {cam.corridor_group ?? <span className="text-slate-400 dark:text-slate-600 italic">—</span>}
                   </td>
 
                   {/* NEIGHBORS */}
-                  <td className="px-3 py-2.5 text-xs text-slate-600 dark:text-slate-400 max-w-[160px] truncate" title={cam.adjacency.join(', ')}>
+                  <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 max-w-[160px] truncate" title={cam.adjacency.join(', ')}>
                     {cam.adjacency.length > 0 ? cam.adjacency.join(', ') : <span className="text-slate-400 dark:text-slate-600 italic">None</span>}
                   </td>
 
                   {/* STATUS */}
-                  <td className="px-3 py-2.5 whitespace-nowrap">
+                  <td className="px-4 py-2.5 whitespace-nowrap">
                     <StatusBadge status={cam.status} />
                   </td>
 
                   {/* ASSIGNED MODEL */}
-                  <td className="px-3 py-2.5 whitespace-nowrap text-xs">
+                  <td className="px-4 py-2.5 whitespace-nowrap text-xs">
                     {(() => {
                       const model = models.find(m => m.id === cam.model_id)
                       return model ? (
                         <div className="flex flex-col">
                           <span className="font-semibold text-slate-800 dark:text-slate-100">{model.name}</span>
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{model.model_type}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">{model.model_type}</span>
                         </div>
                       ) : (
                         <span className="text-slate-400 dark:text-slate-500 italic">None (Default)</span>
@@ -560,13 +560,13 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                       <Link
                         to={`/cameras/${cam.camera_id}/live`}
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold transition-all ${
-                          cam.is_streaming 
-                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' 
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                          cam.is_streaming
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-500/20 dark:text-rose-300 dark:border-rose-500/40'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 dark:border-slate-700'
                         }`}
                         title="View Live WebRTC CCTV Stream"
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${cam.is_streaming ? 'bg-rose-500 animate-ping' : 'bg-cyan-400'}`} />
+                        <span className={`w-1.5 h-1.5 rounded-full ${cam.is_streaming ? 'bg-rose-500 animate-ping' : 'bg-teal-700 dark:bg-cyan-400'}`} />
                         Live
                       </Link>
                       <Link

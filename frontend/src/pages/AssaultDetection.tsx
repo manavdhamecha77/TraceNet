@@ -111,7 +111,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <span>Physical Assault Analytics</span>
             <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400">
               VideoMAE Neural Pipeline

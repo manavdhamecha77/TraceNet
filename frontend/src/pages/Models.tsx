@@ -294,7 +294,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
       {/* ── PAGE HEADER ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">AI Model Registry</h2>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">AI Model Registry</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Manage weight libraries, assign specialized engine roles, inspect detectable classes, and analyze execution metrics.
           </p>

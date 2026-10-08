@@ -338,28 +338,27 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     <div className="space-y-6 animate-in fade-in duration-200">
       
       {/* HEADER ROW */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Forensic Search &amp; Rank</h2>
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Forensic Search &amp; Rank</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Submit natural language queries to search, rank, and explain CCTV tracklets using persistent Qdrant vector indices.
           </p>
         </div>
-        
-        {/* Model status badges */}
-        <div className="flex flex-wrap gap-2.5">
-          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold flex items-center gap-1">
-            <Cpu className="h-3 w-3 text-slate-400" />
-            INDEX: <strong className="text-slate-750 dark:text-slate-200 font-mono">Qdrant Local</strong>
-          </span>
-          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold flex items-center gap-1">
-            <Layers className="h-3 w-3 text-slate-400" />
-            DETECTOR: <strong className="text-teal-700 dark:text-teal-400 font-mono">{modelInfo ? modelInfo.model_path.split(/[/\\]/).pop() : 'Loading...'}</strong>
-          </span>
-          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded text-slate-500 font-semibold flex items-center gap-1">
-            <Sparkles className="h-3 w-3 text-slate-400" />
-            ENCODER: <strong className="text-teal-700 dark:text-teal-400 font-mono">CLIP ViT-B-32</strong>
-          </span>
+        {/* Compact 2×2 system status and maintenance actions */}
+        <div className="grid w-full grid-cols-2 gap-1.5 lg:w-[390px] lg:shrink-0">
+          <div className="min-h-8 min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 flex items-center gap-1.5 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            <Cpu className="h-3 w-3 shrink-0 text-slate-400" />
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Index</span><strong className="truncate font-mono font-medium text-slate-800 dark:text-slate-100">Qdrant Local</strong>
+          </div>
+          <div className="min-h-8 min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 flex items-center gap-1.5 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            <Layers className="h-3 w-3 shrink-0 text-slate-400" />
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Detector</span><strong className="truncate font-mono font-medium text-teal-800 dark:text-teal-300">{modelInfo ? modelInfo.model_path.split(/[/\\]/).pop() : 'Loading...'}</strong>
+          </div>
+          <div className="min-h-8 min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 flex items-center gap-1.5 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            <Sparkles className="h-3 w-3 shrink-0 text-slate-400" />
+            <span className="shrink-0 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Encoder</span><strong className="truncate font-mono font-medium text-teal-800 dark:text-teal-300">CLIP ViT-B-32</strong>
+          </div>
           <button
             onClick={async () => {
               try {
@@ -376,16 +375,16 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                 toast.error('Network Error', 'Failed to reach backend during re-indexing.')
               }
             }}
-            className="text-[10px] bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/30 px-2.5 py-1 rounded font-bold cursor-pointer transition-all flex items-center gap-1.5"
+            className="min-h-8 rounded border border-teal-700 bg-teal-700 px-2 py-1 text-[10px] font-semibold text-white hover:bg-teal-800 cursor-pointer transition-colors flex items-center justify-center gap-1.5"
           >
             <RefreshCw className="h-3 w-3" />
             Re-index All Feeds
           </button>
-        </div>
+      </div>
       </div>
 
       {/* SEARCH INTERFACE PANEL */}
-      <div className="grid lg:grid-cols-[1.8fr_1.2fr] gap-6">
+      <div className="space-y-4">
         
         {/* Search query box */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
@@ -398,7 +397,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
               className={`px-3 py-1 text-[11px] font-bold rounded transition-all flex items-center gap-1.5 ${
                 searchMode === 'text'
                   ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               <Type className="h-3.5 w-3.5" /> Text Description Query
@@ -409,7 +408,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
               className={`px-3 py-1 text-[11px] font-bold rounded transition-all flex items-center gap-1.5 ${
                 searchMode === 'photo'
                   ? 'bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               <ImageIcon className="h-3.5 w-3.5" /> Photo Re-ID Search
@@ -418,27 +417,27 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
           <form onSubmit={searchMode === 'text' ? handleSearch : handlePhotoSearch} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
                 {searchMode === 'text' ? 'Natural Language Query descriptor' : 'Reference Target Photo (Person or Vehicle)'}
               </label>
 
               {searchMode === 'text' ? (
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <SearchIcon className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-700 dark:text-teal-400" />
                     <input
                       type="text"
                       required
                       placeholder="e.g. Red SUV moving quickly, man in yellow raincoat, police patrol vehicle..."
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-teal-700 dark:focus:border-teal-400"
+                      className="h-12 w-full rounded border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm transition focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 dark:focus:ring-teal-400/20"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={searching || loadingMetadata}
-                    className="bg-teal-700 hover:bg-teal-800 dark:bg-teal-650 dark:hover:bg-teal-700 text-white px-5 rounded text-xs font-bold transition-all shrink-0 shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-12 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white px-6 rounded text-sm font-semibold transition-all shrink-0 shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {searching ? (
                       <RefreshCw className="animate-spin h-3.5 w-3.5" />
@@ -494,7 +493,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                           />
                           <div className="text-left">
                             <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[220px]">{referenceFile?.name}</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">{((referenceFile?.size || 0) / 1024).toFixed(1)} KB</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{((referenceFile?.size || 0) / 1024).toFixed(1)} KB</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -526,7 +525,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                           <p className="text-[11px] text-slate-500 dark:text-slate-400">
                             or drag and drop an image file directly into this box
                           </p>
-                          <p className="text-[10px] text-slate-400 mt-2">Supports JPEG, PNG, WebP, BMP (Max 10 MB)</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2">Supports JPEG, PNG, WebP, BMP (Max 10 MB)</p>
                         </div>
                         <div>
                           <button
@@ -618,7 +617,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
         </div>
 
         {/* Sidebar Filters: Models & Cameras */}
-        <div className="space-y-4 flex flex-col">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
           {/* Model Registry Filter */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm flex flex-col justify-between max-h-[170px] overflow-hidden">
@@ -659,7 +658,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     <label 
                       key={c.camera_id} 
                       className={`flex items-center gap-2 text-xs transition-opacity ${
-                        disabled ? 'opacity-35 cursor-not-allowed text-slate-400' : 'cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
+                      disabled ? 'opacity-35 cursor-not-allowed text-slate-400 dark:text-slate-500' : 'cursor-pointer text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
                       }`}
                     >
                       <input
@@ -730,21 +729,21 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
         {/* SCORE INTERPRETATION GUIDANCE BAR */}
         {visibleResults.length > 0 && (
-          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-slate-300 font-semibold">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-semibold">
               <span>Match Score Guidance:</span>
             </div>
             <div className="flex items-center gap-4 text-[11px] font-mono">
-              <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 &gt;80% High Match (Reliable Target)
               </span>
-              <span className="flex items-center gap-1.5 text-amber-400 font-bold">
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                 50–80% Moderate Match
               </span>
-              <span className="flex items-center gap-1.5 text-slate-400">
-                <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+              <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-500"></span>
                 &lt;50% Tenuous Candidate
               </span>
             </div>
@@ -907,7 +906,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                           console.error('Failed to tag hot target:', err);
                         }
                       }}
-                      className="flex items-center justify-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 py-1.5 rounded text-[10px] font-bold transition-all"
+                      className="flex items-center justify-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 py-1.5 rounded text-[10px] font-bold transition-all"
                       title="Tag as Hot Target for Multi-Camera Persistent Pursuit"
                     >
                       <span>🎯 Tag Target</span>
@@ -960,7 +959,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
               ))}
               {searchLogs.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-slate-400">No search logs indexed. Audit trail is empty.</td>
+                  <td colSpan={5} className="py-6 text-center text-slate-400 dark:text-slate-500">No search logs indexed. Audit trail is empty.</td>
                 </tr>
               )}
             </tbody>

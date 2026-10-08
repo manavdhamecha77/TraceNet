@@ -87,7 +87,7 @@ export default function FrameInspection() {
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Unified Alert Center</span>
           </Link>
-          <h1 className="text-2xl font-black text-slate-100 flex items-center gap-2">
+          <h1 className="text-xl font-semibold text-slate-100 flex items-center gap-2">
             <span>Violent Assault Frame Inspection</span>
             <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
               PHYSICAL ASSAULT ANALYTICS

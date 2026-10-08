@@ -112,26 +112,25 @@ export default function FineTuning() {
   };
 
   return (
-    <div className="p-6 bg-slate-950 min-h-screen text-slate-100">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="mx-auto max-w-[1440px] space-y-5 pb-10 text-slate-800 dark:text-slate-100">
         {/* Header */}
-        <div className="border-b border-slate-800 pb-4">
-          <h1 className="text-2xl font-black text-slate-100 flex items-center gap-2">
+        <div className="border-b border-slate-200 pb-4 dark:border-slate-700">
+          <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-2 dark:text-slate-100">
             <span>YOLO Model Fine-Tuning</span>
-            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded border border-teal-200 bg-teal-50 text-teal-800 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-300">
               CUSTOM WEIGHT RETRAINING
             </span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-sm text-slate-600 mt-1 dark:text-slate-300">
             Adapt spatial-temporal detection models to your city scenarios using locally extracted tracklets.
           </p>
         </div>
 
         {/* Start Training Form */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
-          <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider mb-4 font-mono">Start New Training Job</h2>
+        <div className="bg-white border border-slate-200 rounded p-5 shadow-sm dark:bg-slate-800 dark:border-slate-700">
+          <h2 className="text-sm font-semibold text-slate-800 mb-4 dark:text-slate-100">Start new training job</h2>
           {error && (
-            <div className="mb-4 p-3 bg-rose-950/40 border border-rose-500/30 rounded-lg text-xs font-semibold text-rose-300">
+            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300">
               {error}
             </div>
           )}
@@ -139,7 +138,7 @@ export default function FineTuning() {
           <form onSubmit={handleStartTraining} className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-300">
                   Camera Node (Optional)
                 </label>
                 <input
@@ -149,15 +148,15 @@ export default function FineTuning() {
                   onChange={(e) =>
                     setFormData({ ...formData, camera_id: e.target.value })
                   }
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1 dark:text-slate-400">
                   Leave empty to train on all cameras
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-300">
                   Historical Data (Days)
                 </label>
                 <input
@@ -168,12 +167,12 @@ export default function FineTuning() {
                   onChange={(e) =>
                     setFormData({ ...formData, days: parseInt(e.target.value) })
                   }
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-300">
                   Learning Rate
                 </label>
                 <input
@@ -186,12 +185,12 @@ export default function FineTuning() {
                       learning_rate: parseFloat(e.target.value),
                     })
                   }
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-300">
                   Epochs
                 </label>
                 <input
@@ -205,12 +204,12 @@ export default function FineTuning() {
                       num_epochs: parseInt(e.target.value),
                     })
                   }
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                <label className="block text-xs font-medium text-slate-600 mb-1 dark:text-slate-300">
                   Batch Size
                 </label>
                 <input
@@ -224,7 +223,7 @@ export default function FineTuning() {
                       batch_size: parseInt(e.target.value),
                     })
                   }
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 />
               </div>
             </div>
@@ -232,7 +231,7 @@ export default function FineTuning() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-slate-950 font-bold py-2.5 px-4 rounded-lg transition-colors text-xs uppercase tracking-wider"
+              className="rounded bg-teal-700 px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-teal-800 disabled:opacity-50"
             >
               {isSubmitting ? "Initiating Training Job..." : "Start Fine-Tuning Execution"}
             </button>
@@ -240,30 +239,30 @@ export default function FineTuning() {
         </div>
 
         {/* Training Jobs */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-800">
-            <h2 className="text-sm font-bold text-slate-200 uppercase tracking-wider font-mono">Training History Logs</h2>
+        <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+          <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Training history</h2>
           </div>
 
           {jobs.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-500 font-mono">
+            <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
               No retraining execution jobs recorded
             </div>
           ) : (
-            <div className="divide-y divide-slate-850">
+            <div className="divide-y divide-slate-100 dark:divide-slate-700">
               {jobs.map((job) => (
                 <div
                   key={job.training_id}
                   className={`p-6 transition-colors ${
-                    activeJob === job.training_id ? "bg-cyan-950/20 border-l-2 border-cyan-500" : ""
+                    activeJob === job.training_id ? "bg-teal-50 border-l-2 border-teal-700 dark:bg-teal-950/20 dark:border-teal-500" : ""
                   }`}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <p className="text-xs font-mono font-bold text-cyan-400">
+                      <p className="text-xs font-mono font-semibold text-teal-700 dark:text-teal-300">
                         {job.training_id.substring(0, 8)}...
                       </p>
-                      <p className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                      <p className="text-xs text-slate-500 mt-0.5 dark:text-slate-400">
                         {formatDisplayDate(job.created_at)}
                       </p>
                     </div>
@@ -280,28 +279,28 @@ export default function FineTuning() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-4 bg-slate-950/60 p-3 rounded-lg border border-slate-800 text-xs">
+                  <div className="grid grid-cols-2 gap-4 rounded border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-4 dark:border-slate-700 dark:bg-slate-900/60">
                     <div>
-                      <p className="text-[10px] text-slate-500 uppercase font-mono">Target Camera</p>
-                      <p className="font-semibold text-slate-200 mt-0.5">
+                      <p className="text-[10px] text-slate-500 uppercase font-medium dark:text-slate-400">Target Camera</p>
+                      <p className="font-medium text-slate-800 mt-0.5 dark:text-slate-100">
                         {job.camera_id || "All Nodes"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-slate-500 uppercase font-mono">Videos Trained</p>
-                      <p className="font-semibold text-slate-200 mt-0.5">
+                      <p className="text-[10px] text-slate-500 uppercase font-medium dark:text-slate-400">Videos Trained</p>
+                      <p className="font-medium text-slate-800 mt-0.5 dark:text-slate-100">
                         {job.num_videos || "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-slate-500 uppercase font-mono">Average Loss</p>
-                      <p className="font-semibold text-cyan-400 mt-0.5">
+                      <p className="text-[10px] text-slate-500 uppercase font-medium dark:text-slate-400">Average Loss</p>
+                      <p className="font-medium text-teal-700 mt-0.5 dark:text-teal-300">
                         {job.avg_loss ? job.avg_loss.toFixed(4) : "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-slate-500 uppercase font-mono">Duration</p>
-                      <p className="font-semibold text-slate-200 mt-0.5">
+                      <p className="text-[10px] text-slate-500 uppercase font-medium dark:text-slate-400">Duration</p>
+                      <p className="font-medium text-slate-800 mt-0.5 dark:text-slate-100">
                         {job.elapsed_seconds
                           ? `${(job.elapsed_seconds / 60).toFixed(1)}m`
                           : "—"}
@@ -310,7 +309,7 @@ export default function FineTuning() {
                   </div>
 
                   {job.error && (
-                    <div className="mt-3 p-3 bg-rose-950/40 border border-rose-500/30 rounded-lg text-xs text-rose-300 font-mono">
+                    <div className="mt-3 rounded border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
                       Error: {job.error}
                     </div>
                   )}
@@ -319,7 +318,6 @@ export default function FineTuning() {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 }

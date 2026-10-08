@@ -109,7 +109,9 @@ function App() {
 
   // Theme & Layout state
   // @ts-ignore
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    localStorage.getItem('drishti-theme') === 'dark' ? 'dark' : 'light'
+  )
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   // Pipeline jobs state
@@ -936,18 +938,18 @@ function App() {
 
   // Nav link helper
   const navLinkClass = (active: boolean) =>
-    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold transition-all duration-150 ${
+    `flex items-center gap-3 rounded px-3 py-2 text-[11px] font-semibold uppercase tracking-wide transition-colors duration-150 ${
       active
-        ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-bold'
+        ? 'bg-teal-700/10 text-teal-800 dark:text-teal-300'
         : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-slate-200'
     }`
 
   return (
-    <div className="flex min-h-screen bg-slate-100 dark:bg-[#0B1324] text-slate-800 dark:text-slate-100 antialiased transition-colors duration-150">
+    <div className="flex min-h-screen bg-[#F8F9FA] dark:bg-[#0B1324] text-slate-800 dark:text-slate-100 antialiased transition-colors duration-150">
       {/* ── SIDEBAR ─────────────────────────────────────────── */}
       <aside
-        className="sticky top-0 h-screen flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-[#0F172A] z-20 transition-all duration-200 shrink-0"
-        style={{ width: isSidebarCollapsed ? 56 : 220 }}
+        className="sticky top-0 h-screen flex flex-col justify-between border-r border-slate-200 dark:border-slate-800/80 bg-white dark:bg-[#0F172A] z-20 transition-all duration-200 shrink-0"
+        style={{ width: isSidebarCollapsed ? 64 : 240 }}
       >
         <div className="flex flex-col gap-6">
 
@@ -988,7 +990,7 @@ function App() {
               className={navLinkClass(location.pathname === '/dashboard')}
               title={isSidebarCollapsed ? 'Situation Overview' : undefined}
             >
-              <svg className="h-4 w-4 shrink-0 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
               </svg>
               {!isSidebarCollapsed && <span>Situation Overview</span>}
@@ -1009,7 +1011,7 @@ function App() {
                 className={navLinkClass(location.pathname === '/areas')}
                 title={isSidebarCollapsed ? 'Areas' : undefined}
               >
-                <svg className="h-4 w-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 6.5A2.5 2.5 0 016.5 4h4A2.5 2.5 0 0113 6.5v4a2.5 2.5 0 01-2.5 2.5h-4A2.5 2.5 0 014 10.5v-4zM15 13.5a2.5 2.5 0 012.5-2.5h4a2.5 2.5 0 012.5 2.5v4a2.5 2.5 0 01-2.5 2.5h-4a2.5 2.5 0 01-2.5-2.5v-4z" />
                 </svg>
                 {!isSidebarCollapsed && <span>Areas</span>}
@@ -1020,16 +1022,11 @@ function App() {
                 className={navLinkClass(location.pathname === '/live-connect' || location.pathname === '/connect')}
                 title={isSidebarCollapsed ? 'Live Broadcaster Studio' : undefined}
               >
-                <svg className="h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.828a5 5 0 010-7.072m7.072 0a5 5 0 010 7.072M13 12a1 1 0 11-2 0 1 1 0 012 0z" />
                 </svg>
                 {!isSidebarCollapsed && (
-                  <span className="flex items-center justify-between flex-1">
-                    <span>Live Broadcaster</span>
-                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      WHIP
-                    </span>
-                  </span>
+                  <span>Live Broadcaster</span>
                 )}
               </Link>
 
@@ -1040,7 +1037,7 @@ function App() {
               className={navLinkClass(location.pathname === '/multicam')}
               title={isSidebarCollapsed ? 'Multi-Cam Intelligence' : undefined}
             >
-              <svg className="h-4 w-4 shrink-0 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
               </svg>
               {!isSidebarCollapsed && <span>Multi-Cam Intelligence</span>}
@@ -1051,7 +1048,7 @@ function App() {
               className={navLinkClass(location.pathname === '/search')}
               title={isSidebarCollapsed ? 'Search & Investigate' : undefined}
             >
-              <svg className="h-4 w-4 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               {!isSidebarCollapsed && <span>Search &amp; Investigate</span>}
@@ -1062,7 +1059,7 @@ function App() {
               className={navLinkClass(location.pathname === '/face-search')}
               title={isSidebarCollapsed ? 'Facial Intelligence' : undefined}
             >
-              <svg className="h-4 w-4 shrink-0 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 11c1.657 0 3-1.343 3-3S13.657 5 12 5s-3 1.343-3 3 1.343 3 3 3zm0 2c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4z" />
               </svg>
               {!isSidebarCollapsed && <span>Facial Intelligence</span>}
@@ -1073,7 +1070,7 @@ function App() {
               className={navLinkClass(location.pathname.startsWith('/targets') || location.pathname.startsWith('/hot-targets') || location.pathname === '/multicam')}
               title={isSidebarCollapsed ? 'Pursuit & Tracking' : undefined}
             >
-              <svg className="h-4 w-4 shrink-0 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
               </svg>
@@ -1085,7 +1082,7 @@ function App() {
               className={navLinkClass(location.pathname.startsWith('/alerts') || location.pathname === '/theft-alerts' || location.pathname === '/assault-detection' || location.pathname === '/plate-detection')}
               title={isSidebarCollapsed ? 'Unified Alert Center' : undefined}
             >
-              <svg className="h-4 w-4 shrink-0 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
               {!isSidebarCollapsed && <span className="flex-1">Unified Alert Center</span>}
@@ -1098,18 +1095,18 @@ function App() {
           </nav>
 
           {/* Technical Admin Section (Gated for Police Officers) */}
-          <div className="pt-4 px-2 border-t border-slate-800 space-y-1">
+          <div className="pt-4 px-2 border-t border-slate-200 dark:border-slate-800 space-y-1">
             <div className="flex items-center justify-between px-2.5 py-1">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                {!isSidebarCollapsed ? '⚙️ System Admin' : '⚙️'}
+                {!isSidebarCollapsed ? 'ML ADMIN' : 'ML'}
               </span>
               {!isSidebarCollapsed && (
                 <button
                   onClick={() => setIsAdminMode(!isAdminMode)}
                   className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border transition-colors ${
                     isAdminMode
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                      ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40'
+                      : 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:text-white'
                   }`}
                 >
                   {isAdminMode ? 'UNLOCKED' : 'LOCKED'}
@@ -1127,7 +1124,7 @@ function App() {
                   <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                   </svg>
-                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">Detector Models</span>}
+                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Detector Models</span>}
                 </Link>
 
                 <Link
@@ -1138,7 +1135,7 @@ function App() {
                   <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L5.595 15.12a2 2 0 00-1.802.738l-1.42 1.704a2 2 0 00.384 2.87l1.785 1.19a2 2 0 002.502-.276l1.325-1.326a2 2 0 012.383-.343l.534.267a6 6 0 004.8 0l.535-.267a2 2 0 012.383.343l1.325 1.326a2 2 0 002.502.276l1.785-1.19a2 2 0 00.384-2.87l-1.42-1.704z" />
                   </svg>
-                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">Embedding Config</span>}
+                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Embedding Config</span>}
                 </Link>
 
                 <Link
@@ -1150,17 +1147,17 @@ function App() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  {!isSidebarCollapsed && <span className="text-xs text-slate-400">YOLO Fine-Tuning</span>}
+                  {!isSidebarCollapsed && <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">YOLO Fine-Tuning</span>}
                 </Link>
               </div>
             ) : (
               !isSidebarCollapsed && (
                 <button
                   onClick={() => setIsAdminMode(true)}
-                  className="w-full text-left px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-[11px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[10px] font-semibold uppercase tracking-wide text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-2 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-slate-300 dark:hover:text-white"
                 >
                   <span className="text-[10px]">🔒</span>
-                  <span>Click to Unlock ML Controls</span>
+                  <span>Unlock ML Controls</span>
                 </button>
               )
             )}
@@ -1169,27 +1166,6 @@ function App() {
 
         {/* Sidebar footer — operator identity + Theme toggle */}
         <div className="border-t border-slate-200 dark:border-slate-800 p-3 space-y-2">
-          {/* Theme Toggle Button */}
-          <button
-            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-            className={`w-full flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all ${
-              isSidebarCollapsed ? 'justify-center' : ''
-            } bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-250 dark:border-slate-700/60`}
-            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-          >
-            {theme === 'light' ? (
-              <>
-                <Moon className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                {!isSidebarCollapsed && <span>Dark Mode</span>}
-              </>
-            ) : (
-              <>
-                <Sun className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                {!isSidebarCollapsed && <span>Light Mode</span>}
-              </>
-            )}
-          </button>
-
           <div
             className={`flex items-center gap-3 rounded-lg p-2 ${
               isSidebarCollapsed ? 'justify-center' : ''
@@ -2014,6 +1990,8 @@ function App() {
       {/* Global Full-Screen AI Copilot Assistant Overlay */}
       <AICopilotOverlay
         isOpen={isCopilotOpen}
+        theme={theme}
+        onToggleTheme={() => setTheme(theme === 'light' ? 'dark' : 'light')}
         onClose={() => {
           setIsCopilotOpen(false)
           setCopilotInitialPrompt('')

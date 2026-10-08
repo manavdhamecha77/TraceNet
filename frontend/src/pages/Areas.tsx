@@ -122,16 +122,16 @@ export default function Areas() {
   const sortedAreas = useMemo(() => areas.slice().sort((a, b) => a.name.localeCompare(b.name)), [areas])
 
   return (
-    <div className="space-y-5 pb-16">
+    <div className="space-y-5 pb-16 text-slate-800 dark:text-slate-100">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">Areas</h2>
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Areas</h2>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Organize camera nodes by geographic or operational area.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex rounded border border-slate-200 dark:border-slate-700 p-0.5">
-            <button aria-label="Grid view" onClick={() => setViewMode('grid')} className={`rounded p-1.5 ${view === 'grid' ? 'bg-cyan-500/15 text-cyan-500' : 'text-slate-400'}`}><Grid2X2 className="h-4 w-4" /></button>
-            <button aria-label="List view" onClick={() => setViewMode('list')} className={`rounded p-1.5 ${view === 'list' ? 'bg-cyan-500/15 text-cyan-500' : 'text-slate-400'}`}><List className="h-4 w-4" /></button>
+            <button aria-label="Grid view" onClick={() => setViewMode('grid')} className={`rounded p-1.5 ${view === 'grid' ? 'bg-teal-700/10 text-teal-700 dark:text-teal-300' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}><Grid2X2 className="h-4 w-4" /></button>
+            <button aria-label="List view" onClick={() => setViewMode('list')} className={`rounded p-1.5 ${view === 'list' ? 'bg-teal-700/10 text-teal-700 dark:text-teal-300' : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'}`}><List className="h-4 w-4" /></button>
           </div>
           <button onClick={openCreate} className="flex items-center gap-1.5 rounded bg-teal-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-800"><Plus className="h-3.5 w-3.5" /> New Area</button>
         </div>
@@ -141,23 +141,23 @@ export default function Areas() {
         {sortedAreas.map((area) => {
           const thumbnail = imageUrl(area.thumbnail_path || area.thumbnail_url || area.default_thumbnail_path)
           return (
-            <article key={area.id} className={`overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${view === 'list' ? 'flex items-center' : ''}`}>
+            <article key={area.id} className={`overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 ${view === 'list' ? 'flex items-center' : ''}`}>
               <div className={view === 'list' ? 'h-20 w-32 shrink-0' : 'h-36'}>
-                {thumbnail ? <img src={thumbnail} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center bg-slate-100 text-xs text-slate-400 dark:bg-slate-800">No thumbnail</div>}
+                {thumbnail ? <img src={thumbnail} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center bg-slate-100 text-xs text-slate-500 dark:bg-slate-900 dark:text-slate-400">No thumbnail</div>}
               </div>
               <div className="min-w-0 flex-1 p-3.5">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h3 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{area.name}</h3>
-                    <p className="mt-1 text-xs text-slate-500">{area.camera_count} camera{area.camera_count === 1 ? '' : 's'}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{area.camera_count} camera{area.camera_count === 1 ? '' : 's'}</p>
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <button onClick={() => openEdit(area)} aria-label={`Edit ${area.name}`} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-cyan-500 dark:hover:bg-slate-800"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => openEdit(area)} aria-label={`Edit ${area.name}`} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-teal-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-teal-300"><Pencil className="h-3.5 w-3.5" /></button>
                     <button onClick={() => deleteArea(area)} aria-label={`Delete ${area.name}`} className="rounded p-1.5 text-slate-400 hover:bg-rose-500/10 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
                 {area.description && <p className="mt-2 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{area.description}</p>}
-                <Link to="/cameras" className="mt-3 inline-block text-[11px] font-bold text-cyan-600 hover:text-cyan-500">View camera directory →</Link>
+                <Link to="/cameras" className="mt-3 inline-block text-xs font-medium text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">View camera directory →</Link>
               </div>
             </article>
           )
@@ -181,7 +181,7 @@ export default function Areas() {
       />
       {deleteCandidate && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <div className="w-full max-w-sm rounded border border-slate-200 bg-white p-5 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
             <h3 className="text-sm font-bold">Delete Area?</h3>
             <p className="mt-2 text-xs text-slate-500">Delete “{deleteCandidate.name}”? Areas with cameras cannot be deleted.</p>
             <div className="mt-4 flex justify-end gap-2">
@@ -199,13 +199,13 @@ function AreaModal(props: any) {
   if (!props.open) return null
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={(event) => event.target === event.currentTarget && props.onClose()}>
-      <form onSubmit={props.onSubmit} className="w-full max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-        <div className="flex items-center justify-between"><h3 className="text-sm font-bold">{props.editing ? 'Edit Area' : 'New Area'}</h3><button type="button" onClick={props.onClose}><X className="h-4 w-4" /></button></div>
-        <input required minLength={2} value={props.name} onChange={(event) => props.setName(event.target.value)} placeholder="Area name" className="w-full rounded border border-slate-300 bg-transparent px-3 py-2 text-sm dark:border-slate-700" />
-        <textarea value={props.description} onChange={(event) => props.setDescription(event.target.value)} placeholder="Description (optional)" className="w-full rounded border border-slate-300 bg-transparent px-3 py-2 text-sm dark:border-slate-700" rows={3} />
-        <input value={props.thumbnailUrl} onChange={(event) => props.setThumbnailUrl(event.target.value)} placeholder="Thumbnail URL (optional)" className="w-full rounded border border-slate-300 bg-transparent px-3 py-2 text-sm dark:border-slate-700" />
-        <label className="flex cursor-pointer items-center gap-2 rounded border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500 dark:border-slate-700"><Upload className="h-4 w-4" />{props.thumbnailFile?.name || 'Upload custom thumbnail'}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => props.setThumbnailFile(event.target.files?.[0] || null)} /></label>
-        <div className="flex justify-end gap-2"><button type="button" onClick={props.onClose} className="rounded border border-slate-300 px-3 py-2 text-xs dark:border-slate-700">Cancel</button><button disabled={props.saving} className="rounded bg-teal-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{props.saving ? 'Saving…' : 'Save Area'}</button></div>
+      <form onSubmit={props.onSubmit} className="w-full max-w-md space-y-4 rounded border border-slate-200 bg-white p-5 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
+        <div className="flex items-center justify-between"><h3 className="text-sm font-bold">{props.editing ? 'Edit Area' : 'New Area'}</h3><button type="button" onClick={props.onClose} aria-label="Close" className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"><X className="h-4 w-4" /></button></div>
+        <input required minLength={2} value={props.name} onChange={(event) => props.setName(event.target.value)} placeholder="Area name" className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500" />
+        <textarea value={props.description} onChange={(event) => props.setDescription(event.target.value)} placeholder="Description (optional)" className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500" rows={3} />
+        <input value={props.thumbnailUrl} onChange={(event) => props.setThumbnailUrl(event.target.value)} placeholder="Thumbnail URL (optional)" className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500" />
+        <label className="flex cursor-pointer items-center gap-2 rounded border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600 dark:border-slate-600 dark:text-slate-300"><Upload className="h-4 w-4" />{props.thumbnailFile?.name || 'Upload custom thumbnail'}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => props.setThumbnailFile(event.target.files?.[0] || null)} /></label>
+        <div className="flex justify-end gap-2"><button type="button" onClick={props.onClose} className="rounded border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">Cancel</button><button disabled={props.saving} className="rounded bg-teal-700 px-3 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50">{props.saving ? 'Saving…' : 'Save Area'}</button></div>
       </form>
     </div>
   )

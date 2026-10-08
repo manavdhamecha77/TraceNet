@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 interface DashboardProps {
@@ -11,289 +12,137 @@ interface DashboardProps {
 }
 
 const pipelineStages = [
-  {
-    name: 'Ingestion API & Sandbox',
-    desc: 'Accepts diverse file inputs (.mov, .avi, .mp4) and logs real-world alignment times.',
-    status: 'Online',
-    statusClass: 'pill-online',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-      </svg>
-    ),
-  },
-  {
-    name: 'FFmpeg Resolution & Framerate Transcoder',
-    desc: 'Forces 720p resolution and down-scales framerate to 10 FPS for optimal indexing.',
-    status: 'Ready',
-    statusClass: 'pill-online',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'OpenCV Timeline-Proportional Frame Sampler',
-    desc: 'Pulls exactly 4 frames per second in-memory. Zero frame-image disk write overhead.',
-    status: 'Ready',
-    statusClass: 'pill-online',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'YOLOv8 & ByteTrack Detection Engine',
-    desc: 'Detects person/vehicle objects, assigns track IDs, and writes tracklet summaries for review.',
-    status: 'Active',
-    statusClass: 'pill-online',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-      </svg>
-    ),
-  },
+  { name: 'Ingestion API & Sandbox', desc: 'Accepts video files and records their source and alignment metadata.', status: 'Online', icon: '↓' },
+  { name: 'FFmpeg Transcoder', desc: 'Standardizes video to 720p H.264 at 10 FPS for indexing.', status: 'Ready', icon: '▶' },
+  { name: 'OpenCV Frame Sampler', desc: 'Samples the standardized timeline at four frames per second.', status: 'Ready', icon: '▥' },
+  { name: 'Detection & Tracking', desc: 'Detects people and vehicles, assigns track IDs, and prepares tracklets for review.', status: 'Active', icon: '⌗' },
 ]
 
 export default function Dashboard({ metrics }: DashboardProps) {
+  const [assistantPrompt, setAssistantPrompt] = useState('')
   const metricCards = [
-    {
-      label: 'Camera Nodes',
-      value: metrics.totalCameras,
-      valueColor: 'text-cyan-400',
-      iconBg: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30',
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
-      ),
-      delay: 'animate-stagger-1',
-    },
-    {
-      label: 'Video Feeds Indexed',
-      value: metrics.totalVideos,
-      valueColor: 'text-slate-100',
-      iconBg: 'bg-slate-800 text-slate-300 border border-slate-700',
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-        </svg>
-      ),
-      delay: 'animate-stagger-2',
-    },
-    {
-      label: 'Standardized (10 FPS)',
-      value: metrics.processedVideos,
-      valueColor: 'text-emerald-400',
-      iconBg: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30',
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      delay: 'animate-stagger-3',
-    },
-    {
-      label: 'Queue / Processing',
-      value: metrics.pendingVideos,
-      valueColor: metrics.pendingVideos > 0 ? 'text-amber-400' : 'text-slate-500',
-      iconBg: metrics.pendingVideos > 0 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-500 border border-slate-700',
-      icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" />
-        </svg>
-      ),
-      delay: 'animate-stagger-4',
-    },
+    { label: 'Camera nodes', value: metrics.totalCameras, detail: 'Registered locations' },
+    { label: 'Video feeds', value: metrics.totalVideos, detail: 'Uploaded recordings' },
+    { label: 'Standardized', value: metrics.processedVideos, detail: 'Ready for review' },
+    { label: 'In queue', value: metrics.pendingVideos, detail: metrics.failedVideos ? `${metrics.failedVideos} failed` : 'Processing and pending', warning: metrics.pendingVideos > 0 },
   ]
-
-  const samplePrompts = [
-    { text: "Show me everyone near Gate 3 between 5 PM and 7 PM", tag: "NL Search" },
-    { text: "Track suspect in red jacket from Camera 001 across all nodes", tag: "Pursuit" },
-    { text: "List all unacknowledged outdoor theft and physical assault alerts", tag: "Alerts" },
-    { text: "Check operational status of all smart city camera nodes", tag: "Cameras" }
+  const prompts = [
+    { text: 'Show me everyone near Gate 3 between 5 PM and 7 PM', tag: 'Search' },
+    { text: 'Track a person in a red jacket across cameras', tag: 'Multi-camera' },
+    { text: 'List unacknowledged theft and assault alerts', tag: 'Alerts' },
   ]
+  const openAssistant = (prompt = '') => {
+    window.dispatchEvent(new CustomEvent('tracenet:open-copilot', { detail: { prompt } }))
+    setAssistantPrompt('')
+  }
 
   return (
-    <div className="space-y-6 animate-fade-in pb-16">
-      {/* Page header */}
-      <div className="space-y-1">
-        <h2 className="text-xl font-extrabold text-slate-100 flex items-center gap-2">
-          <span>Situation Overview</span>
-          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-            FORENSIC COMMAND CENTER
-          </span>
-        </h2>
-        <p className="text-xs text-slate-400 max-w-xl">
-          Real-time smart city surveillance overview, operational AI command bar, and camera node health metrics.
-        </p>
+    <div className="mx-auto max-w-[1440px] space-y-5 pb-10 text-slate-800 dark:text-slate-100">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">Operations / Overview</p>
+          <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">Situation overview</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Camera coverage, video processing, and review activity.</p>
+        </div>
+        <Link to="/cameras" className="inline-flex h-9 items-center gap-2 rounded border border-teal-700 bg-teal-700 px-3 text-sm font-medium text-white hover:bg-teal-800">
+          View camera registry <span aria-hidden="true">→</span>
+        </Link>
       </div>
 
-      {/* METRIC GRID */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="System metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metricCards.map((card) => (
-          <div
-            key={card.label}
-            className={`bg-slate-900/80 border border-slate-800 rounded-xl p-5 flex items-center justify-between group hover:border-slate-700 transition-all duration-200 shadow-xs`}
-          >
-            <div className="space-y-1">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{card.label}</span>
-              <p className={`text-3xl font-black font-mono tracking-tight ${card.valueColor}`}>
-                {card.value}
-              </p>
+          <div key={card.label} className="rounded border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{card.label}</p>
+                <p className={`mt-2 font-mono text-2xl font-semibold tabular-nums ${card.warning ? 'text-amber-700 dark:text-amber-400' : 'text-slate-800 dark:text-slate-100'}`}>{card.value}</p>
+              </div>
+              <span className={`mt-1 h-2 w-2 rounded-full ${card.warning ? 'bg-amber-500' : 'bg-teal-700'}`} />
             </div>
-            <span className={`p-3 rounded-xl ${card.iconBg} transition-colors`}>
-              {card.icon}
-            </span>
+            <p className="mt-2 border-t border-slate-100 pt-2 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">{card.detail}</p>
           </div>
         ))}
       </section>
 
-      {/* LIVE CCTV STREAM BANNER */}
-      <section className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-cyan-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg ring-1 ring-cyan-500/10">
-        <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center">
-            <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping absolute" />
-            <span className="w-3 h-3 rounded-full bg-rose-500 relative" />
-          </div>
-          <div className="space-y-0.5">
-            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              <span>Live WebRTC CCTV Feeds</span>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                ACTIVE INFERENCE
-              </span>
-            </h3>
-            <p className="text-xs text-slate-400">
-              Monitor low-latency live WebRTC streams, canvas bounding boxes, active tracklets, and real-time alerts.
-            </p>
+      <section className="flex flex-col justify-between gap-3 rounded border border-teal-200 bg-teal-50/60 p-4 dark:border-teal-900 dark:bg-teal-950/30 sm:flex-row sm:items-center">
+        <div className="flex items-start gap-3">
+          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-700" />
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Live camera tools</h2>
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">Open a configured live feed or connect a broadcaster.</p>
           </div>
         </div>
-
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          <Link
-            to="/cameras/CAM_001/live"
-            className="px-3 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-cyan-500/20"
-          >
-            <span>Watch CAM_001 Live</span>
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-          <Link
-            to="/live-connect"
-            className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
-          >
-            <span>Broadcast Feed</span>
-            <span className="text-[9px] font-mono px-1 rounded bg-black/20">WHIP</span>
-          </Link>
-          <Link
-            to="/cameras"
-            className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all border border-slate-700"
-          >
-            All Cameras
-          </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/cameras/CAM_001/live" className="inline-flex h-8 items-center rounded border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Watch CAM_001</Link>
+          <Link to="/live-connect" className="inline-flex h-8 items-center rounded border border-teal-700 bg-teal-700 px-3 text-xs font-medium text-white hover:bg-teal-800">Broadcast feed</Link>
         </div>
       </section>
 
-      {/* MAIN CONTENT GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        
-        {/* LEFT COL: PIPELINE STATUS (Takes up 2 cols) */}
-        <section className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-6 space-y-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Forensic Preprocessing Pipeline</h3>
-            <span className="pill-online">All Systems Operational</span>
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
+        <section className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 xl:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Preprocessing pipeline</h2>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Current video preparation stages</p>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />Operational</span>
           </div>
-
-          <div className="space-y-2.5">
-            {pipelineStages.map((stage, i) => (
-              <div
-                key={stage.name}
-                className={`bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-lg p-4 flex items-center justify-between gap-4 animate-fade-up animate-stagger-${i + 1} group hover:border-slate-300 dark:hover:border-slate-700 transition-colors duration-200`}
-              >
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 p-2 rounded-lg bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0 group-hover:text-teal-600 dark:group-hover:text-cyan-400 transition-colors">
-                    {stage.icon}
-                  </span>
-                  <div className="space-y-0.5">
-                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{stage.name}</h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">{stage.desc}</p>
+          <div className="divide-y divide-slate-100 px-4 dark:divide-slate-700">
+            {pipelineStages.map((stage, index) => (
+              <div key={stage.name} className="flex items-center gap-3 py-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-50 font-mono text-sm text-teal-700 dark:border-slate-600 dark:bg-slate-900 dark:text-teal-300">{stage.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <h3 className="text-sm font-medium text-slate-800 dark:text-slate-100">{stage.name}</h3>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">Stage {index + 1}</span>
                   </div>
+                  <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">{stage.desc}</p>
                 </div>
-                <span className={`${stage.statusClass} shrink-0`}>{stage.status}</span>
+                <span className="shrink-0 text-xs font-medium text-emerald-700 dark:text-emerald-300">{stage.status}</span>
               </div>
             ))}
           </div>
         </section>
 
-        {/* RIGHT COL: AI COPILOT & AUDIT FOOTER */}
-        <div className="lg:col-span-1 space-y-6">
-          
-          {/* AI COPILOT COMMAND CENTER CARD */}
-          <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-cyan-500/30 rounded-xl p-5 space-y-5 shadow-xl ring-1 ring-cyan-500/10">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 mt-0.5">
-                <svg className="h-4 w-4 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+        <div className="space-y-4">
+          <section className="overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">AI operational assistant</h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Search footage and review operations.</p>
               </div>
-              <div className="space-y-1">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  AI Operational Assistant
-                </h3>
-                <p className="text-[11px] text-slate-400 leading-snug">
-                  Ask natural language queries or trigger multi-camera pursuit directly.
-                </p>
-              </div>
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-teal-600" />Ready</span>
             </div>
-
-            <button
-              onClick={() => {
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
-              }}
-              className="w-full py-2.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20"
-            >
-              <span>Launch Copilot</span>
-              <span className="text-[10px] font-mono text-slate-900/70 ml-1 border border-slate-900/30 px-1.5 py-0.5 rounded opacity-80">Ctrl + K</span>
-            </button>
-
-            {/* Quick Pre-loaded Prompt Chips */}
-            <div className="pt-4 border-t border-slate-800/80 space-y-2.5">
-              <span className="text-[10px] font-mono text-slate-500 font-bold uppercase block">Quick Prompts</span>
-              <div className="flex flex-col gap-2">
-                {samplePrompts.map((p, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      window.dispatchEvent(new CustomEvent('tracenet:open-copilot', { detail: { prompt: p.text } }))
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 text-slate-300 transition-all hover:border-cyan-500/50 hover:text-cyan-300 flex flex-col gap-1.5 group"
-                  >
-                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 self-start group-hover:bg-cyan-500/20">
-                      {p.tag}
-                    </span>
-                    <span className="text-[10px] leading-snug truncate whitespace-normal line-clamp-2">"{p.text}"</span>
+            <div className="space-y-3 p-4">
+              <div className="rounded border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/60">
+                <p className="text-xs leading-5 text-slate-700 dark:text-slate-200">Ask about cameras, footage, or alerts. The assistant can search records and explain its findings.</p>
+                <form onSubmit={(event) => { event.preventDefault(); if (assistantPrompt.trim()) openAssistant(assistantPrompt.trim()) }} className="mt-3 flex gap-2">
+                  <input value={assistantPrompt} onChange={(event) => setAssistantPrompt(event.target.value)} aria-label="Ask the operational assistant" placeholder="Ask a question…" className="h-9 min-w-0 flex-1 rounded border border-slate-300 bg-white px-3 text-xs text-slate-800 placeholder:text-slate-400 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/15 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500" />
+                  <button type="submit" disabled={!assistantPrompt.trim()} className="h-9 shrink-0 rounded bg-teal-700 px-3 text-xs font-medium text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">Ask</button>
+                </form>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Try asking</p>
+                  <button onClick={() => openAssistant()} className="text-[11px] font-medium text-teal-700 hover:underline dark:text-teal-300">Open chat</button>
+                </div>
+                {prompts.map((prompt) => (
+                  <button key={prompt.text} onClick={() => openAssistant(prompt.text)} className="flex w-full items-start justify-between gap-2 rounded border border-slate-200 px-3 py-2 text-left hover:border-teal-300 hover:bg-teal-50/50 dark:border-slate-600 dark:hover:bg-slate-700">
+                    <span className="text-xs leading-5 text-slate-700 dark:text-slate-200">{prompt.text}</span><span className="shrink-0 pt-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">{prompt.tag}</span>
                   </button>
                 ))}
               </div>
             </div>
           </section>
 
-          {/* FORENSIC AUDIT FOOTER */}
-          <section className="bg-slate-900 border border-slate-800/80 rounded-xl p-4 flex flex-col gap-2 shadow-xs">
+          <section className="rounded border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="text-slate-300 font-semibold text-xs tracking-wide uppercase">Audit Engine Active</span>
+              <span className="h-2 w-2 rounded-full bg-emerald-600" />
+              <h2 className="text-xs font-semibold text-slate-700 dark:text-slate-200">Audit logging active</h2>
             </div>
-            <p className="font-mono text-[10px] text-slate-500 leading-relaxed">
-              Verifiable SQLite engine running.<br/>
-              Target database: <span className="text-teal-600 dark:text-cyan-400 font-bold">drishti.db</span>
-            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">Search activity is recorded in the local audit database.</p>
+            <p className="mt-2 border-t border-slate-100 pt-2 font-mono text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">Target database: <span className="font-semibold text-teal-700 dark:text-teal-300">drishti.db</span></p>
           </section>
-
         </div>
       </div>
     </div>

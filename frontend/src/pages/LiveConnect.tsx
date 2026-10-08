@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Video, Copy, Play, Square, Settings, RefreshCw } from 'lucide-react'
+import { Copy, Play, Square, Settings, RefreshCw } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { API_BASE } from '../config/api'
 
@@ -211,8 +211,7 @@ export default function LiveConnect() {
       
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Video className="w-5 h-5 text-teal-600" />
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
             Connect Live Camera Feed
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">

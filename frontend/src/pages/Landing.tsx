@@ -85,7 +85,7 @@ export default function Landing() {
         </div>
 
         <div className="space-y-5">
-          <h1 className="text-display text-slate-900 dark:text-slate-100">
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
             Project{' '}
             <span className="text-teal-700 dark:text-cyan-400">DRISHTI</span>
           </h1>

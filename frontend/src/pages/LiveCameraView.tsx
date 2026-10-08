@@ -447,7 +447,7 @@ export default function LiveCameraView() {
           </Link>
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
           <div className="flex items-center gap-2">
-            <h1 className="text-sm font-bold text-slate-800 dark:text-slate-100">{camera?.name || 'Loading...'}</h1>
+            <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{camera?.name || 'Loading...'}</h1>
             <span className="text-[10px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-800">
               {camera?.camera_id}
             </span>

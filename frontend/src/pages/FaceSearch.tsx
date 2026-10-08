@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Search, Eye, Upload, Image as ImageIcon, Camera as CameraIcon, Crosshair, Tag, ChevronDown, RefreshCw } from 'lucide-react'
+import { Search, Upload, Image as ImageIcon, Camera as CameraIcon, Crosshair, Tag, ChevronDown, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
@@ -170,15 +170,14 @@ export default function FaceSearch() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-[90vw] lg:w-[70vw] max-w-full space-y-5 text-slate-800 dark:text-slate-100">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Eye className="h-7 w-7 text-emerald-500" />
+          <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
             Facial Intelligence &amp; Search
           </h1>
-          <p className="text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">
             Cross-camera face tracking, suspect search, and identity tagging
           </p>
         </div>
@@ -191,21 +190,21 @@ export default function FaceSearch() {
           className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
         >
           <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200">
-            <Crosshair className="h-4 w-4 text-emerald-500" />
+            <Crosshair className="h-4 w-4 text-teal-700 dark:text-teal-400" />
             Model Configuration
           </div>
           <ChevronDown className={`h-4 w-4 transition-transform ${isConfigOpen ? 'rotate-180' : ''}`} />
         </button>
         
         {isConfigOpen && (
-          <div className="p-4 space-y-4 text-sm">
+          <div className="p-4 space-y-4 text-xs">
             <div className="flex items-center gap-4">
               <div className="font-bold text-slate-600 dark:text-slate-400 w-32">Active Model:</div>
               <select 
                 value={modelConfig.active_model}
                 onChange={(e) => switchModelBackend('model', e.target.value)}
                 disabled={switchingModel}
-                className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 min-w-[200px]"
+                className="px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 min-w-[200px]"
               >
                 {modelConfig.available_models?.map((m: string) => (
                   <option key={m} value={m}>{m}</option>
@@ -220,10 +219,10 @@ export default function FaceSearch() {
                 <button
                   onClick={() => switchModelBackend('backend', 'clip')}
                   disabled={switchingModel}
-                  className={`px-3 py-1 rounded font-bold transition-colors ${
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
                     modelConfig.active_embedding_backend === 'clip' 
-                      ? 'bg-emerald-600 text-white' 
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      ? 'bg-teal-700 text-white dark:bg-teal-600' 
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                   }`}
                 >
                   CLIP
@@ -231,10 +230,10 @@ export default function FaceSearch() {
                 <button
                   onClick={() => switchModelBackend('backend', 'facenet')}
                   disabled={switchingModel}
-                  className={`px-3 py-1 rounded font-bold transition-colors ${
+                  className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
                     modelConfig.active_embedding_backend === 'facenet' 
-                      ? 'bg-emerald-600 text-white' 
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                      ? 'bg-teal-700 text-white dark:bg-teal-600' 
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                   }`}
                 >
                   FaceNet
@@ -244,7 +243,7 @@ export default function FaceSearch() {
 
             <div className="flex items-center gap-4">
               <div className="font-bold text-slate-600 dark:text-slate-400 w-32">Upload Model:</div>
-              <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded cursor-pointer transition-colors text-slate-700 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-700">
+              <label className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded cursor-pointer transition-colors text-xs text-slate-700 dark:text-slate-300 font-semibold border border-slate-200 dark:border-slate-700">
                 <Upload className="h-4 w-4" />
                 <span>Choose .pt File</span>
                 <input type="file" accept=".pt" className="hidden" onChange={handleModelUpload} disabled={uploadingModel} />
@@ -261,8 +260,8 @@ export default function FaceSearch() {
         <div className="flex border-b border-slate-200 dark:border-slate-800">
           <button
             onClick={() => setActiveTab('text')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-colors ${
-              activeTab === 'text' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-b-2 border-emerald-500' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-semibold transition-colors ${
+              activeTab === 'text' ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-800 dark:text-teal-300 border-b-2 border-teal-700 dark:border-teal-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
             }`}
           >
             <Search className="h-4 w-4" />
@@ -270,8 +269,8 @@ export default function FaceSearch() {
           </button>
           <button
             onClick={() => setActiveTab('image')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-colors ${
-              activeTab === 'image' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-b-2 border-emerald-500' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-semibold transition-colors ${
+              activeTab === 'image' ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-800 dark:text-teal-300 border-b-2 border-teal-700 dark:border-teal-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
             }`}
           >
             <ImageIcon className="h-4 w-4" />
@@ -279,8 +278,8 @@ export default function FaceSearch() {
           </button>
           <button
             onClick={() => setActiveTab('label')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition-colors ${
-              activeTab === 'label' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-b-2 border-emerald-500' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-semibold transition-colors ${
+              activeTab === 'label' ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-800 dark:text-teal-300 border-b-2 border-teal-700 dark:border-teal-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
             }`}
           >
             <Tag className="h-4 w-4" />
@@ -296,12 +295,12 @@ export default function FaceSearch() {
               value={textQuery}
               onChange={e => setTextQuery(e.target.value)}
               placeholder="Describe the face (e.g., man with glasses and beard)..."
-              className="w-full px-4 py-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:border-emerald-500 focus:outline-none"
+              className="w-full rounded border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 dark:focus:ring-teal-400/20"
             />
           )}
 
           {activeTab === 'image' && (
-            <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-950">
+            <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900">
               {previewUrl ? (
                 <div className="relative">
                   <img src={previewUrl} alt="Preview" className="max-h-48 rounded" />
@@ -310,7 +309,7 @@ export default function FaceSearch() {
                   </button>
                 </div>
               ) : (
-                <label className="flex flex-col items-center gap-2 cursor-pointer text-slate-500 hover:text-emerald-500 transition-colors">
+                <label className="flex flex-col items-center gap-2 cursor-pointer text-slate-500 dark:text-slate-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors">
                   <Upload className="h-8 w-8" />
                   <span className="font-bold">Click to upload face image</span>
                   <input
@@ -335,13 +334,13 @@ export default function FaceSearch() {
               value={labelQuery}
               onChange={e => setLabelQuery(e.target.value)}
               placeholder="Search by existing label/name..."
-              className="w-full px-4 py-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:border-emerald-500 focus:outline-none"
+              className="w-full rounded border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 dark:focus:ring-teal-400/20"
             />
           )}
 
           <div className="flex flex-wrap gap-4 items-end">
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-bold text-slate-500 mb-1">Filter by Cameras (Optional)</label>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Filter by Cameras (Optional)</label>
               <div className="flex flex-wrap gap-2">
                 {cameras.map(c => (
                   <button
@@ -349,7 +348,7 @@ export default function FaceSearch() {
                     onClick={() => setSelectedCameras(prev => prev.includes(c.camera_id) ? prev.filter(id => id !== c.camera_id) : [...prev, c.camera_id])}
                     className={`px-2 py-1 text-xs font-bold rounded border ${
                       selectedCameras.includes(c.camera_id)
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-500'
+                        ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300 border-teal-700 dark:border-teal-500'
                         : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                     }`}
                   >
@@ -361,14 +360,14 @@ export default function FaceSearch() {
             
             {(activeTab === 'text' || activeTab === 'image') && (
               <div className="w-24">
-                <label className="block text-xs font-bold text-slate-500 mb-1">Top-K</label>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1">Top-K</label>
                 <input
                   type="number"
                   value={topK}
                   onChange={e => setTopK(Number(e.target.value))}
                   min={1}
                   max={100}
-                  className="w-full px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:border-emerald-500 focus:outline-none"
+                  className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-700 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-teal-400"
                 />
               </div>
             )}
@@ -376,7 +375,7 @@ export default function FaceSearch() {
             <button
               onClick={handleSearch}
               disabled={searching || (activeTab === 'text' && !textQuery) || (activeTab === 'image' && !uploadedFile) || (activeTab === 'label' && !labelQuery)}
-              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded flex items-center gap-2 transition-colors"
+              className="px-6 py-2.5 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-semibold rounded flex items-center gap-2 transition-colors"
             >
               {searching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               Search
@@ -414,7 +413,7 @@ export default function FaceSearch() {
                     <CameraIcon className="h-3.5 w-3.5" />
                     <span className="truncate">{r.camera_name || r.camera_id}</span>
                   </div>
-                  <div className="text-xs text-slate-400 font-mono">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                     {new Date(r.timestamp_start_seconds * 1000).toISOString().substr(11, 8)}
                   </div>
                 </div>
@@ -428,10 +427,10 @@ export default function FaceSearch() {
                         value={labelInput}
                         onChange={e => setLabelInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleLabelFace(r.face_tracklet_id)}
-                        className="w-full text-xs px-2 py-1 border border-emerald-500 rounded bg-emerald-50 dark:bg-emerald-900/20 text-slate-800 dark:text-slate-200 outline-none"
+                        className="w-full text-xs px-2 py-1 border border-teal-600 rounded bg-teal-50 dark:bg-teal-900/20 text-slate-800 dark:text-slate-100 outline-none"
                         placeholder="Name..."
                       />
-                      <button onClick={() => handleLabelFace(r.face_tracklet_id)} className="bg-emerald-500 text-white px-2 py-1 rounded text-xs font-bold">
+                      <button onClick={() => handleLabelFace(r.face_tracklet_id)} className="bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white px-2 py-1 rounded text-xs font-semibold">
                         OK
                       </button>
                     </div>
@@ -442,7 +441,7 @@ export default function FaceSearch() {
                   )}
                   <Link
                     to={`/cameras/${r.camera_id}/videos/${r.video_id}?seek=${r.timestamp_start_seconds}&mode=faces`}
-                    className="flex-1 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded text-[11px] font-bold text-center transition-colors border border-emerald-200 dark:border-emerald-800"
+                    className="flex-1 py-1.5 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/40 text-teal-800 dark:text-teal-300 rounded text-[11px] font-bold text-center transition-colors border border-teal-200 dark:border-teal-800"
                   >
                     Seek Video
                   </Link>

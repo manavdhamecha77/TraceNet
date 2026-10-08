@@ -169,11 +169,11 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
   return (
     <div className="space-y-6 pb-24 text-slate-800 dark:text-slate-100">
       {/* Overview Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <span>Aggregated Security Alerts</span>
-            <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
+            <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-300">
               Overview Dashboard
             </span>
           </h2>
@@ -184,7 +184,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
 
         <button
           onClick={loadData}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shrink-0"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh Feed
@@ -192,120 +192,116 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
       </div>
 
       {/* Aggregated Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
           <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Alerts</div>
           <div className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">{totalCount}</div>
-          <div className="text-[11px] text-slate-500 mt-1">All logged incidents</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">All logged incidents</div>
         </div>
 
-        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20 shadow-xs">
-          <div className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center justify-between">
+        <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
             <span>Unacknowledged</span>
-            <AlertTriangle className="w-4 h-4 text-rose-500" />
+            <AlertTriangle className="w-4 h-4 text-teal-700 dark:text-teal-300" />
           </div>
-          <div className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">{unackCount}</div>
-          <div className="text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1">Requires security review</div>
+          <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mt-1">{unackCount}</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Requires security review</div>
         </div>
 
-        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 shadow-xs">
-          <div className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center justify-between">
+        <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
             <span>Abandoned / Unattended</span>
-            <Package className="w-4 h-4 text-amber-500" />
+            <Package className="w-4 h-4 text-teal-700 dark:text-teal-300" />
           </div>
-          <div className="text-2xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">{abandonedCount + unattendedCount}</div>
-          <div className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-1">Luggage & static items</div>
+          <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mt-1">{abandonedCount + unattendedCount}</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Luggage &amp; static items</div>
         </div>
 
-        <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20 shadow-xs">
-          <div className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center justify-between">
+        <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
             <span>Outdoor Theft</span>
-            <ShieldAlert className="w-4 h-4 text-rose-500" />
+            <ShieldAlert className="w-4 h-4 text-teal-700 dark:text-teal-300" />
           </div>
-          <div className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">{theftCount}</div>
-          <div className="text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1">Chain snatching & violent theft</div>
+          <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mt-1">{theftCount}</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Chain snatching &amp; violent theft</div>
         </div>
       </div>
 
       {/* Dedicated Execution Banners */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-3">
         <Link
           to="/alerts/abandoned"
-          className="p-4 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-900 hover:border-amber-500/60 transition-all group flex items-center justify-between"
+          className="min-h-[190px] p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-amber-400 dark:hover:border-amber-600 transition-colors group flex flex-col items-start"
         >
-          <div className="space-y-1">
-            <div className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Package className="w-4 h-4" /> Dedicated Page: Abandoned Objects
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300"><Package className="w-4 h-4" /></span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dedicated analysis</p>
+              <h3 className="mt-0.5 text-sm font-semibold leading-5 text-slate-800 dark:text-slate-100">Abandoned objects</h3>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Run post-processing timeline analysis, edit stationarity thresholds, and inspect unattended luggage.
-            </p>
           </div>
-          <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-xs font-bold shrink-0 group-hover:bg-amber-600 transition-colors ml-4">
-            <span>Open Page</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
+          <p className="mt-3 text-xs leading-5 text-slate-600 dark:text-slate-300">Run timeline analysis, adjust stationarity thresholds, and review unattended luggage.</p>
+          <div className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-semibold text-teal-800 group-hover:text-teal-900 dark:text-teal-300 dark:group-hover:text-teal-200">
+            Open analysis <ArrowUpRight className="w-3.5 h-3.5" />
           </div>
         </Link>
 
         <Link
           to="/alerts/theft"
-          className="p-4 rounded-xl border border-rose-500/30 bg-gradient-to-br from-rose-50/80 to-white dark:from-rose-950/20 dark:to-slate-900 hover:border-rose-500/60 transition-all group flex items-center justify-between"
+          className="min-h-[190px] p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-rose-400 dark:hover:border-rose-700 transition-colors group flex flex-col items-start"
         >
-          <div className="space-y-1">
-            <div className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-              <ShieldAlert className="w-4 h-4" /> Dedicated Page: Outdoor Theft Analytics
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300"><ShieldAlert className="w-4 h-4" /></span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dedicated analysis</p>
+              <h3 className="mt-0.5 text-sm font-semibold leading-5 text-slate-800 dark:text-slate-100">Outdoor theft analytics</h3>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Run 4 FPS kinematic proximity & fall analysis, calibrate speed vectors, and inspect snatch incidents.
-            </p>
           </div>
-          <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold shrink-0 group-hover:bg-rose-700 transition-colors ml-4">
-            <span>Open Page</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
+          <p className="mt-3 text-xs leading-5 text-slate-600 dark:text-slate-300">Review 4 FPS proximity and fall analysis, calibrate speed vectors, and inspect snatch incidents.</p>
+          <div className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-semibold text-teal-800 group-hover:text-teal-900 dark:text-teal-300 dark:group-hover:text-teal-200">
+            Open analysis <ArrowUpRight className="w-3.5 h-3.5" />
           </div>
         </Link>
 
         <Link
           to="/assault-detection"
-          className="p-4 rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-50/80 to-white dark:from-violet-950/20 dark:to-slate-900 hover:border-violet-500/60 transition-all group flex items-center justify-between"
+          className="min-h-[190px] p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-violet-400 dark:hover:border-violet-700 transition-colors group flex flex-col items-start"
         >
-          <div className="space-y-1">
-            <div className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4" /> Dedicated Page: Assault Detection
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-300"><ShieldCheck className="w-4 h-4" /></span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dedicated analysis</p>
+              <h3 className="mt-0.5 text-sm font-semibold leading-5 text-slate-800 dark:text-slate-100">Assault detection</h3>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Run frame-level inspection, view confidence spikes, and review detected physical assaults.
-            </p>
           </div>
-          <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-bold shrink-0 group-hover:bg-violet-700 transition-colors ml-4">
-            <span>Open Page</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
+          <p className="mt-3 text-xs leading-5 text-slate-600 dark:text-slate-300">Inspect frame-level detections, review confidence spikes, and examine assault events.</p>
+          <div className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-semibold text-teal-800 group-hover:text-teal-900 dark:text-teal-300 dark:group-hover:text-teal-200">
+            Open analysis <ArrowUpRight className="w-3.5 h-3.5" />
           </div>
         </Link>
 
         <Link
           to="/alerts/plates"
-          className="p-4 rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-50/80 to-white dark:from-cyan-950/20 dark:to-slate-900 hover:border-cyan-500/60 transition-all group flex items-center justify-between"
+          className="min-h-[190px] p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-teal-400 dark:hover:border-teal-600 transition-colors group flex flex-col items-start"
         >
-          <div className="space-y-1">
-            <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Car className="w-4 h-4" /> Dedicated Page: Number Plate Detection
+          <div className="flex items-start gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/50 dark:text-teal-300"><Car className="w-4 h-4" /></span>
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dedicated analysis</p>
+              <h3 className="mt-0.5 text-sm font-semibold leading-5 text-slate-800 dark:text-slate-100">Number plate detection</h3>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Scan videos for license plates, review OCR sightings, and manage the plate watchlist.
-            </p>
           </div>
-          <div className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-xs font-bold shrink-0 group-hover:bg-cyan-700 transition-colors ml-4">
-            <span>Open Page</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
+          <p className="mt-3 text-xs leading-5 text-slate-600 dark:text-slate-300">Scan video for plates, review OCR sightings, and manage the plate watchlist.</p>
+          <div className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-semibold text-teal-800 group-hover:text-teal-900 dark:text-teal-300 dark:group-hover:text-teal-200">
+            Open analysis <ArrowUpRight className="w-3.5 h-3.5" />
           </div>
         </Link>
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
             <Filter className="w-3.5 h-3.5" /> Filter:
           </div>
 
@@ -313,7 +309,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
           <select
             value={filterType}
             onChange={e => setFilterType(e.target.value)}
-            className="h-8 px-2.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold"
+            className="h-8 px-2.5 text-xs rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-medium"
           >
             <option value="all">All Anomaly Types</option>
             <option value="abandoned_object">Abandoned Objects</option>
@@ -325,7 +321,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
           <select
             value={filterAck}
             onChange={e => setFilterAck(e.target.value)}
-            className="h-8 px-2.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold"
+            className="h-8 px-2.5 text-xs rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-medium"
           >
             <option value="all">All Review Statuses</option>
             <option value="unack">Unacknowledged Only</option>
@@ -337,7 +333,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
             <select
               value={filterCamera}
               onChange={e => setFilterCamera(e.target.value)}
-              className="h-8 px-2.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold"
+              className="h-8 px-2.5 text-xs rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-medium"
             >
               <option value="">All Camera Nodes</option>
               {cameras.map((c: Camera) => (
@@ -351,7 +347,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
           {selectedAlertIds.length > 0 && (
             <button
               onClick={handleBulkAcknowledge}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-md animate-in fade-in"
+              className="px-3 py-1.5 rounded bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white text-xs font-semibold transition-colors flex items-center gap-1 animate-in fade-in"
             >
               <CheckCheck className="w-3.5 h-3.5" />
               Acknowledge Selected ({selectedAlertIds.length})
@@ -359,9 +355,9 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
           )}
           <button
             onClick={toggleSelectAllUnack}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-colors flex items-center gap-1.5"
+            className="px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5"
           >
-            <CheckSquare className="w-3.5 h-3.5 text-cyan-400" />
+            <CheckSquare className="w-3.5 h-3.5 text-teal-700 dark:text-teal-300" />
             Select Unacknowledged
           </button>
         </div>
@@ -374,10 +370,10 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
           <span>Loading Aggregated Alerts Feed...</span>
         </div>
       ) : alerts.length === 0 ? (
-        <div className="py-16 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+        <div className="py-12 text-center border border-dashed border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800">
           <ShieldCheck className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">No Alerts Found</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">No alerts found</h3>
+          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-sm mx-auto">
             No logged incidents match the selected filter criteria.
           </p>
         </div>
@@ -395,7 +391,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                 key={alert.id}
                 className={`p-4 rounded-xl border transition-all ${
                   alert.acknowledged
-                    ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60'
+                    ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
                     : isTheft
                     ? 'border-rose-500/40 bg-rose-50/50 dark:border-rose-500/30 dark:bg-rose-950/20'
                     : isUnattended
@@ -408,12 +404,12 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                     {/* Checkbox for bulk selection */}
                     <button
                       onClick={() => toggleSelectAlert(alert.id)}
-                      className="mt-1 text-slate-500 hover:text-cyan-400 transition-colors"
+                      className="mt-1 text-slate-500 hover:text-teal-700 dark:hover:text-teal-300 transition-colors"
                     >
                       {isSelected ? (
-                        <CheckSquare className="w-4 h-4 text-cyan-400" />
+                        <CheckSquare className="w-4 h-4 text-teal-700 dark:text-teal-300" />
                       ) : (
-                        <Square className="w-4 h-4 text-slate-600" />
+                        <Square className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                       )}
                     </button>
                     <div className="shrink-0">
@@ -441,12 +437,12 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                           {alert.acknowledged ? 'Acknowledged' : isTheft ? 'Outdoor Theft & Snatching' : isUnattended ? 'Unattended Luggage' : 'Abandoned Object'}
                         </span>
 
-                        <span className="text-xs text-slate-500 font-mono">
+                        <span className="text-xs text-slate-600 dark:text-slate-300 font-mono">
                           {alert.camera_id} · {formatDisplayDate(alert.timestamp)}
                         </span>
 
                         {alert.acknowledged && alert.acknowledged_by && (
-                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/40 border border-emerald-500/30 px-2 py-0.5 rounded">
+                          <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 px-2 py-0.5 rounded">
                             Verified by: {alert.acknowledged_by} {alert.acknowledged_at ? `at ${formatDisplayDate(alert.acknowledged_at, true)}` : ''}
                           </span>
                         )}
@@ -477,7 +473,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                     {!alert.acknowledged && (
                       <button
                         onClick={() => handleAcknowledge(alert.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white text-xs font-semibold rounded transition-colors"
                       >
                         <CheckCheck className="w-3.5 h-3.5" />
                         Ack
@@ -486,7 +482,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
 
                     <Link
                       to={isTheft ? '/alerts/theft' : '/alerts/abandoned'}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold transition-colors"
                     >
                       <span>Dedicated Page</span>
                       <ChevronRight className="w-3.5 h-3.5" />

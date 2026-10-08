@@ -294,37 +294,29 @@ export const MultiCameraTracking: React.FC = () => {
   }
 
   return (
-    <div className="relative flex flex-col h-screen w-full bg-slate-950 text-slate-100 overflow-hidden">
+    <div className="relative flex flex-col h-screen w-full overflow-hidden bg-[#F8F9FA] text-slate-800 dark:bg-[#111827] dark:text-slate-100">
       {/* Top Controls Header */}
-      <div className="z-20 flex flex-wrap items-center justify-between gap-4 px-6 py-3 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-400">
-            <Navigation className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-white flex items-center gap-2">
+      <div className="z-20 flex flex-wrap items-center justify-between gap-4 px-6 py-3 bg-white border-b border-slate-200 dark:bg-slate-800/95 dark:border-slate-700">
+        <div>
+            <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               Multi-Camera Intelligence Suite
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                PRO
-              </span>
             </h1>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-600 dark:text-slate-300">
               Cross-Camera Re-ID Journey Mapping & Predictive Pursuit Wave
             </p>
-          </div>
         </div>
 
         {/* Tab & Speed Controls */}
         <div className="flex items-center gap-3">
           {/* Speed Mode Selector */}
-          <div className="flex items-center rounded-lg bg-slate-800 p-0.5 border border-slate-700 text-xs">
+          <div className="flex items-center rounded border border-slate-200 bg-slate-100 p-0.5 text-xs dark:border-slate-700 dark:bg-slate-900">
             <button
               type="button"
               onClick={() => setSpeedMode('pedestrian')}
               className={`px-3 py-1 rounded-md font-medium transition-all ${
                 speedMode === 'pedestrian'
-                  ? 'bg-sky-500 text-slate-950 font-bold shadow'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white text-teal-800 font-semibold shadow-sm dark:bg-teal-700 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
               Pedestrian
@@ -334,8 +326,8 @@ export const MultiCameraTracking: React.FC = () => {
               onClick={() => setSpeedMode('vehicle')}
               className={`px-3 py-1 rounded-md font-medium transition-all ${
                 speedMode === 'vehicle'
-                  ? 'bg-sky-500 text-slate-950 font-bold shadow'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white text-teal-800 font-semibold shadow-sm dark:bg-teal-700 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
               Vehicle
@@ -343,14 +335,14 @@ export const MultiCameraTracking: React.FC = () => {
           </div>
 
           {/* Mode Tabs */}
-          <div className="flex items-center rounded-lg bg-slate-800 p-0.5 border border-slate-700 text-xs">
+          <div className="flex items-center rounded border border-slate-200 bg-slate-100 p-0.5 text-xs dark:border-slate-700 dark:bg-slate-900">
             <button
               type="button"
               onClick={() => setActiveTab('journey')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
                 activeTab === 'journey'
-                  ? 'bg-slate-700 text-white font-bold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white text-teal-800 font-semibold shadow-sm dark:bg-teal-700 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
               <Navigation className="w-3.5 h-3.5" />
@@ -361,11 +353,11 @@ export const MultiCameraTracking: React.FC = () => {
               onClick={() => setActiveTab('sentinel')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
                 activeTab === 'sentinel'
-                  ? 'bg-slate-700 text-white font-bold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-white text-teal-800 font-semibold shadow-sm dark:bg-teal-700 dark:text-white'
+                  : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100'
               }`}
             >
-              <Radar className="w-3.5 h-3.5 text-sky-400" />
+              <Radar className="w-3.5 h-3.5" />
               Sentinel Pursuit Wave
             </button>
           </div>
@@ -373,7 +365,7 @@ export const MultiCameraTracking: React.FC = () => {
       </div>
 
       {/* Action Trigger Toolbar */}
-      <div className="z-20 px-6 py-2.5 bg-slate-900/60 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="z-20 px-6 py-2.5 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3 text-xs">
         {activeTab === 'journey' ? (
           <div className="flex items-center gap-3 w-full max-w-2xl">
             <input
@@ -381,13 +373,13 @@ export const MultiCameraTracking: React.FC = () => {
               placeholder="Enter Tracklet ID (e.g. vid_01_trk_4) or leave empty for auto-link..."
               value={trackletIdInput}
               onChange={(e) => setTrackletIdInput(e.target.value)}
-              className="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500 text-xs"
+              className="flex-1 px-3 py-2 rounded border border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-teal-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 text-xs"
             />
             <button
               type="button"
               onClick={handleReconstructTrajectory}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold transition-all disabled:opacity-50 shrink-0"
+              className="flex items-center gap-2 px-4 py-2 rounded bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white font-semibold transition-colors disabled:opacity-50 shrink-0"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
               Reconstruct Trajectory
@@ -398,7 +390,7 @@ export const MultiCameraTracking: React.FC = () => {
             <select
               value={selectedOriginCam}
               onChange={(e) => setSelectedOriginCam(e.target.value)}
-              className="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-sky-500 text-xs"
+              className="px-3 py-2 rounded border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-teal-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-teal-400 text-xs"
             >
               {cameras.map((c) => (
                 <option key={c.camera_id} value={c.camera_id}>
@@ -411,13 +403,13 @@ export const MultiCameraTracking: React.FC = () => {
               placeholder="Optional Target Tracklet ID..."
               value={trackletIdInput}
               onChange={(e) => setTrackletIdInput(e.target.value)}
-              className="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500 text-xs"
+              className="flex-1 px-3 py-2 rounded border border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-teal-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 text-xs"
             />
             <button
               type="button"
               onClick={handleActivateSentinel}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition-all disabled:opacity-50 shrink-0"
+              className="flex items-center gap-2 px-4 py-2 rounded bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white font-semibold transition-colors disabled:opacity-50 shrink-0"
             >
               {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4" />}
               Activate Sentinel Wave
@@ -427,7 +419,7 @@ export const MultiCameraTracking: React.FC = () => {
       </div>
 
       {/* Main Full Viewport Leaflet Map Container */}
-      <div className="relative flex-1 w-full h-full bg-slate-950 overflow-hidden">
+      <div className="relative flex-1 w-full h-full bg-slate-100 dark:bg-slate-900 overflow-hidden">
         <div
           ref={mapContainerRef}
           className="absolute inset-0 w-full h-full z-0"

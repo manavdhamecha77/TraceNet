@@ -316,6 +316,28 @@
   letter-spacing: 0.01em;
 }
 
+/* Light palette for the copilot, which otherwise uses explicit dark utility colors. */
+.copilot-light {
+  color: #1e293b !important;
+  background-color: rgba(248, 250, 252, 0.98) !important;
+}
+.copilot-light [class*="bg-slate-950"] { background-color: #f1f5f9 !important; }
+.copilot-light [class*="bg-slate-900"] { background-color: #ffffff !important; }
+.copilot-light [class*="bg-slate-850"] { background-color: #f8fafc !important; }
+.copilot-light [class*="bg-slate-800"] { background-color: #f1f5f9 !important; }
+.copilot-light [class*="border-slate-800"],
+.copilot-light [class*="border-slate-700"],
+.copilot-light [class*="border-slate-600"] { border-color: #cbd5e1 !important; }
+.copilot-light [class*="text-slate-100"],
+.copilot-light [class*="text-slate-200"],
+.copilot-light [class*="text-slate-300"] { color: #334155 !important; }
+.copilot-light [class*="text-slate-400"],
+.copilot-light [class*="text-slate-500"] { color: #64748b !important; }
+.copilot-light [class*="text-teal-"] { color: #0f766e !important; }
+.copilot-light [class*="hover:bg-slate-800"]:hover,
+.copilot-light [class*="hover:bg-slate-700"]:hover { background-color: #e2e8f0 !important; }
+.copilot-light [class*="hover:text-white"]:hover { color: #0f172a !important; }
+
 /* ─── Forensic scan overlay (decorative, pointer-events:none) ── */
 .scan-overlay {
   position: fixed;

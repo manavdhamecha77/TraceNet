@@ -1183,7 +1183,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700/60 pb-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Abandoned Object Alerts</h2>
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Abandoned Object Alerts</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Post-processing analysis of completed videos for unattended objects.
           </p>
