@@ -57,7 +57,8 @@ _DICT = {
     
     # Location/time
     "gate": "gate",
-    "paas": "near", "pase": "near", "pass": "near",
+    # ("pass" is deliberately absent: it is an English word and must not be rewritten)
+    "paas": "near", "pase": "near",
     "pehele": "before", "pahele": "before",
     "pachhi": "after", "baad": "after",
     "saanje": "evening", "saaj": "evening",
@@ -96,11 +97,23 @@ _DICT = {
     "\u0914\u0930\u0924": "woman",         # औरत
     "\u092a\u093e\u0938": "near",          # पास
     "\u0917\u0947\u091f": "gate",          # गेट
+
+    # Feminine / plural colour forms, more vehicles and people, and request verbs
+    "peeli": "yellow", "pili": "yellow", "neeli": "blue", "nili": "blue", "kaali": "black",
+    "dikhao": "show", "dikha": "show", "dikhaiye": "show", "batao": "show", "dhundo": "find", "dhoondo": "find",
+    "पीली": "yellow", "नीली": "blue", "काली": "black", "हरी": "green", "सफ़ेद": "white",
+    "बस": "bus", "ट्रक": "truck", "बाइक": "motorcycle", "रिक्शा": "rickshaw", "ऑटो": "rickshaw",
+    "लड़का": "boy", "लड़की": "girl", "दिखाओ": "show", "ढूंढो": "find",
+    "પીળી": "yellow", "કાળી": "black", "લીલી": "green", "વાદળી": "blue",
+    "બસ": "bus", "ટ્રક": "truck", "રિક્ષા": "rickshaw", "છોકરો": "boy", "છોકરી": "girl", "બતાવો": "show",
 }
 
 # Create a regex pattern to match any of the dictionary keys as whole words
+# Whole-word match. `\b` cannot be used: Python treats Devanagari / Gujarati vowel signs (Mn/Mc, e.g. the
+# final "ी" of गाड़ी) as non-word characters, so words ending in a vowel sign never matched.
+_WORD_CHAR = r"[\wऀ-ॿ઀-૿]"
 _DICT_PATTERN = re.compile(
-    r'\b(' + '|'.join(map(re.escape, sorted(_DICT.keys(), key=len, reverse=True))) + r')\b',
+    rf"(?<!{_WORD_CHAR})(" + "|".join(map(re.escape, sorted(_DICT.keys(), key=len, reverse=True))) + rf")(?!{_WORD_CHAR})",
     re.IGNORECASE | re.UNICODE
 )
 

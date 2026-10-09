@@ -50,6 +50,11 @@ class CameraSpatialGraph:
         for c in cams:
             self.cameras[c.camera_id] = c
 
+    def has_location(self, cam_id: str) -> bool:
+        """True when the camera has map coordinates; distances to other cameras are unknown otherwise."""
+        cam = self.cameras.get(cam_id)
+        return bool(cam and cam.latitude is not None and cam.longitude is not None)
+
     def get_distance(self, cam_id_a: str, cam_id_b: str) -> float:
         """Returns distance in meters between two cameras."""
         if cam_id_a == cam_id_b:
@@ -82,6 +87,10 @@ class CameraSpatialGraph:
         delta_t = t_b - t_a
         if delta_t <= 0:
             # Cannot travel back in time or instant teleportation
+            return False, 0.0, 0.0
+
+        if cam_id_a != cam_id_b and not (self.has_location(cam_id_a) and self.has_location(cam_id_b)):
+            # Unknown position: travel time cannot be checked, so never link through this camera
             return False, 0.0, 0.0
 
         dist_m = self.get_distance(cam_id_a, cam_id_b)
@@ -123,8 +132,11 @@ class CameraSpatialGraph:
             if cam_id == origin_cam_id or not cam.is_active:
                 continue
 
-            dist_m = self.get_distance(origin_cam_id, cam_id)
             is_explicit = cam_id in adj_ids
+            located = self.has_location(origin_cam_id) and self.has_location(cam_id)
+            if not located and not is_explicit:
+                continue  # no coordinates: never offered as a guessed nearby camera
+            dist_m = self.get_distance(origin_cam_id, cam_id) if located else None
 
             if is_explicit or dist_m <= max_distance_meters:
                 neighbors.append({
@@ -132,12 +144,12 @@ class CameraSpatialGraph:
                     "name": cam.name,
                     "latitude": cam.latitude,
                     "longitude": cam.longitude,
-                    "distance_meters": round(dist_m, 1),
+                    "distance_meters": round(dist_m, 1) if dist_m is not None else None,  # None = unknown
                     "is_direct_neighbor": is_explicit
                 })
 
-        # Sort by distance
-        neighbors.sort(key=lambda x: x["distance_meters"])
+        # Sort by distance; cameras with unknown distance last
+        neighbors.sort(key=lambda x: (x["distance_meters"] is None, x["distance_meters"] or 0.0))
         return neighbors
 
     def calculate_delay_probability(

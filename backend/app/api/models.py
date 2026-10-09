@@ -113,7 +113,7 @@ async def upload_and_register_model(
         ml_model = MLModel(
             id=model_id,
             name=name.strip(),
-            file_path=target_path,
+            file_path=media.portable_path(target_path),  # backend/data-relative: valid on every machine
             model_type=model_type,
             classes=json.dumps(class_list),
             category=target_cat,
@@ -194,15 +194,15 @@ def delete_model(model_id: str, db: Session = Depends(get_db)):
             detail=f"Cannot delete model. It is actively assigned to cameras: {', '.join(camera_names)}."
         )
 
-    file_path = model.file_path
+    from app.storage import media
+    file_path = media.to_local_data_path(model.file_path)
     try:
         db.delete(model)
         db.commit()
         
         # Remove file from disk and from the S3 media store (bucket versioning keeps it recoverable)
-        from app.storage import media
-        media.delete(media.to_local_data_path(file_path))
-        if os.path.exists(file_path):
+        media.delete(file_path)
+        if file_path and os.path.exists(file_path):
             os.remove(file_path)
             logger.info(f"Removed weights file {file_path} from disk.")
             

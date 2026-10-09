@@ -209,6 +209,30 @@ def presigned_url(local_path: str, expires: int = 3600) -> Optional[str]:
         return None
 
 
+def portable_path(path: Optional[str]) -> Optional[str]:
+    """Path to store in the DB: relative to backend/data (valid on every machine) when the file lives there,
+    e.g. 'models/abc.pt'; anything outside backend/data is kept as given."""
+    if not path:
+        return path
+    rel = rel_of(to_local_data_path(path) or path)
+    return rel if rel else path
+
+
+def normalize_model_paths(db) -> int:
+    """Rewrite absolute model paths (from any machine) to portable backend/data-relative paths. Idempotent."""
+    from app.db.models import MLModel
+
+    changed = 0
+    for model in db.query(MLModel).all():
+        portable = portable_path(model.file_path)
+        if portable and portable != model.file_path:
+            model.file_path = portable
+            changed += 1
+    if changed:
+        db.commit()
+    return changed
+
+
 def resolve_model_file(stored_path: Optional[str]) -> Optional[str]:
     """Local path of a model's weights: the stored path, the same file under this machine's backend/data,
     or backend/data/models/<name> — each fetched from S3 when only stored there."""

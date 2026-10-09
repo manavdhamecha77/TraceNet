@@ -86,6 +86,8 @@ class PursuitWaveManager:
         downstream_nodes = []
         for n in neighbors:
             dist_m = n["distance_meters"]
+            if dist_m is None:
+                continue  # camera without coordinates: no arrival-time estimate possible
             if dist_m <= 0:
                 dist_m = 50.0
 

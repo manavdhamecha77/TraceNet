@@ -18,8 +18,10 @@ Time budget: ~10 minutes the first time (model downloads excluded), ~2 minutes a
 | Detector weights | `backend/data/models/vehicle_detector.pt` (7 classes incl. Pedestrian) | any registered `.pt` under `backend/data/models/` works; see §3 |
 | LUMPI test data | `backend/data/evaluation/lumpi/test_data/` | folder layout below |
 
-LUMPI test data layout (copy it from the SDK repo's `test_data`, MIT licence:
-<https://github.com/St3ff3nBusch/LUMPI-SDK-Python>):
+LUMPI test data layout (LUMPI dataset, MIT licence; SDK: <https://github.com/St3ff3nBusch/LUMPI-SDK-Python>).
+Note: the SDK repository does **not** contain these clips. Machines that pull the golden S3 snapshot
+(`python -m app.storage.sync pull`, see `docs/s3-sync.md`) receive `backend/data/evaluation/` from the golden
+machine automatically:
 
 ```
 backend/data/evaluation/lumpi/test_data/

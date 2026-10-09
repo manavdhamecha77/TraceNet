@@ -591,6 +591,27 @@ def delete_video_permanently(video_id: str, db: Session = Depends(get_db)):
         db.rollback()
         logger.warning(f"Error removing plate records: {plate_err}")
 
+    # 1c. Delete the video's face tracklets (SQLite rows + vectors in the Qdrant face collection).
+    #     SQLite foreign keys are not enforced here, so ON DELETE CASCADE never runs. Alerts are kept
+    #     on purpose: they are part of the audit trail.
+    try:
+        from app.db.models import FaceTracklet
+        from app.search.face_vector_index import COLLECTION_NAME as FACE_COLLECTION
+        from app.search.vector_index import get_qdrant_client
+
+        face_rows = db.query(FaceTracklet).filter(FaceTracklet.video_id == video_id).all()
+        face_points = [f.qdrant_point_id for f in face_rows if f.qdrant_point_id]
+        client = get_qdrant_client()
+        if face_points and client.collection_exists(FACE_COLLECTION):
+            from qdrant_client.models import PointIdsList
+
+            client.delete(collection_name=FACE_COLLECTION, points_selector=PointIdsList(points=face_points))
+        db.query(FaceTracklet).filter(FaceTracklet.video_id == video_id).delete(synchronize_session=False)
+        db.commit()
+    except Exception as face_err:
+        db.rollback()
+        logger.warning(f"Error removing face tracklets: {face_err}")
+
     # 2. Delete files from disk
     # (a) Raw upload in minio_mock: data/minio_mock/{video_id}_{original_filename}
     from app.preprocess.storage import MockStorageProvider
@@ -628,14 +649,15 @@ def delete_video_permanently(video_id: str, db: Session = Depends(get_db)):
     except Exception as e:
         logger.warning(f"Failed to delete transcoded MP4 or inference directory: {e}")
 
-    # (c) Processed detections crops: data/processed/detections/{video_id}
-    try:
-        detections_dir = get_data_path(os.path.join("processed/detections", video_id))
-        if os.path.exists(detections_dir):
-            import shutil
-            shutil.rmtree(detections_dir)
-    except Exception as e:
-        logger.warning(f"Failed to delete detections folder: {e}")
+    # (c) Per-video processing outputs: detections/crops, face crops, accident keyframes
+    import shutil
+    for kind in ("detections", "faces", "accidents"):
+        try:
+            output_dir = get_data_path(os.path.join("processed", kind, video_id))
+            if os.path.exists(output_dir):
+                shutil.rmtree(output_dir)
+        except Exception as e:
+            logger.warning(f"Failed to delete processed/{kind} folder: {e}")
 
     # 3. SQLite DB Cascade deletes: VideoAsset deletion
     try:

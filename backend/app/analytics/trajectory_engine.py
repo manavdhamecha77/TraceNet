@@ -137,6 +137,10 @@ class TrajectoryEngine:
         for cam_id, items in per_camera.items():
             items.sort(key=lambda x: x[0], reverse=True)
             best_score, best = items[0]
+            if not self.graph.has_location(cam_id):
+                rejected.append({"camera_id": cam_id, "best_similarity": round(best_score, 3),
+                                 "reason": "camera has no map coordinates, so travel time cannot be checked"})
+                continue
             # The runner-up must be a different pass: a split track of the same visit is not a competitor
             competitors = [
                 s for s, t in items[1:]
