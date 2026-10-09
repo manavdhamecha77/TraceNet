@@ -3,12 +3,13 @@ import os
 import tempfile
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.auth.middleware import actor_name
 from app.config import get_data_path
 from app.db.models import ForensicExport
 from app.db.session import get_db
@@ -47,9 +48,10 @@ class ExportRequest(BaseModel):
 
 
 @router.post("/exports", status_code=status.HTTP_201_CREATED)
-def create_export(payload: ExportRequest, db: Session = Depends(get_db)):
+def create_export(payload: ExportRequest, request: Request, db: Session = Depends(get_db)):
     """Build and seal an evidence bundle (clips, annotated frames, manifest, SHA-256 sums, HTML report)."""
     spec = payload.model_dump()
+    spec["operator"] = actor_name(request, payload.operator)  # custody log names the logged-in officer
     try:
         record = ForensicExportService(db).create(spec)
     except FaceRedactionUnavailable as exc:

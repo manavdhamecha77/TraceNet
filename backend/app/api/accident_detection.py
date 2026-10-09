@@ -3,11 +3,12 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from loguru import logger
 
+from app.auth.middleware import actor_name
 from app.db.session import get_db
 from app.db.models import Alert, VideoAsset
 from app.config import get_data_path
@@ -70,7 +71,7 @@ def get_video_accidents(video_id: str):
 
 
 @router.post("/accidents/{alert_id}/dispatch")
-def dispatch_emergency_response(alert_id: int, payload: DispatchRequest, db: Session = Depends(get_db)):
+def dispatch_emergency_response(alert_id: int, payload: DispatchRequest, request: Request, db: Session = Depends(get_db)):
     alert = db.query(Alert).filter(Alert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -84,9 +85,10 @@ def dispatch_emergency_response(alert_id: int, payload: DispatchRequest, db: Ses
     except Exception:
         data = {}
 
+    operator = actor_name(request, payload.operator_name)  # logged-in officer, not a name the browser sent
     data["dispatch_status"] = "dispatched"
     data["dispatched_at"] = datetime.now(timezone.utc).isoformat()
-    data["dispatched_by"] = payload.operator_name
+    data["dispatched_by"] = operator
     data["emergency_units"] = payload.emergency_units
     if payload.notes:
         data["dispatch_notes"] = payload.notes
@@ -94,13 +96,13 @@ def dispatch_emergency_response(alert_id: int, payload: DispatchRequest, db: Ses
     alert.analysis_log = json.dumps(data)
     # Acknowledge the alert upon dispatch
     alert.acknowledged = True
-    alert.acknowledged_by = payload.operator_name
+    alert.acknowledged_by = operator
     alert.acknowledged_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(alert)
 
-    logger.info(f"Emergency units dispatched for accident Alert #{alert.id} by {payload.operator_name}")
+    logger.info(f"Emergency units dispatched for accident Alert #{alert.id} by {operator}")
     return alert.to_dict()
 
 

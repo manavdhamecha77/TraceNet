@@ -6,6 +6,7 @@ Manages webhook subscriptions and delivers notifications on high-confidence dete
 import json
 import uuid
 import httpx
+from app.runtime.http import tls_verify
 import threading
 from datetime import datetime
 from typing import List, Optional, Dict, Any
@@ -233,7 +234,7 @@ class WebhookManager:
         """Send webhook POST request with retries."""
         for attempt in range(self.max_retries):
             try:
-                with httpx.Client(timeout=self.timeout) as client:
+                with httpx.Client(timeout=self.timeout, verify=tls_verify()) as client:
                     response = client.post(
                         webhook.url,
                         json=payload,

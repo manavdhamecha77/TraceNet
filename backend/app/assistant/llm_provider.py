@@ -5,6 +5,7 @@ import json
 import re
 import time
 import requests
+from app.runtime.http import tls_verify
 from typing import Any, List, Dict, Optional
 from loguru import logger
 
@@ -27,11 +28,29 @@ class BaseLLMProvider(abc.ABC):
 
 
 class OllamaProvider(BaseLLMProvider):
-    """Local LLM provider using Ollama REST API (e.g. Qwen2.5 3B/7B)."""
+    """LLM provider using Ollama REST API (local or remote cloud instance)."""
 
-    def __init__(self, host: str = "http://localhost:11434", model: str = "qwen2.5:3b"):
+    def __init__(self, host: str = "http://localhost:11434", model: str = "qwen2.5:7b", api_key: str = ""):
         self.host = host.rstrip("/")
-        self.model = model
+        # Model tag normalization: map HF / Hub names to Ollama's official tag
+        normalized = (model or "").strip()
+        if normalized in ("Qwen/Qwen2.5-7B-Instruct", "qwen2.5-7b-instruct", "qwen2.5-7b"):
+            self.model = "qwen2.5:7b"
+        elif normalized in ("Qwen/Qwen2.5-3B-Instruct", "qwen2.5-3b-instruct", "qwen2.5-3b"):
+            self.model = "qwen2.5:3b"
+        elif normalized in ("Qwen/Qwen2.5-14B-Instruct", "qwen2.5-14b-instruct", "qwen2.5-14b"):
+            self.model = "qwen2.5:14b"
+        elif normalized in ("Qwen/Qwen2.5-32B-Instruct", "qwen2.5-32b-instruct", "qwen2.5-32b"):
+            self.model = "qwen2.5:32b"
+        else:
+            self.model = normalized or "qwen2.5:7b"
+        self.api_key = (api_key or "").strip()
+
+    def _get_headers(self) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
 
     def chat(
         self,
@@ -40,6 +59,7 @@ class OllamaProvider(BaseLLMProvider):
         system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
         url = f"{self.host}/api/chat"
+        headers = self._get_headers()
         formatted_messages = []
         if system_prompt:
             formatted_messages.append({"role": "system", "content": system_prompt})
@@ -63,7 +83,7 @@ class OllamaProvider(BaseLLMProvider):
             payload["tools"] = tools
 
         try:
-            resp = requests.post(url, json=payload, timeout=180)
+            resp = requests.post(url, headers=headers, json=payload, timeout=180, verify=tls_verify())
 
             # If 400 error occurs due to passing images to a text-only Ollama model, strip raw images and retry
             if resp.status_code == 400:
@@ -76,7 +96,7 @@ class OllamaProvider(BaseLLMProvider):
                         c.pop("images", None)
                         clean_messages.append(c)
                     payload["messages"] = clean_messages
-                    resp = requests.post(url, json=payload, timeout=180)
+                    resp = requests.post(url, headers=headers, json=payload, timeout=180, verify=tls_verify())
 
             if resp.status_code == 404:
                 try:
@@ -87,13 +107,13 @@ class OllamaProvider(BaseLLMProvider):
 
                 if "not found" in err_detail.lower():
                     raise RuntimeError(
-                        f"Ollama model '{self.model}' is not installed locally. "
-                        f"Run 'ollama pull {self.model}' in your terminal, or switch to Cloud OpenAI API in Copilot Settings."
+                        f"Ollama model '{self.model}' is not installed on the Ollama host ({self.host}). "
+                        f"Run 'ollama pull {self.model}' on the server, or switch to Cloud API in Copilot Settings."
                     )
                 else:
                     # Fallback try Ollama OpenAI-compatible v1 endpoint
                     v1_url = f"{self.host}/v1/chat/completions"
-                    v1_resp = requests.post(v1_url, json=payload, timeout=180)
+                    v1_resp = requests.post(v1_url, headers=headers, json=payload, timeout=180, verify=tls_verify())
                     if v1_resp.status_code == 200:
                         v1_data = v1_resp.json()
                         v1_choice = v1_data["choices"][0]["message"]
@@ -125,18 +145,17 @@ class OllamaProvider(BaseLLMProvider):
             raise
         except requests.exceptions.Timeout:
             raise RuntimeError(
-                f"Ollama local model '{self.model}' timed out after 180 seconds. "
-                f"Local CPU inference may be slow or overloaded. "
-                f"Tip: You can switch to ultra-fast Groq Cloud (Free) or OpenAI/OpenRouter in Copilot Settings (⚙️ Gear Icon)."
+                f"Ollama model '{self.model}' at '{self.host}' timed out after 180 seconds. "
+                f"Tip: You can switch to high-speed cloud providers (OpenRouter, Groq, or OpenAI) in Copilot Settings (⚙️ Settings)."
             ) from None
         except requests.exceptions.ConnectionError:
             raise RuntimeError(
                 f"Could not connect to Ollama server at '{self.host}'. "
-                f"Ensure Ollama is running on your machine, or switch to Cloud Provider (Groq / OpenRouter / OpenAI) in Copilot Settings."
+                f"Ensure Ollama is running and accessible (local or cloud), or switch to Cloud Provider in Copilot Settings."
             ) from None
         except Exception as e:
             logger.error(f"Ollama provider connection error on {self.host}: {e}")
-            raise RuntimeError(f"Ollama local LLM connection error ({self.host}, model={self.model}): {e}") from e
+            raise RuntimeError(f"Ollama LLM connection error ({self.host}, model={self.model}): {e}") from e
 
 
 class CloudOpenAIProvider(BaseLLMProvider):
@@ -201,7 +220,7 @@ class CloudOpenAIProvider(BaseLLMProvider):
         max_retries = 3
         for attempt in range(max_retries + 1):
             try:
-                resp = requests.post(url, headers=headers, json=payload, timeout=90)
+                resp = requests.post(url, headers=headers, json=payload, timeout=90, verify=tls_verify())
 
                 # Handle 429 Rate Limit with smart sleep backoff
                 if resp.status_code == 429 and attempt < max_retries:
@@ -251,13 +270,13 @@ class CloudOpenAIProvider(BaseLLMProvider):
                                 c["content"] = " ".join(text_items) if text_items else ""
                             clean_messages.append(c)
                         payload["messages"] = clean_messages
-                        resp = requests.post(url, headers=headers, json=payload, timeout=90)
+                        resp = requests.post(url, headers=headers, json=payload, timeout=90, verify=tls_verify())
 
                     # Retry 2: If still 400 and payload has tools (e.g. endpoint doesn't support tools parameter)
                     if resp.status_code == 400 and "tools" in payload:
                         logger.info("Model/Endpoint rejected tools schema. Retrying request without tools parameter...")
                         payload.pop("tools", None)
-                        resp = requests.post(url, headers=headers, json=payload, timeout=90)
+                        resp = requests.post(url, headers=headers, json=payload, timeout=90, verify=tls_verify())
 
                 # Detailed exception extraction if still HTTP error
                 if resp.status_code >= 400:

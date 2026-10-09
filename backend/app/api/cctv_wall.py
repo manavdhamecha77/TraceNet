@@ -2,6 +2,7 @@ import os
 import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -110,6 +111,56 @@ def get_cctv_wall_feeds(db: Session = Depends(get_db)):
             )
         )
     return feeds
+
+
+OVERLAY_FPS = 5.0
+
+
+def _build_overlay(detections_path: str, overlay_path: str) -> None:
+    """Compact the detector output for the wall overlay: 5 frames per second, integer pixel boxes.
+    Row = [tracker_id, class index, confidence %, x1, y1, x2, y2]; classes/types are listed once."""
+    with open(detections_path, "r", encoding="utf-8") as f:
+        artifact = json.load(f)
+    classes: list = []
+    types: list = []
+    frames = []
+    next_t = 0.0
+    for frame in artifact.get("frame_detections", []):
+        t = float(frame.get("timestamp_seconds") or 0.0)
+        if t + 1e-6 < next_t:
+            continue
+        next_t = t + 1.0 / OVERLAY_FPS
+        rows = []
+        for det in frame.get("detections", []):
+            name = det.get("class_name") or det.get("object_type") or "object"
+            if name not in classes:
+                classes.append(name)
+                types.append(det.get("object_type") or "object")
+            x1, y1, x2, y2 = (int(round(v)) for v in det["bbox"])
+            rows.append([det.get("tracker_id"), classes.index(name), int(round((det.get("confidence") or 0) * 100)),
+                         x1, y1, x2, y2])
+        frames.append([round(t, 2), rows])
+    payload = {"frame_width": artifact.get("frame_width"), "frame_height": artifact.get("frame_height"),
+               "fps": OVERLAY_FPS, "classes": classes, "object_types": types, "frames": frames}
+    tmp = overlay_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, separators=(",", ":"))
+    os.replace(tmp, overlay_path)
+
+
+@router.get("/overlay/{video_id}")
+def get_wall_overlay(video_id: str, db: Session = Depends(get_db)):
+    """Real detector + tracker boxes for a wall feed (the full detections.json is tens of MB)."""
+    if not db.query(VideoAsset).filter(VideoAsset.id == video_id).first():
+        raise HTTPException(status_code=404, detail="Video not found")
+    folder = get_data_path(os.path.join("processed/detections", video_id))
+    detections_path = os.path.join(folder, "detections.json")
+    overlay_path = os.path.join(folder, "wall_overlay.json")
+    if not os.path.exists(detections_path):
+        raise HTTPException(status_code=404, detail="This video has no detections yet")
+    if not os.path.exists(overlay_path) or os.path.getmtime(overlay_path) < os.path.getmtime(detections_path):
+        _build_overlay(detections_path, overlay_path)
+    return FileResponse(overlay_path, media_type="application/json")
 
 
 @router.get("/config")

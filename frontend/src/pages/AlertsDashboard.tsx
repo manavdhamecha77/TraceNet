@@ -278,6 +278,8 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
             <option value="abandoned_object">Abandoned Objects</option>
             <option value="unattended_object">Unattended Luggage</option>
             <option value="chain_snatching">Outdoor Theft & Snatching</option>
+            <option value="accident">Traffic Collisions</option>
+            <option value="loitering">Loitering</option>
           </select>
 
           {/* Acknowledged Status */}
@@ -344,8 +346,14 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
           {alerts.map(alert => {
             const isTheft = alert.alert_type === 'chain_snatching'
             const isUnattended = alert.alert_type === 'unattended_object'
-            const objId = alert.object_tracklet_id
-            const ownerId = alert.owner_tracklet_ids?.[0] || alert.tracklet_id
+            const isAccident = alert.alert_type === 'accident'
+            const isLoitering = alert.alert_type === 'loitering'
+            // Abandoned / unattended / theft alerts carry real tracklets; accident ids are incident ids
+            const hasTracks = !isAccident && !isLoitering
+            const objId = hasTracks ? alert.object_tracklet_id : undefined
+            const ownerId = hasTracks ? alert.owner_tracklet_ids?.[0] || alert.tracklet_id : undefined
+            const typeLabel = isTheft ? 'Outdoor Theft & Snatching' : isUnattended ? 'Unattended Luggage'
+              : isAccident ? 'Traffic Collision' : isLoitering ? 'Loitering' : 'Abandoned Object'
             const isSelected = selectedAlertIds.includes(alert.id)
 
             return (
@@ -354,7 +362,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                 className={`p-4 rounded-md border transition-all ${
                   alert.acknowledged
                     ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
-                    : isTheft
+                    : isTheft || isAccident
                     ? 'border-rose-500/40 bg-rose-50/50 dark:border-rose-500/30 dark:bg-rose-950/20'
                     : isUnattended
                     ? 'border-teal-500/30 bg-teal-50/50 dark:border-teal-500/30 dark:bg-teal-950/20'
@@ -379,7 +387,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                         <TrackletThumb trackletId={objId} label="Object" />
                       ) : (
                         <div className="w-11 h-11 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-                          {isTheft ? <ShieldAlert className="w-5 h-5 text-rose-500" /> : <Package className="w-5 h-5 text-amber-500" />}
+                          {isTheft || isAccident ? <ShieldAlert className="w-5 h-5 text-rose-500" /> : <Package className="w-5 h-5 text-amber-500" />}
                         </div>
                       )}
                     </div>
@@ -389,14 +397,14 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                         <span className={`inline-flex items-center gap-1 rounded px-2.5 py-0.5 text-xs font-bold border ${
                           alert.acknowledged
                             ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-500/30 dark:text-emerald-400'
-                            : isTheft
+                            : isTheft || isAccident
                             ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:bg-rose-950/40 dark:border-rose-500/30 dark:text-rose-400'
                             : isUnattended
                             ? 'bg-teal-500/10 border-teal-500/20 text-teal-700 dark:bg-teal-950/30 dark:border-teal-500/30 dark:text-teal-400'
                             : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:bg-amber-950/40 dark:border-amber-500/30 dark:text-amber-400'
                         }`}>
-                          {alert.acknowledged ? <CheckCheck className="w-3.5 h-3.5" /> : isTheft ? <ShieldAlert className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                          {alert.acknowledged ? 'Acknowledged' : isTheft ? 'Outdoor Theft & Snatching' : isUnattended ? 'Unattended Luggage' : 'Abandoned Object'}
+                          {alert.acknowledged ? <CheckCheck className="w-3.5 h-3.5" /> : isTheft || isAccident ? <ShieldAlert className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                          {alert.acknowledged ? 'Acknowledged' : typeLabel}
                         </span>
 
                         <span className="text-xs text-slate-600 dark:text-slate-300 font-mono">

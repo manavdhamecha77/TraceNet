@@ -16,8 +16,11 @@ USER = "user"
 ADMIN = "admin"
 DENIED = "denied"
 
-# Static files under /data that the UI loads (thumbnails, crops, videos, area images, live chunks)
-_DATA_ALLOWED = re.compile(r"^/data/(cameras|processed|areas|streams)/.+$")
+# Static files under /data that the UI loads (thumbnails, crops, videos, area images, live chunks,
+# LUMPI Fusion Replay clips + replay.json)
+_DATA_ALLOWED = re.compile(
+    r"^/data/((cameras|processed|areas|streams)/.+|evaluation/lumpi/replay/exp\d+/[^/]+\.(mp4|json))$"
+)
 
 _PUBLIC_RULES = [
     ("GET", r"/"),

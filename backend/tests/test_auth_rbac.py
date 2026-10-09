@@ -147,7 +147,8 @@ def test_policy_table(method, path, expected):
 @pytest.mark.parametrize("path", [
     "/data/drishti.db", "/data/assistant_config.json", "/data/.auth_secret", "/data/vector_db/meta.json",
     "/data/models/x.pt", "/data/audit_logs/a.jsonl", "/data/_backups/x/drishti.db", "/data",
-    "/data/cameras/../drishti.db",
+    "/data/cameras/../drishti.db", "/data/evaluation/lumpi/test_data/Measurement1/meta.json",
+    "/data/evaluation/lumpi/latest_evaluation_report.json", "/data/evaluation/lumpi/replay/exp1/../../meta.json",
 ])
 def test_sensitive_data_files_are_never_served(path, client, monkeypatch):
     # enforced even with login disabled (the default in tests)
@@ -157,5 +158,6 @@ def test_sensitive_data_files_are_never_served(path, client, monkeypatch):
 
 def test_media_folders_are_still_served():
     for path in ("/data/cameras/CAM_1_X/thumbnails/a.jpg", "/data/processed/detections/v/crops/t.jpg",
-                 "/data/areas/a1/thumb.png", "/data/streams/CAM_1/c.mp4"):
+                 "/data/areas/a1/thumb.png", "/data/streams/CAM_1/c.mp4",
+                 "/data/evaluation/lumpi/replay/exp1/cam_10.mp4", "/data/evaluation/lumpi/replay/exp0/replay.json"):
         assert required_access("GET", path) == USER

@@ -346,6 +346,15 @@ class ToolExecutor:
             if name == "search_tracklets":
                 query_text = args.get("query", "")
                 camera_ids = args.get("camera_ids")
+                ignored_cameras = []
+                if camera_ids:
+                    # The LLM sometimes invents ids (e.g. CAM_BUSD01 for "Central Bus Depo"): map names / ids to
+                    # real cameras and drop the rest instead of silently returning nothing
+                    from app.assistant.confirmations import resolve_camera_id
+
+                    resolved = [resolve_camera_id(self.db, str(c)) for c in camera_ids]
+                    ignored_cameras = [c for c, r in zip(camera_ids, resolved) if not r]
+                    camera_ids = sorted({r for r in resolved if r}) or None
                 object_type = args.get("object_type", "all")
                 top_k = min(args.get("top_k", 5), 5)
 
@@ -374,12 +383,20 @@ class ToolExecutor:
                     for r in results[:5]
                 ]
 
-                return {
+                response = {
                     "status": "success",
                     "count": len(results),
                     "summary": llm_summary,
                     "results": results
                 }
+                if ignored_cameras:
+                    cams = self.db.query(CameraProfile).all()
+                    response["note"] = (
+                        f"Unknown camera ids {ignored_cameras} were ignored (searched "
+                        f"{'the other requested cameras' if camera_ids else 'all cameras'}). Real cameras: "
+                        + "; ".join(f"{c.camera_id} = {c.name}" for c in cams)
+                    )
+                return response
 
             elif name == "list_cameras":
                 cameras = self.db.query(CameraProfile).all()

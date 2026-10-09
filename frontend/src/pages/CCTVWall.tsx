@@ -43,6 +43,31 @@ interface CCTVFeed {
   chunks: string[]
 }
 
+// Real detector + tracker boxes from GET /cctv-wall/overlay/{video_id}
+// frames: [timestamp_seconds, rows]; row = [tracker_id, class index, confidence %, x1, y1, x2, y2]
+interface WallOverlay {
+  frame_width: number
+  frame_height: number
+  classes: string[]
+  object_types: string[]
+  frames: [number, number[][]][]
+}
+
+const OVERLAY_COLORS: Record<string, string> = { person: '#38BDF8', vehicle: '#00FF41' }
+
+function overlayRowsAt(overlay: WallOverlay, t: number): number[][] {
+  const frames = overlay.frames
+  let lo = 0
+  let hi = frames.length - 1
+  if (hi < 0 || t < frames[0][0]) return []
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    if (frames[mid][0] <= t) lo = mid
+    else hi = mid - 1
+  }
+  return t - frames[lo][0] > 0.5 ? [] : frames[lo][1]
+}
+
 interface TelemetryEvent {
   timestamp_seconds: number
   camera_id: string
@@ -84,6 +109,7 @@ export default function CCTVWall() {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([])
   const wallContainerRef = useRef<HTMLDivElement | null>(null)
+  const overlaysRef = useRef<Record<string, WallOverlay>>({})
 
   // Fetch Feeds
   const fetchFeeds = useCallback(async () => {
@@ -209,6 +235,19 @@ export default function CCTVWall() {
     }
   }
 
+  // Load the real detections for each feed (drawn by the canvas loop below)
+  useEffect(() => {
+    feeds.forEach((feed) => {
+      if (overlaysRef.current[feed.video_id]) return
+      fetch(`${API_BASE}/api/v1/cctv-wall/overlay/${feed.video_id}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: WallOverlay | null) => {
+          if (data) overlaysRef.current[feed.video_id] = data
+        })
+        .catch(() => {})
+    })
+  }, [feeds])
+
   // Render bounding boxes over canvases
   useEffect(() => {
     if (!showBoxes) {
@@ -240,43 +279,42 @@ export default function CCTVWall() {
 
         if (!activeCameras[feed.camera_id]) return
 
-        // High-tech pseudo-realtime dynamic bounding boxes based on video time
-        const tSec = video.currentTime
+        const overlay = overlaysRef.current[feed.video_id]
+        if (!overlay) return
         const w = canvas.width
         const h = canvas.height
+        // The <video> uses object-cover: scale to fill, crop the overflow, centred
+        const fw = overlay.frame_width || video.videoWidth || 1280
+        const fh = overlay.frame_height || video.videoHeight || 720
+        const scale = Math.max(w / fw, h / fh)
+        const offX = (w - fw * scale) / 2
+        const offY = (h - fh * scale) / 2
 
-        // Simulated vehicle / pedestrian tracking boxes with mathematical motion curves
-        const objects = [
-          {
-            label: 'CAR #042 94%',
-            color: '#00FF41',
-            x: ((Math.sin(tSec * 0.4 + idx) + 1) / 2) * (w * 0.5) + w * 0.15,
-            y: h * 0.48 + Math.cos(tSec * 0.3) * 15,
-            boxW: w * 0.18,
-            boxH: h * 0.22,
-          },
-          {
-            label: 'PERSON #108 91%',
-            color: '#38BDF8',
-            x: ((Math.cos(tSec * 0.25 + idx * 2) + 1) / 2) * (w * 0.4) + w * 0.05,
-            y: h * 0.52 + Math.sin(tSec * 0.5) * 10,
-            boxW: w * 0.07,
-            boxH: h * 0.25,
-          },
-        ]
+        const objects = overlayRowsAt(overlay, video.currentTime)
+          .filter((row) => row[2] >= 40)
+          .map(([tid, cls, conf, x1, y1, x2, y2]) => ({
+          label: `${(overlay.object_types[cls] === 'person' ? 'person' : overlay.classes[cls] || 'object').toUpperCase()} #${tid} ${conf}%`,
+          color: OVERLAY_COLORS[overlay.object_types[cls]] || '#F59E0B',
+          x: offX + x1 * scale,
+          y: offY + y1 * scale,
+          boxW: (x2 - x1) * scale,
+          boxH: (y2 - y1) * scale,
+        }))
 
         objects.forEach((obj) => {
           ctx.strokeStyle = obj.color
-          ctx.lineWidth = 2
+          ctx.lineWidth = 1.5
           ctx.strokeRect(obj.x, obj.y, obj.boxW, obj.boxH)
 
-          // Header tag
-          ctx.fillStyle = obj.color
-          ctx.font = 'bold 9px monospace'
-          const textWidth = ctx.measureText(obj.label).width
-          ctx.fillRect(obj.x, obj.y - 14, textWidth + 8, 14)
-          ctx.fillStyle = '#000000'
-          ctx.fillText(obj.label, obj.x + 4, obj.y - 3)
+          // Header tag (skipped on small boxes so crowded scenes stay readable)
+          if (obj.boxH >= 64) {
+            ctx.fillStyle = obj.color
+            ctx.font = 'bold 9px monospace'
+            const textWidth = ctx.measureText(obj.label).width
+            ctx.fillRect(obj.x, obj.y - 14, textWidth + 8, 14)
+            ctx.fillStyle = '#000000'
+            ctx.fillText(obj.label, obj.x + 4, obj.y - 3)
+          }
 
           // Corner reticles
           const cornerLen = 6
@@ -353,7 +391,7 @@ export default function CCTVWall() {
               </h1>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                5 EDGE FEEDS ONLINE (1080p / 24 FPS)
+                {feeds.length} EDGE FEEDS ONLINE (720p)
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">

@@ -5,11 +5,13 @@ import json
 import uuid
 import base64
 from pathlib import Path
+import requests
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.auth.middleware import actor_name, current_user
 from app.auth.policy import ADMIN_COPILOT_TOOLS
+from app.runtime.http import tls_verify
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -38,7 +40,8 @@ def load_assistant_config() -> Dict[str, Any]:
     return {
         "provider": "ollama",
         "ollama_host": "http://localhost:11434",
-        "ollama_model": "qwen2.5:3b",
+        "ollama_model": "qwen2.5:7b",
+        "ollama_api_key": "",
         "cloud_api_key": "",
         "cloud_model": "gpt-4o-mini",
         "cloud_base_url": "https://api.openai.com/v1"
@@ -68,7 +71,9 @@ class SessionCreatePayload(BaseModel):
 class ConfigPayload(BaseModel):
     provider: str = Field(default="ollama", description="'ollama' | 'cloud'")
     ollama_host: str = Field(default="http://localhost:11434")
-    ollama_model: str = Field(default="qwen2.5:3b")
+    ollama_model: str = Field(default="qwen2.5:7b")
+    ollama_api_key: Optional[str] = Field(default="", description="Optional API key/Bearer token for cloud-hosted Ollama")
+    clear_ollama_api_key: bool = Field(default=False, description="Remove the saved Ollama key")
     cloud_api_key: Optional[str] = Field(default="", description="New key; leave empty to keep the saved one")
     clear_cloud_api_key: bool = Field(default=False, description="Remove the saved key")
     cloud_model: str = Field(default="gpt-4o-mini")
@@ -76,31 +81,39 @@ class ConfigPayload(BaseModel):
 
 
 def public_assistant_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """Config safe to send to a browser: the API key itself never leaves the server."""
-    key = (cfg.get("cloud_api_key") or "").strip()
-    public = {k: v for k, v in cfg.items() if k != "cloud_api_key"}
+    """Config safe to send to a browser: API keys never leave the server."""
+    cloud_key = (cfg.get("cloud_api_key") or "").strip()
+    ollama_key = (cfg.get("ollama_api_key") or "").strip()
+    public = {k: v for k, v in cfg.items() if k not in ("cloud_api_key", "ollama_api_key")}
     public["cloud_api_key"] = ""
-    public["cloud_api_key_set"] = bool(key)
-    public["cloud_api_key_hint"] = f"…{key[-4:]}" if len(key) >= 8 else ""
+    public["cloud_api_key_set"] = bool(cloud_key)
+    public["cloud_api_key_hint"] = f"…{cloud_key[-4:]}" if len(cloud_key) >= 8 else ""
+    public["ollama_api_key"] = ""
+    public["ollama_api_key_set"] = bool(ollama_key)
+    public["ollama_api_key_hint"] = f"…{ollama_key[-4:]}" if len(ollama_key) >= 8 else ""
     return public
 
 
 @router.get("/config")
 def get_assistant_config():
-    """Retrieve active AI assistant provider and model settings (API key masked)."""
+    """Retrieve active AI assistant provider and model settings (API keys masked)."""
     return public_assistant_config(load_assistant_config())
 
 
 @router.post("/config")
 def save_assistant_config(payload: ConfigPayload):
-    """Update AI assistant provider and model configuration.
+    """Update AI assistant provider and model configuration."""
+    existing_cfg = load_assistant_config()
+    existing_cloud_key = (existing_cfg.get("cloud_api_key") or "").strip()
+    existing_ollama_key = (existing_cfg.get("ollama_api_key") or "").strip()
 
-    An empty ``cloud_api_key`` keeps the saved key (the browser never receives it, so it cannot echo it
-    back); ``clear_cloud_api_key`` removes it."""
-    existing_key = (load_assistant_config().get("cloud_api_key") or "").strip()
-    cfg = payload.dict(exclude={"clear_cloud_api_key"})
-    new_key = (payload.cloud_api_key or "").strip()
-    cfg["cloud_api_key"] = "" if payload.clear_cloud_api_key else (new_key or existing_key)
+    cfg = payload.dict(exclude={"clear_cloud_api_key", "clear_ollama_api_key"})
+    new_cloud_key = (payload.cloud_api_key or "").strip()
+    new_ollama_key = (payload.ollama_api_key or "").strip()
+
+    cfg["cloud_api_key"] = "" if payload.clear_cloud_api_key else (new_cloud_key or existing_cloud_key)
+    cfg["ollama_api_key"] = "" if payload.clear_ollama_api_key else (new_ollama_key or existing_ollama_key)
+
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
@@ -109,18 +122,24 @@ def save_assistant_config(payload: ConfigPayload):
 
 @router.get("/ollama-models")
 def get_installed_ollama_models(host: str = "http://localhost:11434"):
-    """Fetch list of installed models from local Ollama instance."""
+    """Fetch list of installed models from local or cloud Ollama instance."""
+    cfg = load_assistant_config()
+    key = (cfg.get("ollama_api_key") or "").strip()
+    headers = {}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+
     url = f"{host.rstrip('/')}/api/tags"
     try:
-        resp = requests.get(url, timeout=5)
+        resp = requests.get(url, headers=headers, timeout=5, verify=tls_verify())
         if resp.status_code == 200:
             data = resp.json()
             models = [m.get("name") for m in data.get("models", []) if m.get("name")]
             if models:
                 return {"status": "success", "models": models}
     except Exception as e:
-        logger.warning(f"Failed to fetch local Ollama models from {host}: {e}")
-    return {"status": "fallback", "models": ["qwen2.5:3b", "qwen2.5-vl:3b", "qwen2.5:7b"]}
+        logger.warning(f"Failed to fetch Ollama models from {host}: {e}")
+    return {"status": "fallback", "models": ["qwen2.5:7b", "qwen2.5:3b", "qwen2.5:14b", "qwen2.5-coder:7b", "qwen2.5-vl:7b"]}
 
 
 @router.get("/sessions")
@@ -181,8 +200,9 @@ async def chat_with_assistant(payload: ChatRequest, db: Session = Depends(get_db
 
     if provider_type == "ollama":
         host = cfg.get("ollama_host", "http://localhost:11434")
-        model = payload.model_override or cfg.get("ollama_model", "qwen2.5:3b")
-        provider = OllamaProvider(host=host, model=model)
+        model = payload.model_override or cfg.get("ollama_model", "qwen2.5:7b")
+        ollama_key = cfg.get("ollama_api_key", "").strip()
+        provider = OllamaProvider(host=host, model=model, api_key=ollama_key)
     else:
         api_key = cfg.get("cloud_api_key", "").strip()
         base_url = cfg.get("cloud_base_url", "https://api.openai.com/v1").strip()

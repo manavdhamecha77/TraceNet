@@ -138,3 +138,30 @@ def test_every_write_tool_requires_confirmation():
     assert set(confirmations.WRITE_TOOLS) <= names
     read_only = names - set(confirmations.WRITE_TOOLS)
     assert all(n.startswith(("get_", "list_", "search_", "reconstruct_")) for n in read_only), read_only
+
+
+def test_invented_ids_are_resolved_or_refused(world):
+    db, _ = world
+    # a camera name and a model name are mapped to their ids
+    reply = AssistantAgent(ScriptedProvider(_call("assign_camera_model", camera_id="railway station", model_id="model v1"))).run_conversation(
+        [{"role": "user", "content": "use model v1 at the railway station"}], db
+    )
+    assert reply["pending_action"]["args"] == {"camera_id": "CAM_004", "model_id": "m1"}
+    # an invented model id is not proposed; the LLM is told to look it up
+    provider = ScriptedProvider(_call("assign_camera_model", camera_id="CAM_004", model_id="abandoned-object-model-uuid"),
+                                {"content": "Which model?", "tool_calls": []})
+    reply = AssistantAgent(provider).run_conversation([{"role": "user", "content": "assign the abandoned model"}], db)
+    assert "pending_action" not in reply
+    result = json.loads([m for m in provider.calls[-1] if m.get("role") == "tool"][0]["content"])
+    assert result["status"] == "not_executed" and "list_models" in result["message"]
+    assert _camera_model(db) == ""
+
+
+def test_resolve_camera_id_needs_a_unique_match(world):
+    db, _ = world
+    db.add(CameraProfile(camera_id="CAM_005", name="Surat Bus Depot", adjacency="[]"))
+    db.commit()
+    assert confirmations.resolve_camera_id(db, "cam_004") == "CAM_004"
+    assert confirmations.resolve_camera_id(db, "Bus Depot") == "CAM_005"
+    assert confirmations.resolve_camera_id(db, "Surat") is None  # ambiguous
+    assert confirmations.resolve_camera_id(db, "CAM_BUSD01") is None  # invented

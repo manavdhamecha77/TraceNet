@@ -6,6 +6,7 @@ expiry, the officer confirms or cancels it in the chat, and only the stored argu
 
 from __future__ import annotations
 
+import re
 import threading
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -39,6 +40,61 @@ def missing_required_args(name: str, args: Dict[str, Any]) -> list[str]:
     schema = next((t["function"] for t in TOOL_SCHEMAS if t["function"]["name"] == name), None)
     required = schema.get("parameters", {}).get("required", []) if schema else []
     return [r for r in required if not str(args.get(r) or "").strip()]
+
+
+def _tokens(text: str) -> set[str]:
+    return {t for t in re.split(r"[^a-z0-9]+", (text or "").lower()) if len(t) > 1}
+
+
+def _unique_match(value: str, candidates: list[tuple[str, str]]) -> Optional[str]:
+    """id of the single candidate (id, name) whose id equals value (any case) or whose name contains
+    every word of value; None when nothing or more than one matches."""
+    v = (value or "").strip()
+    if not v:
+        return None
+    exact = [cid for cid, _ in candidates if cid.lower() == v.lower()]
+    if exact:
+        return exact[0]
+    words = _tokens(v)
+    hits = [cid for cid, name in candidates if words and words <= _tokens(f"{cid} {name}")]
+    return hits[0] if len(hits) == 1 else None
+
+
+def resolve_camera_id(db: Session, value: str) -> Optional[str]:
+    """Real camera_id for an id or name the LLM produced (it sometimes invents ids such as CAM_BUSD01)."""
+    from app.db.models import CameraProfile
+
+    return _unique_match(value, [(c.camera_id, c.name or "") for c in db.query(CameraProfile).all()])
+
+
+def resolve_model_id(db: Session, value: str) -> Optional[str]:
+    from app.db.models import MLModel
+
+    return _unique_match(value, [(m.id, f"{m.name or ''} {m.category or ''}") for m in db.query(MLModel).all()])
+
+
+def resolve_ids(db: Session, name: str, args: Dict[str, Any]) -> tuple[Dict[str, Any], list[str]]:
+    """Replace camera / model names with their ids; list what could not be resolved (the action is then
+    not proposed and the model is told to look the id up instead of guessing)."""
+    from app.db.models import VideoAsset
+
+    args, problems = dict(args), []
+    for key in ("camera_id", "origin_camera_id"):
+        if args.get(key):
+            found = resolve_camera_id(db, str(args[key]))
+            if found:
+                args[key] = found
+            else:
+                problems.append(f"unknown camera '{args[key]}' (list_cameras gives the real camera_id)")
+    if name == "assign_camera_model" and args.get("model_id"):
+        found = resolve_model_id(db, str(args["model_id"]))
+        if found:
+            args["model_id"] = found
+        else:
+            problems.append(f"unknown model '{args['model_id']}' (list_models gives the real model id)")
+    if args.get("video_id") and not db.query(VideoAsset).filter(VideoAsset.id == args["video_id"]).first():
+        problems.append(f"unknown video '{args['video_id']}' (look the video id up first)")
+    return args, problems
 
 
 def _camera_label(db: Session, camera_id: str) -> str:

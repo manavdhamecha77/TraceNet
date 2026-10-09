@@ -7,7 +7,7 @@ from loguru import logger
 
 from app.assistant.llm_provider import BaseLLMProvider
 from app.assistant.guard import REFUSAL, is_off_topic
-from app.assistant.confirmations import is_write_tool, missing_required_args, propose
+from app.assistant.confirmations import is_write_tool, missing_required_args, propose, resolve_ids
 from app.assistant.tools import TOOL_SCHEMAS, ToolExecutor
 
 SYSTEM_PROMPT = """You are TraceNet Copilot, a domain-specific AI Digital Forensics & Video Analytics Assistant for Smart City CCTV Surveillance (Project DRISHTI).
@@ -136,7 +136,10 @@ class AssistantAgent:
 
                 if is_write_tool(fn_name):
                     missing = missing_required_args(fn_name, fn_args)
+                    problems = []
                     if not missing:
+                        fn_args, problems = resolve_ids(db, fn_name, fn_args)
+                    if not missing and not problems:
                         action = propose(db, fn_name, fn_args)
                         logger.info(f"Copilot proposed write action {action['id']}: {action['summary']} (awaiting confirmation)")
                         return {
@@ -155,6 +158,10 @@ class AssistantAgent:
                             f"'{fn_name}' was NOT run: missing {', '.join(missing)}. It changes data, so ask the "
                             "user for these values instead of guessing. If the user only asked a question, answer "
                             "it with read-only tools."
+                        ) if missing else (
+                            f"'{fn_name}' was NOT run: {'; '.join(problems)}. Never invent ids. Call that read-only tool "
+                            "yourself now (do not ask the user to run it), pick the matching id, then propose the "
+                            "action again."
                         ),
                     }
                     history.append({"role": "tool", "tool_call_id": call_id, "name": fn_name,
