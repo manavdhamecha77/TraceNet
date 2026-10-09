@@ -346,6 +346,9 @@ def _resolve_replay_weights(req: LumpiReplayBuildRequest, db: Session) -> Option
         m = db.query(MLModel).filter(MLModel.id == req.model_id).first()
         if not m:
             raise HTTPException(status_code=404, detail=f"Model '{req.model_id}' is not registered.")
+        from app.detection.detector import is_detector_model
+        if not is_detector_model(m):
+            raise HTTPException(status_code=400, detail=f"'{m.name}' is a clip classifier, not an object detector.")
         from app.storage.media import resolve_model_file
         resolved = resolve_model_file(m.file_path)
         if resolved:

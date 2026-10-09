@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ShieldAlert, Activity, CheckCircle2, AlertTriangle, Eye, RefreshCw, Filter } from 'lucide-react'
+import { ShieldAlert, Activity, CheckCircle2, AlertTriangle, Eye, RefreshCw, Filter, ScanSearch } from 'lucide-react'
 import { useToast } from '../components/Toast'
 import { formatDisplayDate } from '../utils/dateFormatter'
 
@@ -19,6 +19,33 @@ interface AssaultAlert {
   acknowledged: boolean
   confidence?: number
   assault_type?: string
+}
+
+interface ScanWindow {
+  timestamp_seconds: number
+  start_seconds: number
+  end_seconds: number
+  class: string
+  confidence: number
+  top_label: string
+}
+
+interface ScanResult {
+  video_id: string
+  has_assault: boolean
+  assault_type: string
+  confidence: number
+  alert_id?: number | null
+  peak_timestamp_seconds?: number | null
+  windows_analyzed: number
+  windows_flagged: number
+  windows: ScanWindow[]
+}
+
+interface VideoOption {
+  id: string
+  original_filename?: string
+  processing_status?: string
 }
 
 interface DetectionStats {
@@ -41,6 +68,54 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
   const [selectedCamera, setSelectedCamera] = useState<string>('')
   const [modelStatus, setModelStatus] = useState<any>(null)
   const [acknowledging, setAcknowledging] = useState<number | null>(null)
+
+  // On-demand VideoMAE scan of one video
+  const [scanCamera, setScanCamera] = useState('')
+  const [scanVideos, setScanVideos] = useState<VideoOption[]>([])
+  const [scanVideoId, setScanVideoId] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
+
+  useEffect(() => {
+    setScanVideos([])
+    setScanVideoId('')
+    if (!scanCamera) return
+    fetch(`${API_BASE}/api/v1/cameras/${scanCamera}/videos`)
+      .then(r => (r.ok ? r.json() : []))
+      .then((rows: VideoOption[]) => {
+        const ready = rows.filter(v => !v.processing_status || ['complete', 'preprocessed', 'indexing'].includes(v.processing_status))
+        setScanVideos(ready)
+        if (ready.length) setScanVideoId(ready[0].id)
+      })
+      .catch(() => setScanVideos([]))
+  }, [scanCamera])
+
+  const runScan = async () => {
+    if (!scanCamera || !scanVideoId) return
+    setScanning(true)
+    setScanResult(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/assault-detection/analyze-video`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_id: scanVideoId, camera_id: scanCamera }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.detail || 'Scan failed')
+      setScanResult(data)
+      const gate = Math.round((modelStatus?.confidence_threshold ?? 0.6) * 100)
+      if (data.has_assault) {
+        toast.error('Violence detected', `${data.assault_type} at ${data.peak_timestamp_seconds?.toFixed(1)} s, alert #${data.alert_id} raised for review.`)
+        loadAssaultData()
+      } else {
+        toast.success('Scan complete', `No violent activity above the ${gate}% gate in ${data.windows_analyzed} windows.`)
+      }
+    } catch (err: any) {
+      toast.error('Scan failed', err.message || 'Could not analyse this video.')
+    } finally {
+      setScanning(false)
+    }
+  }
 
   // Load assault data
   const loadAssaultData = async () => {
@@ -206,6 +281,88 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
         </div>
       )}
 
+      {/* ON-DEMAND SCAN */}
+      <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <ScanSearch className="w-4 h-4 text-rose-500" aria-hidden />
+            Analyze a video
+          </h3>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            VideoMAE classifies every 2-second window into the 14 UCF-Crime classes. Assault, Fighting, Abuse, Robbery and Shooting above the gate raise an alert for officer review.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={scanCamera}
+            onChange={e => setScanCamera(e.target.value)}
+            className="h-8 px-3 text-xs rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold min-w-[220px]"
+          >
+            <option value="">Select camera...</option>
+            {cameras.map(cam => (
+              <option key={cam.camera_id} value={cam.camera_id}>{cam.name} ({cam.camera_id})</option>
+            ))}
+          </select>
+          <select
+            value={scanVideoId}
+            onChange={e => setScanVideoId(e.target.value)}
+            disabled={!scanVideos.length}
+            className="h-8 px-3 text-xs rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-semibold min-w-[220px] disabled:opacity-50"
+          >
+            {!scanVideos.length && <option value="">{scanCamera ? 'No processed videos' : 'Select a camera first'}</option>}
+            {scanVideos.map(v => (
+              <option key={v.id} value={v.id}>{v.original_filename || v.id}</option>
+            ))}
+          </select>
+          <button
+            onClick={runScan}
+            disabled={scanning || !scanVideoId}
+            className="h-8 px-3 inline-flex items-center gap-1.5 rounded bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-semibold"
+          >
+            {scanning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden /> : <ScanSearch className="w-3.5 h-3.5" aria-hidden />}
+            {scanning ? 'Scanning (about 40 s per 5 min of video)...' : 'Run assault scan'}
+          </button>
+        </div>
+
+        {scanResult && (
+          <div className="space-y-2 pt-1">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold border ${
+                scanResult.has_assault
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400'
+                  : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+              }`}>
+                {scanResult.has_assault ? <ShieldAlert className="w-3.5 h-3.5" aria-hidden /> : <CheckCircle2 className="w-3.5 h-3.5" aria-hidden />}
+                {scanResult.has_assault ? `${scanResult.assault_type} detected` : 'No violent activity'}
+              </span>
+              <span className="text-slate-600 dark:text-slate-300 font-mono">
+                peak {(scanResult.confidence * 100).toFixed(1)}%
+                {scanResult.peak_timestamp_seconds != null && ` at ${scanResult.peak_timestamp_seconds.toFixed(1)} s`}
+              </span>
+              <span className="text-slate-500 dark:text-slate-400 font-mono">
+                {scanResult.windows_flagged} / {scanResult.windows_analyzed} windows above the gate
+              </span>
+              {scanResult.alert_id != null && (
+                <Link to={`/frame-inspection/${scanResult.alert_id}`} className="text-cyan-700 dark:text-cyan-400 font-semibold hover:underline">
+                  Inspect alert #{scanResult.alert_id}
+                </Link>
+              )}
+            </div>
+            {/* Violence score per 2-second window across the video */}
+            <div className="flex items-end gap-px h-12 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-1 pt-1" aria-label="Violence score per 2-second window">
+              {scanResult.windows.map((w, i) => (
+                <div
+                  key={i}
+                  title={`${w.start_seconds.toFixed(0)}-${w.end_seconds.toFixed(0)} s: ${w.class} ${(w.confidence * 100).toFixed(1)}% (top class: ${w.top_label})`}
+                  className={`flex-1 rounded-t-sm ${w.confidence >= (modelStatus?.confidence_threshold ?? 0.6) ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+                  style={{ height: `${Math.max(4, w.confidence * 100)}%` }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* FILTER BAR */}
       <div className="flex items-center gap-3 p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <Filter className="w-4 h-4 text-slate-500" />
@@ -262,6 +419,11 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
                     </td>
                     <td className="px-4 py-3 font-mono text-[11px] text-slate-500 dark:text-slate-400">
                       {alert.video_id.substring(0, 12)}...
+                      {alert.assault_type && (
+                        <div className="text-[10px] font-sans font-semibold text-rose-700 dark:text-rose-400">
+                          {alert.assault_type} {alert.confidence != null && `${(alert.confidence * 100).toFixed(0)}%`}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-400">
                       {formatDisplayDate(alert.timestamp)}

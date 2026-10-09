@@ -185,8 +185,12 @@ def delete_model(model_id: str, db: Session = Depends(get_db)):
             detail=f"Model with ID '{model_id}' does not exist."
         )
 
-    # Verify if model is actively assigned to any cameras
-    assigned_cameras = db.query(CameraProfile).filter(CameraProfile.model_id == model_id).all()
+    # Verify if model is actively assigned to any cameras (any slot)
+    from sqlalchemy import or_
+    assigned_cameras = db.query(CameraProfile).filter(or_(
+        CameraProfile.model_id == model_id, CameraProfile.theft_model_id == model_id,
+        CameraProfile.abandoned_model_id == model_id, CameraProfile.assault_model_id == model_id,
+    )).all()
     if assigned_cameras:
         camera_names = [c.name for c in assigned_cameras]
         raise HTTPException(
@@ -201,10 +205,15 @@ def delete_model(model_id: str, db: Session = Depends(get_db)):
         db.commit()
         
         # Remove file from disk and from the S3 media store (bucket versioning keeps it recoverable)
-        media.delete(file_path)
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-            logger.info(f"Removed weights file {file_path} from disk.")
+        if file_path and os.path.isdir(file_path):  # folder checkpoint (VideoMAE)
+            import shutil
+            shutil.rmtree(file_path, ignore_errors=True)
+            logger.info(f"Removed weights folder {file_path} from disk.")
+        else:
+            media.delete(file_path)
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+                logger.info(f"Removed weights file {file_path} from disk.")
             
     except Exception as e:
         db.rollback()

@@ -62,6 +62,8 @@ class CameraResponse(BaseModel):
     thumbnail_path: Optional[str] = None
     thumbnail_url: Optional[str] = None
     video_count: int
+    # Model that actually produces the detections (an assigned alert model takes priority over model_id)
+    ingest_model_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -84,6 +86,32 @@ class VideoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+def _with_ingest_model(db: Session, camera) -> dict:
+    from app.detection.detector import ingest_detector_id
+
+    data = camera.to_dict()
+    data["ingest_model_id"] = ingest_detector_id(db, camera)
+    return data
+
+
+def _check_model_slots(db: Session, payload) -> None:
+    """Detector slots (main / theft / abandoned) only take frame detectors; the VideoMAE clip classifier is
+    only valid in the assault slot. Unknown ids and 'OFF' are left as before."""
+    from app.db.models import MLModel
+    from app.detection.detector import is_detector_model
+
+    for slot in ("model_id", "theft_model_id", "abandoned_model_id"):
+        value = getattr(payload, slot, None)
+        if not value or value == "OFF":
+            continue
+        record = db.query(MLModel).filter(MLModel.id == value).first()
+        if record is not None and not is_detector_model(record):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"'{record.name}' is a clip classifier; assign it as the camera's assault model, not {slot}.",
+            )
+
 
 @router.post("/create-new-camera", response_model=CameraResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/cameras", response_model=CameraResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
@@ -109,6 +137,7 @@ def create_camera(payload: CameraCreate, db: Session = Depends(get_db)):
         default_area = db.query(Area).filter(Area.name == "General").first()
         area_id = default_area.id if default_area else None
         
+    _check_model_slots(db, payload)
     try:
         camera = CameraProfile(
             camera_id=payload.camera_id,
@@ -147,7 +176,7 @@ def list_cameras(status: Optional[str] = None, db: Session = Depends(get_db)):
     if status:
         query = query.filter(CameraProfile.status == status)
     cameras = query.all()
-    return [c.to_dict() for c in cameras]
+    return [_with_ingest_model(db, c) for c in cameras]
 
 @router.get("/videos", response_model=List[VideoResponse])
 def list_all_videos(db: Session = Depends(get_db)):
@@ -173,7 +202,7 @@ def get_camera(camera_id: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Camera profile with ID '{camera_id}' does not exist."
         )
-    return camera.to_dict()
+    return _with_ingest_model(db, camera)
 
 @router.get("/cameras/{camera_id}/videos", response_model=List[VideoResponse])
 def get_camera_videos(camera_id: str, db: Session = Depends(get_db)):
@@ -227,6 +256,7 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
             camera.status = payload.status
         if payload.altitude is not None:
             camera.altitude = payload.altitude
+        _check_model_slots(db, payload)
         if payload.model_id is not None:
             camera.model_id = payload.model_id
         if payload.theft_model_id is not None:

@@ -14,6 +14,7 @@ import { formatDisplayDate } from '../utils/dateFormatter'
 import { useToast } from '../components/Toast'
 
 import { API_BASE } from '../config/api'
+import { alertTypeMeta, assaultVerdict } from '../utils/alertTypes'
 
 const extractTrackerId = (val: any): string => {
   if (val == null) return ''
@@ -191,8 +192,11 @@ function AbandonedAlertCard({
     ? `${alert.abandon_duration_seconds.toFixed(1)}s`
     : null
 
+  const meta = alertTypeMeta(alert.alert_type)
   const isUnattended = alert.alert_type === 'unattended_object'
   const isLoitering = alert.alert_type === 'loitering'
+  const isRose = meta.tone === 'rose'  // assault / theft / watchlist shown on the "All" tab
+  const verdict = alert.alert_type === 'assault' ? assaultVerdict(alert.analysis_log) : null
   let loiteringEvidence: Record<string, unknown> | null = null
   if (isLoitering && alert.analysis_log) {
     try {
@@ -210,6 +214,8 @@ function AbandonedAlertCard({
           ? 'border-violet-500/30 bg-violet-50/50 dark:border-violet-500/30 dark:bg-violet-950/20 shadow-sm'
           : isUnattended
           ? 'border-teal-500/30 bg-teal-50/50 dark:border-teal-500/30 dark:bg-teal-950/20 shadow-sm'
+          : isRose
+          ? 'border-rose-500/30 bg-rose-50/50 dark:border-rose-500/30 dark:bg-rose-950/20 shadow-sm'
           : 'border-amber-500/30 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-950/20 shadow-sm'
       }`}
     >
@@ -219,7 +225,7 @@ function AbandonedAlertCard({
         <div className="shrink-0 flex flex-col items-center gap-1.5">
           {isLoitering ? (
             <TrackletThumb trackletId={alert.tracklet_id} label="Person" videoId={alert.video_id} />
-          ) : alert.object_tracklet_id ? (
+          ) : meta.hasTracklets && alert.object_tracklet_id ? (
             <TrackletThumb
               trackletId={alert.object_tracklet_id}
               label="Object"
@@ -228,11 +234,13 @@ function AbandonedAlertCard({
             />
           ) : (
             <div className="w-12 h-12 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-              <Package className="w-5 h-5 text-amber-500/70" />
+              {isRose
+                ? <ShieldAlert className="w-5 h-5 text-rose-500" />
+                : <Package className="w-5 h-5 text-amber-500/70" />}
             </div>
           )}
 
-          {alert.video_id && alert.object_tracklet_id && (
+          {meta.hasTracklets && alert.video_id && alert.object_tracklet_id && (
             <button
               onClick={() => onTrackTracklet(alert.video_id!, alert.object_tracklet_id!, 'OBJECT', '#FF0033')}
               className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-colors shadow-xs"
@@ -263,6 +271,8 @@ function AbandonedAlertCard({
                 ? 'bg-violet-500/10 border-violet-500/20 text-violet-700 dark:bg-violet-950/30 dark:border-violet-500/30 dark:text-violet-300'
                 : isUnattended
                 ? 'bg-teal-500/10 border-teal-500/20 text-teal-700 dark:bg-teal-950/30 dark:border-teal-500/30 dark:text-teal-400'
+                : isRose
+                ? 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:bg-rose-950/30 dark:border-rose-500/30 dark:text-rose-400'
                 : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:bg-amber-950/40 dark:border-amber-500/30 dark:text-amber-400'
             }`}>
               {alert.acknowledged ? (
@@ -274,7 +284,7 @@ function AbandonedAlertCard({
               ) : (
                 <AlertTriangle className="w-3 h-3" />
               )}
-              {alert.acknowledged ? 'Acknowledged' : isLoitering ? 'Loitering review' : isUnattended ? 'Unattended Luggage' : 'Abandoned Object'}
+              {alert.acknowledged ? 'Acknowledged' : verdict ? `${meta.label} - ${verdict}` : meta.label}
             </span>
             {durationStr && (
               <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold bg-slate-100 border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">

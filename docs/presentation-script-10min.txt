@@ -1,0 +1,267 @@
+DRISHTI (TraceNet) - 10-MINUTE PRESENTATION SCRIPT
+Deck: GAMA_ERH26_PS_07.pdf (19 slides, 2 live demos)
+==================================================
+
+Target: 9:30 of content, leaving 30 s of buffer for questions or a slow page.
+Clock times are cumulative. Lines in [brackets] are actions, not speech.
+At a calm pace (about 130 words per minute) this fits; do not add more.
+Two speakers work well: Speaker A presents the slides, Speaker B drives the demo laptop.
+
+
+FIX THESE ON THE SLIDES BEFORE PRESENTING
+-----------------------------------------
+1. Slide 19: "143 backend tests" -> "246 backend tests" (today's count).
+2. Slide 10: "Offline MarianMT translation and multilingual CLIP" - those two models are NOT on the
+   demo machine. Hindi and Gujarati search works through the built-in offline phrase engine.
+   Either install the models (backend/data/models/translation_hi_en and multilingual_clip), or
+   reword to "Offline translation, no internet needed". "No internet" is true either way.
+3. Slide 14: "Click a cyclist" - the rebuilt replay has no cyclist. ?follow=3 now selects a BUS
+   seen by all three cameras. Say "the bus" (or click pedestrian #14, also seen by all three).
+4. Slide 15: present the event engines as capabilities; do not run them live.
+   - The assault model is not downloaded.
+   - The Rly Station camera has false collision alerts (acknowledge them before the event).
+5. Slide 16: do not attempt live phone pairing on stage unless you have rehearsed it on the
+   venue Wi-Fi; talk over the slide instead.
+
+
+BEFORE YOU GO ON STAGE
+----------------------
+- Backend + frontend running; logged in as Admin; browser full screen at 90-100 % zoom.
+- Acknowledge the false accident alerts so the sidebar badge is not "49":
+  Alerts -> Filter: Traffic Collisions -> Select Unacknowledged -> Ack.
+- Warm-up (the first search loads the AI model, 10-20 s):
+  - run the Hindi query once
+  - open /multicam?tab=replay&autoplay=1&follow=3 once
+- Keep two tabs ready:
+  - Tab 1: /search
+  - Tab 2: /multicam?tab=replay&autoplay=1&follow=3
+- Keep both backup recordings on the desktop (slides 11 and 14 say "Backup recording ready").
+- If anything hangs for more than 5 s on stage: say "let me switch to the recording" and play it.
+  Never debug live.
+
+
+==================================================
+SLIDE 1 - TITLE                                   [0:00 -> 0:20]
+--------------------------------------------------
+"Good morning. We are team GAMA, and this is DRISHTI - AI-driven forensic video search for
+ smart-city CCTV. Four words describe it: Describe. Find. Follow. Prove. In the next ten minutes
+ we'll show you each one working on real Surat footage."
+
+
+SLIDE 2 - THE PROBLEM TODAY                       [0:20 -> 1:05]
+--------------------------------------------------
+"Picture one incident: forty cameras, six hours of footage each. Today that means:
+ - Manual scrubbing - someone literally watches it end to end.
+ - Following a suspect across cameras is a phone call between stations.
+ - Exported clips carry nothing a court can verify.
+ - And there's a language gap: the search desk speaks Gujarati; the tools speak English.
+ None of this needs new cameras. Every one of these is a software problem - and that's what we
+ solved."
+
+
+SLIDE 3 - SYSTEM MAP                              [1:05 -> 1:35]
+--------------------------------------------------
+"DRISHTI is six pillars on one workstation:
+ ingestion with integrity, detection and identity, search, event intelligence, multi-camera
+ tracking, and forensics and compliance.
+ It runs entirely offline on a single laptop with an RTX 4060 GPU. Cloud parts, like a cloud
+ language model, are optional - not required."
+
+
+SLIDE 4 - INGESTION TO IDENTITY                   [1:35 -> 2:10]
+--------------------------------------------------
+"Custody starts at intake: every file is SHA-256 hashed before anything touches it.
+ Then one pipeline does everything:
+ - standardise to 720p
+ - detect and track every person and vehicle
+ - keep the best crop
+ - embed it with CLIP and caption it with BLIP
+ - extract colour and vehicle type
+ - run face, number-plate and accident passes
+ - index it all.
+ The officer sees each stage live - pending to complete - and can start watching as soon as
+ it's standardised."
+
+
+SLIDES 5 + 6 - API FLOW / VIDEO TO INTELLIGENCE   [2:10 -> 2:35]
+--------------------------------------------------
+"Architecturally it's one FastAPI backend with modular services: the dashboard, edge cameras
+ and integrations all go through the same API. The result is multimodal intelligence -
+ appearance, faces, plates and events, connected - with forensic integrity preserved at every
+ step."
+[Slide 6 is a recap: move on quickly.]
+
+
+SLIDES 7 + 8 - SEARCH TO INTELLIGENCE             [2:35 -> 2:50]
+--------------------------------------------------
+[Slide 7 is a divider: click straight through.]
+"Search goes beyond keywords: natural language in English, Hindi and Gujarati; cross-camera
+ tracking under time and distance constraints; and every finding ends in verifiable evidence."
+
+
+SLIDE 9 - TRUST BY DESIGN                         [2:50 -> 3:15]
+--------------------------------------------------
+"Before the demo, three rules we built in:
+ - Humans stay in charge. The system ranks candidates; it never declares an identity, and the AI
+   can't act without an officer's approval.
+ - Every search, hash and custody step is auditable.
+ - Role-based access, local models, offline-first."
+
+
+SLIDE 10 - DESCRIBE                               [3:15 -> 3:35]
+--------------------------------------------------
+"Describe: an officer types in Hindi, Gujarati, Hinglish or English. Colour and vehicle type are
+ verified on every result, and anything we can't verify is shown - never silently dropped.
+ Every result explains itself, and every query is logged. Let me show you."
+
+
+SLIDE 11 - LIVE DEMO 1: SEARCH TO EVIDENCE        [3:35 -> 5:15]  (1:40)
+--------------------------------------------------
+[Switch to Tab 1: /search]
+
+[Type: लाल शर्ट में आदमी   (or the Gujarati: લાલ શર્ટ વાળો માણસ)]
+"I'm typing 'man in a red shirt' - in Hindi."
+
+[Pause on the translation banner]
+"The system shows exactly how it understood the query - no hidden translation."
+
+[Run the search]
+"Ranked candidates from five Surat cameras in under a second. The top hit is a man in a red
+ shirt at Gopi Talav."
+
+[Open "Why this matched" on the top result]
+"Here's why it matched: visual similarity, the auto-generated caption, the colour check.
+ The officer decides, not the model."
+
+[Hover or open a vehicle result to show its number plate]
+"Vehicles carry their number plate - read automatically during ingestion."
+
+[Tag as Hot Target]
+"I tag this person as a hot target, so every camera watches for them."
+
+[Select results -> Export -> show the SHA-256]
+"And export: the bundle is hashed the moment it's created. Hindi in, an explanation for every
+ result, and court-ready evidence out."
+
+[If the export is slow: stop after the hot-target step and say "the export is on slide 17".]
+
+
+SLIDE 12 - FIND: FACES AND PLATES                 [5:15 -> 5:45]
+--------------------------------------------------
+"Find:
+ - Faces get their own detector, tracker and index - search by photo, by description, or by a
+   name an officer has tagged.
+ - Number plates are read on every vehicle, best of five frames with a majority vote.
+ We're honest about quality: each plate is 'read', 'blurry' or 'not detected' - never a guess.
+ A watchlisted plate raises an alert the moment it appears."
+
+
+SLIDE 13 - FOLLOW: MULTI-CAMERA                   [5:45 -> 6:20]
+--------------------------------------------------
+"Follow:
+ - Tagged subjects go into a Hot Targets registry.
+ - The Journey Map links sightings across cameras - but only when the route is physically
+   possible in the time elapsed. A look-alike fifty kilometres away in ten minutes is rejected.
+ - Pursuit Wave alerts the cameras ahead of the target.
+ On the public LUMPI multi-camera benchmark: precision 1.00, recall 0.98."
+
+
+SLIDE 14 - LIVE DEMO 2: FUSION REPLAY             [6:20 -> 7:20]  (1:00)
+--------------------------------------------------
+[Switch to Tab 2: /multicam?tab=replay&autoplay=1&follow=3]
+"Three real, synchronised cameras at one intersection. Our own detector runs on each feed."
+
+[Let it play ~10 s]
+"Every object is projected onto one shared ground plane - the map on the right."
+
+[Click the bus (or any box) in one view]
+"I click the bus in one camera - it lights up in all three views and on the map, with the
+ same number and colour. One physical object, one identity, across cameras."
+
+[Point at the side card]
+"The card lists each camera's local track that was fused into it. No dataset labels are used -
+ this is live detector output."
+
+
+SLIDE 15 - EVENT INTELLIGENCE                     [7:20 -> 7:50]
+--------------------------------------------------
+"Six event engines feed one Alert Center:
+ - loitering in drawn zones
+ - abandoned objects
+ - chain-snatching and theft
+ - assault
+ - traffic collisions with pre-, impact- and post-crash frames
+ - plate watchlist
+ Every alert is acknowledged with the officer's name and time, in bulk if needed, and can be
+ pushed to other systems by webhook."
+
+
+SLIDE 16 - LIVE EDGE CAMERAS                      [7:50 -> 8:10]
+--------------------------------------------------
+"Any phone can become a registered camera with a six-digit pair code. Detection runs live; the
+ recorded chunks then go through the same full pipeline as an upload. Live stays light; the
+ heavy work runs on the archive. The control room sees everything on the CCTV Stream Wall."
+
+
+SLIDE 17 - PROVE                                  [8:10 -> 8:40]
+--------------------------------------------------
+"Prove: every export is a sealed bundle - clips, annotated frames, a manifest, SHA-256 sums,
+ a custody log and an HTML report. Verify it anywhere, in the app or by re-uploading it: one
+ changed byte and verification fails. Non-matched faces can be blurred on export, and every
+ search and alert action lands in the audit trail."
+
+
+SLIDE 18 - COPILOT                                [8:40 -> 9:05]
+--------------------------------------------------
+"Finally, the Copilot - Control-K from anywhere. It runs locally on Ollama, or on a cloud model
+ when that's allowed. It uses the same tools as the console: it can search, read alerts, check
+ cameras. But it can never change anything on its own - every write waits for the officer to
+ confirm. Off-topic requests are refused, and API keys never reach the browser."
+[OPTIONAL if ahead of time: Ctrl+K -> "bhai red shirt wala aadmi dhundo" -> show the answer.]
+
+
+SLIDE 19 - VERIFIED TODAY / THE ASK               [9:05 -> 9:30]
+--------------------------------------------------
+"Everything you saw is verified today:
+ - 246 backend tests
+ - the full pipeline on real Surat footage
+ - the LUMPI multi-camera benchmark
+ - live phone streaming end to end
+ Our ask: a 90-day pilot with one commissionerate, on its existing CCTV feeds - no new cameras.
+ Describe it, find it, follow it, prove it. Thank you."
+
+[Stop. Leave the last slide up for questions.]
+
+
+==================================================
+LIKELY QUESTIONS - SHORT ANSWERS
+--------------------------------------------------
+Q: Does it identify people automatically?
+A: No. It ranks candidates with evidence; an officer confirms. No identity is ever declared by
+   the system.
+
+Q: How accurate is cross-camera matching?
+A: On LUMPI, precision 1.00 and recall 0.98. On real city footage, appearance alone is
+   ambiguous - look-alikes score very close - so we only link a camera when the sighting stands
+   out AND the route is physically possible in time. We would rather show nothing than a wrong
+   hop.
+
+Q: What does it need to run?
+A: One GPU workstation, fully offline. We demoed on a laptop RTX 4060. Shared team storage on
+   S3 is optional.
+
+Q: Why should a court trust the export?
+A: SHA-256 at intake and on every file in the bundle, a manifest plus custody log, and
+   verification that fails on a single changed byte.
+
+Q: Privacy?
+A: Role-based access, every search logged with the officer's name, face blurring on export, and
+   no predictive or "suspicious intent" scoring - by design.
+
+Q: How does it scale to a city?
+A: Edge devices do the light live detection; the archive pipeline scales per GPU node; the
+   indexes are per-camera and can be sharded. The pilot validates throughput on real feeds first.
+
+Q: Plate accuracy?
+A: Each plate is marked read, blurry or not detected - we never guess. Estimate search finds a
+   plate even with misread characters.

@@ -1,0 +1,110 @@
+TRACENET - 2-MINUTE DEMO VIDEO SCRIPT
+=====================================
+
+Spoken narration: about 290 words. That is about 2:00 at a calm pace (145 words per minute).
+If you run long, cut the lines marked [OPTIONAL].
+
+
+BEFORE YOU RECORD (10 minutes)
+------------------------------
+1. Clear the 47 false accident alerts so the sidebar badge doesn't read "49":
+   Unified Alert Center -> Filter: Traffic Collisions -> Select Unacknowledged -> Ack.
+2. Warm up every scene once. The first search loads the AI model (10-20 s); the second is instant.
+   Run these once:
+   - "woman in red saree" on the Search page
+   - the Hindi query
+   - plate GJ19Y5038
+   - one Copilot question
+   - open Multi-Cam -> Fusion Replay and press Play
+3. Stay online: the Copilot uses the cloud model.
+4. Browser setup:
+   - full screen (F11)
+   - 1920x1080
+   - zoom 90-100 %
+   - light theme
+   - DevTools and other tabs closed
+5. Record each scene separately with OBS or Xbox Game Bar (Win+Alt+R), then cut them together.
+   Speed up any waiting to 2x in the editor.
+6. Do NOT show the following in the video:
+   - Journey Map on the Surat cameras (the five videos don't share people, so it shows one camera)
+   - accident / abandoned-object alerts
+   - the Assault page
+   - switching plate OCR to PaddleOCR
+
+
+SCENE-BY-SCENE
+--------------
+
+[0:00-0:12] OPENING - CCTV Stream Wall
+On screen: Sidebar -> CCTV Stream Wall. The five Surat feeds play with live boxes.
+Say:
+  "This is TraceNet, forensic search for smart-city CCTV. These are five real camera feeds from
+   Surat: the bus depot, the railway station and three markets. Every person and vehicle is
+   detected and tracked on a laptop GPU, and over eleven thousand sightings are indexed for search."
+
+[0:12-0:35] NATURAL-LANGUAGE SEARCH + EXPLAINABILITY
+On screen:
+  1. Search & Investigate. Type: woman in red saree. Press Search.
+  2. Expand "Why this matched" on the first result.
+  3. Click Seek & Stream. The video jumps to that moment.
+Say:
+  "Instead of scrolling through hours of footage, an officer simply describes the person.
+   'Woman in red saree' returns ranked candidates from every camera in under a second.
+   Each result explains why it matched - visual similarity, the generated caption and which
+   attributes were verified - so the officer decides, not the AI. One click opens the exact moment
+   in the video."
+
+[0:35-0:47] MULTILINGUAL SEARCH
+On screen: Clear the box, type: लाल शर्ट वाला आदमी (or Hinglish: laal shirt wala aadmi).
+The translation banner appears, then the results.
+Say:
+  "Officers can also search in Hindi, Gujarati or Hinglish. The query is translated, shown
+   transparently, and logged for audit."
+
+[0:47-1:00] VEHICLE NUMBER-PLATE SEARCH
+On screen:
+  1. Vehicle Plate Search. Exact mode. Type: GJ19Y5038. The vehicle and its plate cutout appear.
+  2. Switch to Estimate and type GJ19Y5030 (one wrong digit). It still finds the vehicle.
+Say:
+  "Number plates are read automatically during ingestion. Search by exact plate, or by a
+   half-remembered one - estimate mode tolerates misread characters."
+
+[1:00-1:20] AI COPILOT WITH HUMAN CONFIRMATION
+On screen:
+  1. Press Ctrl+K. Type: bhai red shirt wala aadmi dhundo. The answer lists matching sightings.
+  2. Type: Assign the abandoned object model to CAM_GT_01.
+     The Confirm / Cancel card appears. Click CANCEL (not Confirm).
+Say:
+  "The AI Copilot answers in plain language - even Hinglish - using the same search tools.
+   But it can never act on its own: any change, like reassigning a camera's model, waits for the
+   officer's confirmation."
+
+[1:20-1:42] MULTI-CAMERA TRACKING - FUSION REPLAY
+On screen:
+  1. Multi-Cam Intelligence -> Fusion Replay -> Play all.
+  2. Click one car's box. The same ID lights up in all three views and on the ground map;
+     everything else dims.
+Say:
+  "For multi-camera tracking we use the public LUMPI dataset: three synchronized cameras at one
+   intersection. Our detector tracks every object in each view and projects it onto a shared
+   ground map, so one vehicle keeps a single identity across all cameras. Click any object to
+   follow it."
+
+[1:42-1:54] EVIDENCE EXPORT [OPTIONAL - rehearse first, the export dialog is new]
+On screen: Back on Search, tick two results -> Export -> Evidence Vault shows the bundle as VERIFIED.
+Say:
+  "Selected results become a sealed evidence bundle - clips, frames, a SHA-256 manifest and a
+   chain-of-custody log. Any tampering is detected on verification."
+
+[1:54-2:00] CLOSE
+On screen: Back to the CCTV Stream Wall (or the Situation Overview).
+Say:
+  "TraceNet: describe it, find it, prove it - with a human in the loop and every search audited."
+
+
+BACKUP LINES (if a scene is cut)
+--------------------------------
+- Login / roles: "Operators and admins have separate permissions; every action is stamped with
+  the officer's name."
+- Face search: "Officers can also upload a photo to find the same face across all cameras."
+  (Facial Intelligence -> Image tab -> upload a face crop)

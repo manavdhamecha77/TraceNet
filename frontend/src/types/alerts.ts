@@ -5,6 +5,7 @@ export interface AlertEntry {
   video_id?: string
   tracklet_id: string
   object_tracklet_id?: string
+  thumbnail_url?: string | null  // best crop of the object (backend Alert.to_dict)
   owner_tracklet_ids: string[]
   visitor_tracklet_ids: string[]
   reid_match_tracklet_id?: string

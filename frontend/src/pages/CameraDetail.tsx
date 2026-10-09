@@ -17,6 +17,7 @@ interface Camera {
   status: string
   altitude?: number
   model_id?: string | null
+  ingest_model_id?: string | null
   video_count: number
 }
 
@@ -146,7 +147,7 @@ export default function CameraDetail({
   useEffect(() => {
     if (selectedCamera) {
       const assigned = models?.find(m => m.id === selectedCamera.model_id)
-      setTempModel(assigned || { id: '', name: 'YOLOv8 Default' })
+      setTempModel(assigned || { id: '', name: 'System default' })
     }
   }, [selectedCamera, models])
 
@@ -409,8 +410,11 @@ export default function CameraDetail({
   }
 
   const assignedModel = models?.find(m => m.id === selectedCamera?.model_id)
-  const assignedModelName = assignedModel ? assignedModel.name : (selectedCamera?.model_id || 'YOLOv8 Default')
+  const assignedModelName = assignedModel ? assignedModel.name : (selectedCamera?.model_id || 'System default')
   const tempModelName = tempModel ? tempModel.name : assignedModelName
+  // An assigned theft / abandoned model takes priority at ingest (its alert engine reads these detections)
+  const ingestModel = models?.find(m => m.id === selectedCamera?.ingest_model_id)
+  const ingestOverrides = !!ingestModel && ingestModel.id !== selectedCamera?.model_id
 
   const handleSyncModel = async () => {
     if (!camera_id) return
@@ -439,7 +443,8 @@ export default function CameraDetail({
       // 2. Trigger detection sync
       const res = await fetch(`${API_BASE}/api/v1/cameras/${camera_id}/sync-detection`, { method: 'POST' })
       if (res.ok) {
-        toast.success('Sync Initiated', `Detection sync started with model '${modelNameToSync}'.`)
+        const overriding = ingestOverrides && ingestModel ? ` (${ingestModel.name} takes priority on this camera)` : ''
+        toast.success('Sync Initiated', `Detection sync started with model '${modelNameToSync}'${overriding}.`)
         setSyncSuccessMsg(`Detection sync initiated with model '${modelNameToSync}'. Videos are re-indexing in background.`)
         setTimeout(() => setSyncSuccessMsg(''), 6000)
       } else {
@@ -471,6 +476,11 @@ export default function CameraDetail({
               <span>Corridor: <strong className="text-slate-700 dark:text-slate-300">{selectedCamera.corridor_group ?? 'General'}</strong></span>
               <span>Topology Neighbors: <strong className="text-slate-700 dark:text-slate-300">{selectedCamera.adjacency.length > 0 ? selectedCamera.adjacency.join(', ') : 'None'}</strong></span>
               <span>Model: <strong className="text-teal-700 dark:text-teal-400 font-semibold">{assignedModelName}</strong></span>
+              {ingestOverrides && (
+                <span className="text-amber-700 dark:text-amber-400" title="An alert model assigned to this camera produces its detections, because its alert engine needs that model's classes. Set that alert slot to OFF (Cameras -> Edit) to detect with the main model.">
+                  Detections from: <strong className="font-semibold">{ingestModel!.name}</strong> ({selectedCamera?.model_id ? 'alert model takes priority' : 'system default'})
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -502,9 +512,11 @@ export default function CameraDetail({
 
               {/* Models Dropdown */}
               {showDropdown && (() => {
-                const defaultModelObj = { id: '', name: 'YOLOv8 Default' }
+                const defaultModelObj = { id: '', name: 'System default' }
                 const allModelsList = [defaultModelObj, ...(models || [])]
-                const filteredModelsList = allModelsList.filter(m => 
+                // Sync re-runs frame detection: clip classifiers (VideoMAE) are not detectors
+                const filteredModelsList = allModelsList.filter(m =>
+                  (m.model_type || '').toLowerCase() !== 'videomae' &&
                   m.name.toLowerCase().includes(searchQuery.toLowerCase())
                 )
 

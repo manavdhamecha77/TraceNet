@@ -100,6 +100,21 @@ pip install --force-reinstall --no-deps torch==2.13.0 torchvision==0.28.0 --inde
 
 (About 2.5 GB. On the RTX 4060 a 12-second clip went from ~100 s on CPU to ~37 s.)
 
+### Assault detection model (once per machine)
+
+The Assault page and the Copilot's `detect_assault` use VideoMAE (`OPear/videomae-large-finetuned-UCF-Crime`,
+~1.2 GB). Weights are not in git or the snapshot; fetch them into `backend/data/models/assault_videomae`:
+
+```powershell
+cd backend
+python -m app.detection.assault_detector
+```
+
+Then on the Assault page choose a camera and a video and press **Run assault scan** (about 40 s per 5 minutes of
+video on the RTX 4060). Windows of 2 s are classified into the 14 UCF-Crime classes; Assault, Fighting, Abuse,
+Robbery or Shooting at 60 % or more raises one alert per video for officer review. It is decision support: on
+public test clips it caught a staged fight at 97 % but missed a street fight at 50 %.
+
 ## 6. Antivirus HTTPS scanning (Avast and similar)
 
 The backend's S3 access works with HTTPS scanning on. Other tools may not: Git Bash `git fetch` needs

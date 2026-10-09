@@ -48,7 +48,7 @@ class VideoPreprocessor:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         ffmpeg_bin = VideoPreprocessor.get_ffmpeg_binary()
-        cmd = [
+        base = [
             ffmpeg_bin, "-y",
             "-i", input_path,
             "-vf", f"scale={resolution},fps={fps}",
@@ -56,18 +56,27 @@ class VideoPreprocessor:
             "-preset", "fast",
             "-crf", "23",
             "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            output_path
         ]
-        
-        try:
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-            logger.info("FFmpeg transcode completed successfully.")
-            return True
-        except subprocess.CalledProcessError as e:
-            logger.error(f"FFmpeg transcode failed. Return code: {e.returncode}")
-            logger.error(f"Stderr: {e.stderr}")
-            raise RuntimeError(f"FFmpeg transcode failed: {e.stderr}")
+        # Audio is kept (stereo AAC) when it can be encoded; some sources (odd channel layouts / sample
+        # rates) make the AAC encoder fail, and analysis never uses audio, so retry without it rather
+        # than failing the upload. The untouched original stays in the archive either way.
+        attempts = [base + ["-c:a", "aac", "-ac", "2", output_path], base + ["-an", output_path]]
+        for i, cmd in enumerate(attempts):
+            try:
+                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+                logger.info("FFmpeg transcode completed successfully" + (" (audio dropped)." if i else "."))
+                return True
+            except subprocess.CalledProcessError as e:
+                if i + 1 < len(attempts):
+                    logger.warning(f"FFmpeg transcode with audio failed (code {e.returncode}); retrying without audio.")
+                    continue
+                logger.error(f"FFmpeg transcode failed. Return code: {e.returncode}")
+                logger.error(f"Stderr: {e.stderr}")
+                # The video row still says pending_transcode.mp4, so a later delete would never find this
+                # half-written file: remove it now
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                raise RuntimeError(f"FFmpeg transcode failed: {e.stderr}")
 
     @staticmethod
     def sample_and_analyze(video_path: str, inference_dir: str, sampling_fps: float = 4.0) -> dict:

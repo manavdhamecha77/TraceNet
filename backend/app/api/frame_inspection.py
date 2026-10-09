@@ -69,16 +69,31 @@ def get_frame_inspection(alert_id: int, db: Session = Depends(get_db)) -> FrameI
             )
 
         # Get video details
-        video = db.query(VideoAsset).filter(VideoAsset.id == alert.video_id).first()
+        video_id = alert.video_id or alert.tracklet_id  # older assault alerts stored the video in tracklet_id
+        video = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
         if not video:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Video {alert.video_id} not found"
+                detail=f"Video {video_id} not found"
             )
 
-        # Run frame-level analysis
-        detector = get_assault_detector()
-        frame_results = detector.predict_with_frames(video.standardized_filename)
+        # Window timeline saved with the alert by the scan; rescan only for older alerts without one
+        import json as _json
+        try:
+            details = _json.loads(alert.analysis_log) if alert.analysis_log else {}
+        except Exception:
+            details = {}
+        if not details.get("windows"):
+            from app.api.assault_detection import run_assault_scan
+
+            scan = run_assault_scan(db, video)
+            details = {"windows": scan.get("windows", []), "assault_type": scan.get("assault_type"),
+                       "confidence": scan.get("confidence", 0.0)}
+        frame_results = {
+            "frame_results": details.get("windows", []),
+            "has_assault": (details.get("confidence") or 0.0) >= get_assault_detector().confidence_threshold,
+            "assault_type": details.get("assault_type", "unknown"),
+        }
 
         # Extract key frames with detections
         detected_frames = []
@@ -100,7 +115,7 @@ def get_frame_inspection(alert_id: int, db: Session = Depends(get_db)) -> FrameI
                     peak_confidence = max(peak_confidence, confidence)
 
         response = FrameInspectionResponse(
-            video_id=alert.video_id,
+            video_id=video.id,
             camera_id=alert.camera_id,
             alert_id=alert_id,
             has_assault=frame_results.get("has_assault", False),
@@ -113,7 +128,7 @@ def get_frame_inspection(alert_id: int, db: Session = Depends(get_db)) -> FrameI
         )
 
         # Cache for 1 hour
-        cache.set(cache_key, response.model_dump(), ttl=3600)
+        cache.set(cache_key, response.model_dump(), ttl_seconds=3600)
 
         return response
 

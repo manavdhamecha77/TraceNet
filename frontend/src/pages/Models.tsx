@@ -379,6 +379,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
               <option value="YOLOv12">YOLOv12</option>
               <option value="RT-DETR">RT-DETR</option>
               <option value="GroundingDino">GroundingDino</option>
+              <option value="VideoMAE">VideoMAE (clip classifier)</option>
             </select>
           </div>
 

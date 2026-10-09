@@ -1575,7 +1575,7 @@ function App() {
                   required
                 >
                   <option value="">-- Select Model --</option>
-                  {models.map((m) => (
+                  {models.filter(m => (m.model_type || '').toLowerCase() !== 'videomae').map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.name} ({m.model_type})
                     </option>

@@ -664,6 +664,14 @@ def load_startup_singletons() -> None:
             print(f"Startup: stored {fixed} model path(s) relative to backend/data (portable across machines).")
     except Exception as exc:
         print(f"Startup Warning: model path normalisation skipped: {exc}")
+    try:
+        from app.detection.assault_detector import register_in_registry
+
+        with SessionLocal() as db:
+            if register_in_registry(db):
+                print("Startup: registered the VideoMAE assault classifier in the model registry.")
+    except Exception as exc:
+        print(f"Startup Warning: assault model registration skipped: {exc}")
     start_mediamtx_server()
 
 # Enable CORS for frontend integration (allow all origins for LAN / multi-device access)

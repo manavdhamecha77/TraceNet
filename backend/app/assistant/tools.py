@@ -507,11 +507,16 @@ class ToolExecutor:
                 if not model_rec:
                     return {"status": "error", "message": f"ML Model '{model_id}' not found in registry."}
 
-                camera.model_id = model_id
+                from app.detection.detector import is_detector_model
+
+                # A clip classifier (VideoMAE assault model) goes in the assault slot, never the detector slot
+                slot = "model_id" if is_detector_model(model_rec) else "assault_model_id"
+                setattr(camera, slot, model_id)
                 self.db.commit()
+                where = "detector" if slot == "model_id" else "assault classifier"
                 return {
                     "status": "success",
-                    "message": f"Successfully assigned model '{model_rec.name}' ({model_id}) to camera '{camera_id}'."
+                    "message": f"Successfully assigned model '{model_rec.name}' ({model_id}) as the {where} of camera '{camera_id}'."
                 }
 
             elif name == "trigger_video_reindex":
@@ -621,16 +626,10 @@ class ToolExecutor:
                 if not video:
                     return {"status": "error", "message": f"Video '{video_id}' not found."}
 
-                from app.config import get_data_path
-                video_path = get_data_path(os.path.join("processed", video.standardized_filename or f"{video_id}.mp4"))
-                if not os.path.exists(video_path):
-                    raw_path = get_data_path(os.path.join("minio_mock", video.original_filename))
-                    if os.path.exists(raw_path):
-                        video_path = raw_path
+                from app.api.assault_detection import run_assault_scan
 
-                from app.detection.assault_detector import get_assault_detector
-                detector = get_assault_detector()
-                result = detector.predict(video_path)
+                result = run_assault_scan(self.db, video)
+                result.pop("windows", None)  # keep the LLM context small
                 return {"status": "success", "video_id": video_id, "prediction": result}
 
             else:

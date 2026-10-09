@@ -11,6 +11,7 @@ import { formatDisplayDate } from '../utils/dateFormatter'
 import type { AlertEntry, Camera } from '../types/alerts'
 import { TRACKLET_THUMB } from '../types/alerts'
 import { API_BASE } from '../config/api'
+import { alertTypeMeta, assaultVerdict } from '../utils/alertTypes'
 import { DEMO_OPERATOR } from '../config/operator'
 
 interface AlertsDashboardProps {
@@ -280,6 +281,8 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
             <option value="chain_snatching">Outdoor Theft & Snatching</option>
             <option value="accident">Traffic Collisions</option>
             <option value="loitering">Loitering</option>
+            <option value="assault">Physical Assault</option>
+            <option value="anpr_watchlist">Watchlisted Plates</option>
           </select>
 
           {/* Acknowledged Status */}
@@ -344,16 +347,17 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
       ) : (
         <div className="space-y-4">
           {alerts.map(alert => {
+            const meta = alertTypeMeta(alert.alert_type)
             const isTheft = alert.alert_type === 'chain_snatching'
-            const isUnattended = alert.alert_type === 'unattended_object'
-            const isAccident = alert.alert_type === 'accident'
-            const isLoitering = alert.alert_type === 'loitering'
-            // Abandoned / unattended / theft alerts carry real tracklets; accident ids are incident ids
-            const hasTracks = !isAccident && !isLoitering
+            const isUnattended = meta.tone === 'teal'
+            const isLoitering = meta.tone === 'violet'
+            // rose = theft / collision / assault / watchlist; only types with real tracklets get track buttons
+            const isAccident = meta.tone === 'rose' && !isTheft
+            const hasTracks = meta.hasTracklets && !isLoitering
             const objId = hasTracks ? alert.object_tracklet_id : undefined
             const ownerId = hasTracks ? alert.owner_tracklet_ids?.[0] || alert.tracklet_id : undefined
-            const typeLabel = isTheft ? 'Outdoor Theft & Snatching' : isUnattended ? 'Unattended Luggage'
-              : isAccident ? 'Traffic Collision' : isLoitering ? 'Loitering' : 'Abandoned Object'
+            const verdict = alert.alert_type === 'assault' ? assaultVerdict(alert.analysis_log) : null
+            const typeLabel = verdict ? `${meta.label} - ${verdict}` : meta.label
             const isSelected = selectedAlertIds.includes(alert.id)
 
             return (
@@ -451,7 +455,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
                     )}
 
                     <Link
-                      to={isTheft ? '/alerts/theft' : '/alerts/abandoned'}
+                      to={meta.reviewPath(alert.id)}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold transition-colors"
                     >
                       <span>Dedicated Page</span>

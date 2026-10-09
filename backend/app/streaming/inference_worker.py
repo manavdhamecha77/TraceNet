@@ -49,7 +49,8 @@ class InferenceWorker(threading.Thread):
                     logger.warning("InferenceWorker: data/models/vehicle_detector.pt missing; falling back to the camera's model")
             if not model_path and cam and cam.model_id:
                 model_db = db.query(MLModel).filter(MLModel.id == cam.model_id).first()
-                if model_db:
+                from app.detection.detector import is_detector_model
+                if model_db and is_detector_model(model_db):
                     from app.storage.media import resolve_model_file
                     model_path = resolve_model_file(model_db.file_path)
             if not model_path:

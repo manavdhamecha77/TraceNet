@@ -184,6 +184,41 @@ def load_detection_model(model_path: str) -> YOLO:
     return YOLO(str(path))
 
 
+DETECTOR_EXTENSIONS = (".pt", ".onnx", ".engine", ".torchscript")
+
+
+def is_detector_model(record) -> bool:
+    """True for registry rows that Ultralytics can load as a frame detector. Clip classifiers (the VideoMAE
+    assault model, a folder of weights) are registered too but must never be loaded as YOLO."""
+    if record is None:
+        return False
+    if (record.model_type or "").strip().lower() == "videomae":
+        return False
+    return str(record.file_path or "").lower().endswith(DETECTOR_EXTENSIONS)
+
+
+def ingest_detector_id(db, camera) -> Optional[str]:
+    """Registry id of the model that produces this camera's detections (same order as
+    resolve_camera_detection_model, without touching weight files); None = system default."""
+    from app.db.models import MLModel
+
+    if camera is None:
+        return None
+    for model_id in (camera.theft_model_id, camera.abandoned_model_id, camera.assault_model_id, camera.model_id):
+        if not model_id or model_id == "OFF":
+            continue
+        record = db.query(MLModel).filter(MLModel.id == model_id).first()
+        if record is not None and is_detector_model(record):
+            return record.id
+    # No slot assigned: the configured system default (DETECTION_MODEL_PATH), when it is a registry model
+    default_name = os.path.basename(str(get_settings().detection_model_path or ""))
+    if default_name:
+        for record in db.query(MLModel).all():
+            if is_detector_model(record) and os.path.basename(str(record.file_path)) == default_name:
+                return record.id
+    return None
+
+
 def resolve_camera_detection_model(db, camera) -> tuple[Optional[str], Optional[str]]:
     """(weights path, model id) for a camera's ingest detector.
 
@@ -199,6 +234,8 @@ def resolve_camera_detection_model(db, camera) -> tuple[Optional[str], Optional[
             if not model_id or model_id == "OFF":
                 continue
             record = db.query(MLModel).filter(MLModel.id == model_id).first()
+            if (record is None and model_id == camera.assault_model_id) or (record is not None and not is_detector_model(record)):
+                continue  # not a frame detector (e.g. the VideoMAE assault classifier): try the next slot
             path = resolve_model_file(record.file_path) if record else None
             if path:
                 return path, record.id
@@ -208,11 +245,10 @@ def resolve_camera_detection_model(db, camera) -> tuple[Optional[str], Optional[
     path = resolve_model_file(get_settings().detection_model_path)
     if path:
         return path, None
-    registry = (
-        db.query(MLModel).filter(MLModel.is_default == True).all()  # noqa: E712
-        + db.query(MLModel).filter(MLModel.category == "general").order_by(MLModel.created_at).all()
-    )
-    for record in registry:
+    # Only general-purpose detectors: a theft / abandoned / ANPR default is not a camera's main detector
+    general = db.query(MLModel).filter(MLModel.category == "general").order_by(MLModel.is_default.desc(),
+                                                                                MLModel.created_at).all()
+    for record in (r for r in general if is_detector_model(r)):
         path = resolve_model_file(record.file_path)
         if path:
             return path, record.id

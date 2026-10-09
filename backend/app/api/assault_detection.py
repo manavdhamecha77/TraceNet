@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+import json
 import os
 import tempfile
+import threading
+import time
 from loguru import logger
 
 from app.db.session import get_db
@@ -33,6 +36,11 @@ class AssaultDetectionResponse(BaseModel):
     confidence: float
     timestamp: str
     alert_created: bool
+    alert_id: Optional[int] = None
+    peak_timestamp_seconds: Optional[float] = None
+    windows_analyzed: int = 0
+    windows_flagged: int = 0
+    windows: list = []
 
 
 class AssaultAnalysisResponse(BaseModel):
@@ -43,85 +51,111 @@ class AssaultAnalysisResponse(BaseModel):
     average_confidence: float
 
 
+_scan_lock = threading.Lock()  # one VideoMAE scan at a time (shared GPU model)
+
+
+def _alert_details(alert: Alert) -> dict:
+    try:
+        return json.loads(alert.analysis_log) if alert.analysis_log else {}
+    except Exception:
+        return {}
+
+
+def run_assault_scan(db: Session, video: VideoAsset) -> dict:
+    """Scan one video with VideoMAE and record (or refresh) its assault alert. Shared by the API,
+    the Copilot tool and frame inspection."""
+    from app.detection.detector import resolve_standardized_video_path
+
+    from app.db.models import CameraProfile, MLModel, ModelExecutionLog
+    from app.detection.assault_detector import REGISTRY_ID
+
+    camera = db.query(CameraProfile).filter(CameraProfile.camera_id == video.camera_id).first()
+    if camera is not None and camera.assault_model_id == "OFF":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Assault detection is turned off for camera {camera.name or camera.camera_id} "
+                                   "(Cameras -> Edit -> Assault Detection ML Model).")
+    video_path = resolve_standardized_video_path(video)
+    if not video_path or not os.path.exists(video_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Video file for {video.id} not found")
+    detector = get_assault_detector()
+    started = time.time()
+    with _scan_lock:
+        result = detector.predict_with_frames(video_path)
+    if not result.get("error") and db.query(MLModel).filter(MLModel.id == REGISTRY_ID).first():
+        try:  # Models page: execution log + last used, like the detectors
+            db.add(ModelExecutionLog(model_id=REGISTRY_ID, video_id=video.id, camera_id=video.camera_id,
+                                     frames_processed=int(result.get("frames_analyzed", 0)) * detector.num_frames,
+                                     inference_duration_seconds=round(time.time() - started, 2),
+                                     objects_detected_count=int(result.get("windows_flagged", 0))))
+            db.query(MLModel).filter(MLModel.id == REGISTRY_ID).update({"last_used_timestamp": datetime.utcnow()})
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            logger.warning(f"Assault scan: could not write the model execution log: {exc}")
+    if result.get("error"):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Assault detection failed: {result['error']}")
+    windows = result.pop("frame_results", [])
+    details = {
+        "assault_type": result["assault_type"],
+        "confidence": round(result["confidence"], 4),
+        "peak_timestamp_seconds": result.get("peak_timestamp_seconds"),
+        "peak_window": result.get("peak_window"),
+        "windows_analyzed": result.get("frames_analyzed", 0),
+        "windows_flagged": result.get("windows_flagged", 0),
+        "threshold": detector.confidence_threshold,
+        "model": detector.model_name,
+        # window timeline kept for frame inspection (no second scan needed)
+        "windows": [{k: w[k] for k in ("frame_number", "timestamp_seconds", "start_seconds", "end_seconds",
+                                       "class", "confidence", "top_label")} for w in windows],
+    }
+    alert_id = None
+    if result["has_assault"]:
+        alert = db.query(Alert).filter(Alert.alert_type == "assault", Alert.video_id == video.id).first()
+        if alert is None:
+            # tracklet_id is NOT NULL; a clip-level verdict has no tracklet, so it carries the video id
+            alert = Alert(alert_type="assault", camera_id=video.camera_id, video_id=video.id,
+                          tracklet_id=video.id, timestamp=datetime.utcnow())
+            db.add(alert)
+        alert.analysis_log = json.dumps(details)
+        db.commit()
+        alert_id = alert.id
+        logger.info(f"Assault alert {alert_id} for video {video.id}: {details['assault_type']} "
+                    f"{details['confidence']:.2f} at {details['peak_timestamp_seconds']}s")
+    result.update({"alert_id": alert_id, "windows": details["windows"]})
+    return result
+
+
 @router.post("/assault-detection/analyze-video")
 def analyze_video_for_assault(
     request: AssaultDetectionRequest,
     db: Session = Depends(get_db)
 ) -> AssaultDetectionResponse:
-    """Analyze a video for assault/fight incidents."""
-    cache = get_cache()
-
-    # Check cache first
-    cache_key = f"assault:{request.video_id}"
-    cached_result = cache.get(cache_key)
-    if cached_result:
-        logger.info(f"Returning cached assault detection for {request.video_id}")
-        return cached_result
-
-    # Get video path
+    """Scan a video with VideoMAE in 2-second windows; an alert is raised when a violent class
+    (Assault, Fighting, Abuse, Robbery, Shooting) reaches the confidence threshold."""
     video = db.query(VideoAsset).filter(VideoAsset.id == request.video_id).first()
     if not video:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Video {request.video_id} not found"
         )
-
-    video_path = video.file_path or os.path.join(
-        get_data_path(f"cameras/{request.camera_id}"),
-        video.standardized_filename
+    result = run_assault_scan(db, video)
+    if result["alert_id"] is not None:
+        get_cache().delete(f"frame_inspection:{result['alert_id']}")  # a re-scan refreshes the timeline
+    return AssaultDetectionResponse(
+        video_id=video.id,
+        camera_id=video.camera_id,
+        has_assault=result["has_assault"],
+        assault_type=result["assault_type"],
+        confidence=result["confidence"],
+        timestamp=datetime.utcnow().isoformat(),
+        alert_created=result["alert_id"] is not None,
+        alert_id=result["alert_id"],
+        peak_timestamp_seconds=result.get("peak_timestamp_seconds"),
+        windows_analyzed=result.get("frames_analyzed", 0),
+        windows_flagged=result.get("windows_flagged", 0),
+        windows=result.get("windows", []),
     )
-
-    if not os.path.exists(video_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Video file not found at {video_path}"
-        )
-
-    try:
-        # Run assault detection
-        detector = get_assault_detector()
-        detection_result = detector.predict(video_path)
-
-        alert_created = False
-
-        # Create alert if assault detected
-        if detection_result.get("has_assault", False):
-            try:
-                alert = Alert(
-                    alert_type="assault",
-                    camera_id=request.camera_id,
-                    tracklet_id=request.video_id,
-                    timestamp=datetime.utcnow()
-                )
-                db.add(alert)
-                db.commit()
-                alert_created = True
-                logger.info(f"Assault alert created for video {request.video_id}")
-            except Exception as e:
-                logger.error(f"Failed to create assault alert: {e}")
-                db.rollback()
-
-        response = AssaultDetectionResponse(
-            video_id=request.video_id,
-            camera_id=request.camera_id,
-            has_assault=detection_result.get("has_assault", False),
-            assault_type=detection_result.get("assault_type", "unknown"),
-            confidence=detection_result.get("confidence", 0.0),
-            timestamp=datetime.utcnow().isoformat(),
-            alert_created=alert_created
-        )
-
-        # Cache for 1 hour
-        cache.set(cache_key, response, 3600)
-
-        return response
-
-    except Exception as e:
-        logger.error(f"Assault detection error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Assault detection failed: {str(e)}"
-        )
 
 
 @router.post("/assault-detection/batch-analyze")
@@ -178,23 +212,18 @@ def get_assault_detection_statistics(
 
     # Analyze results
     total_analyzed = len(alerts)
-    high_confidence_count = sum(
-        1 for alert in alerts
-        if hasattr(alert, 'confidence') and alert.confidence >= 0.7
-    )
+    details = [_alert_details(alert) for alert in alerts]
+    high_confidence_count = sum(1 for d in details if (d.get("confidence") or 0.0) >= 0.7)
 
     # Count by type
     assault_types = {}
-    for alert in alerts:
-        atype = getattr(alert, 'assault_type', 'unknown')
+    for d in details:
+        atype = d.get("assault_type", "unknown")
         assault_types[atype] = assault_types.get(atype, 0) + 1
 
     avg_confidence = (
-        sum(
-            getattr(alert, 'confidence', 0.0)
-            for alert in alerts
-        ) / len(alerts)
-        if alerts else 0.0
+        sum((d.get("confidence") or 0.0) for d in details) / len(details)
+        if details else 0.0
     )
 
     response = AssaultAnalysisResponse(
@@ -209,8 +238,8 @@ def get_assault_detection_statistics(
         average_confidence=float(avg_confidence)
     )
 
-    # Cache for 1 hour
-    cache.set(cache_key, response, 3600)
+    # Short cache: new scans must show up quickly
+    cache.set(cache_key, response, 30)
 
     return response
 
@@ -244,9 +273,12 @@ def get_assault_alerts(
             {
                 "id": alert.id,
                 "camera_id": alert.camera_id,
-                "video_id": alert.tracklet_id,
+                "video_id": alert.video_id or alert.tracklet_id,
                 "timestamp": alert.timestamp.isoformat() if alert.timestamp else None,
-                "acknowledged": alert.acknowledged
+                "acknowledged": alert.acknowledged,
+                "assault_type": _alert_details(alert).get("assault_type"),
+                "confidence": _alert_details(alert).get("confidence"),
+                "peak_timestamp_seconds": _alert_details(alert).get("peak_timestamp_seconds"),
             }
             for alert in alerts
         ]
@@ -263,9 +295,12 @@ def get_model_status():
 
         return {
             "model_loaded": is_loaded,
+            "weights_available": detector.weights_available(),
             "model_name": detector.model_name,
             "device": detector.device if is_loaded else "not_loaded",
-            "confidence_threshold": detector.confidence_threshold
+            "confidence_threshold": detector.confidence_threshold,
+            "violent_classes": detector.assault_classes,
+            "labels": detector.labels,
         }
     except Exception as e:
         return {

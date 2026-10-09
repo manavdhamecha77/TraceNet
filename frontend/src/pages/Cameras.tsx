@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/Toast'
 
 import { API_BASE } from '../config/api'
+import { isDetectorModel } from '../utils/modelKinds'
 
 interface Camera {
   camera_id: string
@@ -1024,7 +1025,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                       required
                     >
                       <option value="">-- Select Primary Model --</option>
-                      {models.map(m => (
+                      {models.filter(isDetectorModel).map(m => (
                         <option key={m.id} value={m.id}>
                           {m.name} ({m.model_type})
                         </option>
@@ -1040,7 +1041,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                     >
                       <option value="">-- System Default Theft Model --</option>
                       <option value="OFF">OFF / Disabled for this camera</option>
-                      {models.filter(m => !m.category || m.category === 'theft' || m.category === 'general').map(m => (
+                      {models.filter(m => isDetectorModel(m) && (!m.category || m.category === 'theft' || m.category === 'general')).map(m => (
                         <option key={m.id} value={m.id}>
                           {m.name} ({m.category || 'general'})
                         </option>
@@ -1056,7 +1057,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                     >
                       <option value="">-- System Default Abandoned Model --</option>
                       <option value="OFF">OFF / Disabled for this camera</option>
-                      {models.filter(m => !m.category || m.category === 'abandoned' || m.category === 'general').map(m => (
+                      {models.filter(m => isDetectorModel(m) && (!m.category || m.category === 'abandoned' || m.category === 'general')).map(m => (
                         <option key={m.id} value={m.id}>
                           {m.name} ({m.category || 'general'})
                         </option>
