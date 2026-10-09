@@ -9,6 +9,7 @@ from typing import List, Dict, Optional, Tuple
 from PIL import Image
 import cv2
 from loguru import logger
+from app.runtime.device import get_device, use_half_precision
 
 AutoImageProcessor = None
 TimesformerForVideoClassification = None
@@ -26,7 +27,7 @@ class AssaultDetector:
 
     def __init__(self, model_name: str = "OPear/videomae-large-finetuned-UCF-Crime"):
         self.model_name = model_name
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = get_device()
         self.model = None
         self.processor = None
         self.labels = [

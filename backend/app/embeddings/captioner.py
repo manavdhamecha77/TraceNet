@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Optional
 from PIL import Image
 from loguru import logger
+from app.runtime.device import get_device, use_half_precision
 
 _blip_captioner_instance: Optional[BLIPCaptioner] = None
 
@@ -32,7 +33,7 @@ class BLIPCaptioner:
             from transformers import BlipProcessor, BlipForConditionalGeneration
 
             if self.device is None:
-                self.device = "cuda" if torch.cuda.is_available() else "cpu"
+                self.device = get_device()
 
             logger.info(f"Loading BLIP Captioner model '{self.model_name}' on device={self.device}...")
             self.processor = BlipProcessor.from_pretrained(self.model_name)

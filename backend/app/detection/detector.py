@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.db.models import VideoAsset
 from app.detection.tracker import ByteTrackWrapper
 from app.preprocess.preprocessor import sanitize_filename
+from app.runtime.device import get_device, use_half_precision
 
 
 @dataclass
@@ -257,6 +258,8 @@ class DetectionService:
             "conf": self.confidence_threshold,
             "iou": self.iou_threshold,
             "verbose": False,
+            "device": get_device(),
+            "half": use_half_precision(),
         }
         if self._scope_class_ids:
             predict_kwargs["classes"] = self._scope_class_ids

@@ -1,5 +1,6 @@
 from loguru import logger
 from app.embeddings.clip_encoder import get_clip_encoder
+from app.runtime.device import get_device, use_half_precision
 
 ACTIVE_EMBEDDING_BACKEND = "clip"  # "clip" | "facenet"
 
@@ -13,7 +14,7 @@ class FaceEmbeddingService:
                 from facenet_pytorch import InceptionResnetV1
                 import torch
                 
-                device = "cuda" if torch.cuda.is_available() else "cpu"
+                device = get_device()
                 self._facenet_model = InceptionResnetV1(pretrained='vggface2').eval().to(device)
             except ImportError as e:
                 logger.error("facenet_pytorch not installed. Run: pip install facenet-pytorch")
@@ -27,7 +28,7 @@ class FaceEmbeddingService:
             import torch
             from torchvision import transforms
             
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            device = get_device()
             model = self._get_facenet()
             transform = transforms.Compose([
                 transforms.Resize((160, 160)),

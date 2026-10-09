@@ -14,3 +14,11 @@ def health_check() -> dict[str, str]:
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
+
+
+@router.get("/api/v1/system/device", summary="Compute device used for models")
+def compute_device() -> dict:
+    """GPU / CPU the models run on, with a hint when a GPU is present but PyTorch cannot use it."""
+    from app.runtime.device import device_summary
+
+    return device_summary()

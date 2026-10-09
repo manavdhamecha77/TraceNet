@@ -21,6 +21,7 @@ from ultralytics import YOLO
 
 from app.config import get_data_path
 from app.detection.plate_ocr import clean_plate_text, get_ocr_engine
+from app.runtime.device import get_device, use_half_precision
 
 WEIGHTS_DIR = Path(__file__).resolve().parent / "weights"
 DATA_MODELS_DIR = Path(get_data_path("models"))
@@ -55,7 +56,7 @@ class PlateDetector:
         self.confidence_threshold = confidence_threshold
         self.vehicle_confidence_threshold = vehicle_confidence_threshold
         self.vehicle_crop_padding = vehicle_crop_padding
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = get_device()
         self.model: Optional[YOLO] = None
         self.vehicle_model: Optional[YOLO] = None
         # The detector is a process-wide singleton shared by request threads, the ingest pipeline and the

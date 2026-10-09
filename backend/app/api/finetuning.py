@@ -9,6 +9,7 @@ from typing import List, Optional
 from loguru import logger
 
 from app.training import get_fine_tuner
+from app.runtime.device import get_device, use_half_precision
 
 router = APIRouter(prefix="/api/v1", tags=["finetuning"])
 
@@ -127,7 +128,7 @@ def get_finetuning_info() -> dict:
     """Get information about fine-tuning capabilities."""
     return {
         "base_model": "OPear/videomae-large-finetuned-UCF-Crime",
-        "device": "cuda" if True else "cpu",
+        "device": get_device(),
         "capabilities": [
             "transfer_learning",
             "local_dataset_adaptation",

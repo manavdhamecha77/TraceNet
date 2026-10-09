@@ -25,6 +25,7 @@ from loguru import logger
 
 from app.config import get_data_path
 from app.analytics.lumpi.adapter import LumpiAdapter, LumpiCameraInfo, rodrigues_to_matrix
+from app.runtime.device import get_device, use_half_precision
 
 REPLAY_FPS_FALLBACK = 30.0
 MIN_TRACK_FRAMES = 3                 # drop one/two-frame tracker flickers
@@ -226,7 +227,7 @@ class LumpiReplayBuilder:
                 ok, frame = cap.read()
                 if not ok:
                     break
-                result = model.predict(frame, conf=self.conf, imgsz=self.imgsz, verbose=False)[0]
+                result = model.predict(frame, conf=self.conf, imgsz=self.imgsz, verbose=False, device=get_device())[0]
                 dets = sv.Detections.from_ultralytics(result)
                 tracked = tracker.update(dets)
                 frame_dets: List[Dict[str, Any]] = []

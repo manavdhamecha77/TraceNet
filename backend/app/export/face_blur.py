@@ -16,6 +16,7 @@ from typing import Iterable, Optional, Sequence
 import cv2
 import numpy as np
 from loguru import logger
+from app.runtime.device import get_device, use_half_precision
 
 BACKEND_YOLO = "yolo-face-pixelate"
 BACKEND_HAAR = "opencv-haar-pixelate"
@@ -83,7 +84,7 @@ def detect_faces(frame: np.ndarray) -> list[tuple[int, int, int, int]]:
             "The export was cancelled so that no unredacted footage is released."
         )
     if backend == BACKEND_YOLO:
-        results = _yolo_face_model().predict(frame, conf=0.35, verbose=False)
+        results = _yolo_face_model().predict(frame, conf=0.35, verbose=False, device=get_device())
         boxes: list[tuple[int, int, int, int]] = []
         for r in results:
             if r.boxes is None:

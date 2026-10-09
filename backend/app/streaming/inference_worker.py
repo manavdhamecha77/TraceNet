@@ -11,6 +11,7 @@ from app.db.session import SessionLocal
 from app.db.models import LiveAlert, MLModel
 from app.streaming.alert_evaluator import RealTimeAlertEvaluator
 from app.streaming.config import StreamConfig
+from app.runtime.device import get_device, use_half_precision
 
 class InferenceWorker(threading.Thread):
     def __init__(self, camera_id, session_id, rtsp_url, config: StreamConfig, manager):
@@ -105,7 +106,8 @@ class InferenceWorker(threading.Thread):
                 last_frame_time = current_time
                 start_inf = time.time()
                 
-                results = model.predict(frame, conf=self.config.confidence_threshold, iou=self.config.iou_threshold, verbose=False)
+                results = model.predict(frame, conf=self.config.confidence_threshold, iou=self.config.iou_threshold,
+                                        verbose=False, device=get_device(), half=use_half_precision())
                 
                 detections = sv.Detections.from_ultralytics(results[0])
                 detections = tracker.update_with_detections(detections)
@@ -134,7 +136,7 @@ class InferenceWorker(threading.Thread):
                 
                 # If pose model is enabled, run pose estimation and map keypoints to detected persons
                 if self.config.enable_pose and pose_model:
-                    pose_res = pose_model.predict(frame, verbose=False)
+                    pose_res = pose_model.predict(frame, verbose=False, device=get_device())
                     if pose_res[0].keypoints is not None and pose_res[0].boxes is not None:
                         kps_xy = pose_res[0].keypoints.xy.cpu().numpy()
                         kps_conf = pose_res[0].keypoints.conf.cpu().numpy()

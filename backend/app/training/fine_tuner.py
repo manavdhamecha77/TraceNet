@@ -30,6 +30,7 @@ from PIL import Image
 from app.db.session import SessionLocal
 from app.db.models import Alert, VideoAsset
 from app.config import get_data_path
+from app.runtime.device import get_device, use_half_precision
 
 
 class TrainingStatus(str, Enum):
@@ -116,7 +117,7 @@ class FineTuner:
 
     def __init__(self, base_model: str = "OPear/videomae-large-finetuned-UCF-Crime"):
         self.base_model = base_model
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = get_device()
         self.training_status = TrainingStatus.IDLE
         self.current_training_id = None
         self.training_lock = threading.Lock()

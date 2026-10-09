@@ -9,6 +9,7 @@ import torch.nn.functional as F
 import torch
 import open_clip
 from loguru import logger
+from app.runtime.device import get_device, use_half_precision
 
 
 class ClipEncoder:
@@ -29,7 +30,7 @@ class ClipEncoder:
 
     @staticmethod
     def _resolve_device() -> str:
-        return "cuda" if torch.cuda.is_available() else "cpu"
+        return get_device()
 
     def load(self) -> "ClipEncoder":
         """Load the CLIP model once and keep it resident in memory."""
