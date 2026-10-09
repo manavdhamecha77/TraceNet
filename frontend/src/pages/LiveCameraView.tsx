@@ -577,41 +577,41 @@ export default function LiveCameraView() {
                 This prevents false flashes when the status fetch races with MediaMTX
                 or when the backend in-memory dict is reset while the camera keeps streaming. */}
             {streamStatus !== null && streamStatus.is_streaming === false && !videoPlaying && (
-              <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-white z-10 p-6">
-                <div className="bg-slate-900/90 border border-slate-700 p-6 rounded-md text-center max-w-md shadow-2xl flex flex-col items-center">
-                  <div className="w-12 h-12 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center mb-3 border border-teal-500/30">
+              <div className="absolute inset-0 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center text-slate-900 dark:text-slate-100 z-10 p-6">
+                <div className="bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 p-6 rounded-md text-center max-w-md shadow-sm flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-400 flex items-center justify-center mb-3 border border-teal-200 dark:border-teal-500/30">
                     <QrCode className="w-6 h-6" />
                   </div>
-                  <h3 className="font-bold text-lg text-white">Stream Offline</h3>
-                  <p className="text-xs text-slate-400 mt-1 mb-4 leading-relaxed">
-                    Connect your mobile or edge camera at <a href={cameraAppUrl} target="_blank" rel="noreferrer" className="text-teal-400 underline font-mono">{cameraAppUrl.replace(/^https?:\/\//, '')}</a> using this active pair code:
+                  <h3 className="font-semibold text-lg text-slate-900 dark:text-slate-100">Stream Offline</h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 mb-4 leading-relaxed">
+                    Connect your mobile or edge camera at <a href={cameraAppUrl} target="_blank" rel="noreferrer" className="text-teal-700 dark:text-teal-400 underline font-mono">{cameraAppUrl.replace(/^https?:\/\//, '')}</a> using this active pair code:
                   </p>
                   
-                  <div className="flex items-center gap-3 bg-slate-950 px-5 py-3 rounded-lg border border-teal-500/40 mb-4 shadow-inner">
-                    <span className="font-mono text-2xl tracking-widest font-black text-teal-400">
+                  <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-950 px-5 py-3 rounded-md border border-teal-300 dark:border-teal-500/40 mb-4">
+                    <span className="font-mono text-2xl tracking-widest font-bold text-teal-700 dark:text-teal-400">
                       {pairCode || '------'}
                     </span>
                     <button
                       onClick={copyPairCode}
-                      className="p-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+                      className="p-2 rounded bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
                       title="Copy Code"
                     >
-                      {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      {copiedCode ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
 
                   {pairSecondsLeft > 0 && (
-                    <div className="text-[10px] text-slate-400 mb-4 font-mono">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mb-4 font-mono">
                       Code valid for {Math.floor(pairSecondsLeft / 60)}m {pairSecondsLeft % 60}s
                     </div>
                   )}
 
-                  <label className="flex items-center gap-2 text-[11px] text-slate-300 mb-3 cursor-pointer select-none">
-                    <input type="checkbox" checked={autoImport} onChange={e => { setAutoImport(e.target.checked) }} className="accent-teal-500" />
+                  <label className="flex items-center gap-2 text-[11px] text-slate-700 dark:text-slate-300 mb-3 cursor-pointer select-none">
+                    <input type="checkbox" checked={autoImport} onChange={e => { setAutoImport(e.target.checked) }} className="accent-teal-600" />
                     Check {chunkDurationSec}s chunks into this camera's archive and run the full pipeline
                   </label>
                   {!cameraAppSecure && (
-                    <div className="text-[10px] text-amber-300/90 mb-3 max-w-xs leading-relaxed">
+                    <div className="text-[10px] text-amber-700 dark:text-amber-300/90 mb-3 max-w-xs leading-relaxed">
                       Phones need HTTPS for camera access. Start the backend with <span className="font-mono">python serve.py</span> to get an https:// link here.
                     </div>
                   )}
@@ -619,7 +619,7 @@ export default function LiveCameraView() {
                     <button
                       onClick={generatePairCode}
                       disabled={pairLoading}
-                      className="text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded transition-colors"
+                      className="text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded transition-colors"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${pairLoading ? 'animate-spin' : ''}`} />
                       New Code
@@ -628,7 +628,7 @@ export default function LiveCameraView() {
                       href={cameraAppUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs font-semibold text-teal-200 hover:text-white flex items-center gap-1.5 bg-teal-800 hover:bg-teal-700 px-3 py-1.5 rounded transition-colors shadow-sm"
+                      className="text-xs font-semibold text-white flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 px-3 py-1.5 rounded transition-colors"
                     >
                       Open Mobile App <ExternalLink className="w-3.5 h-3.5" />
                     </a>
