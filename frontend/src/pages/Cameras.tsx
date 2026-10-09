@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
+import { PageHeader } from '../components/ui'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Filter, RefreshCw, X, Upload, RotateCcw, Image as ImageIcon } from 'lucide-react'
+import { Filter, RefreshCw, X, Upload, RotateCcw, Image as ImageIcon, MapPin, Plus, ChevronRight, MoreVertical, Eye, Pencil, Link2, Trash2, AlertTriangle, Info, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '../components/Toast'
 
@@ -76,10 +77,7 @@ function MiniMap({ containerRef, noCoords }: {
     <div className="relative w-full h-full rounded border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-100 dark:bg-slate-900">
       {noCoords && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 z-10 bg-slate-100 dark:bg-slate-900">
-          <svg className="h-6 w-6 text-slate-300 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
+          <MapPin className="h-6 w-6 text-slate-300 dark:text-slate-700" strokeWidth={1.5} aria-hidden="true" />
           <span className="text-[10px] text-slate-400 dark:text-slate-600 font-medium">No coordinates set</span>
         </div>
       )}
@@ -534,29 +532,25 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
     <div className="space-y-5 pb-16">
 
       {/* ── PAGE HEADER ── */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('cameras.title')}</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t('cameras.subtitle')}</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title={t('cameras.title')}
+        subtitle={t('cameras.subtitle')}
+        actions={
           <button
             onClick={onOpenRegisterModal}
-            className="flex items-center gap-1.5 bg-teal-700 hover:bg-teal-800 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors"
+            className="inline-flex h-9 items-center gap-1.5 rounded border border-teal-700 bg-teal-700 px-3 text-sm font-medium text-white transition-colors hover:bg-teal-800"
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
             {t('cameras.registerCamera')}
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* ── LEAFLET MAP ── */}
       {/* isolation:isolate creates a new CSS stacking context, containing Leaflet's
           internal z-index values (200–650) so they never bleed above fixed modals */}
       <section
-        className="mx-0 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800 md:mx-[15%]"
+        className="border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800"
         style={{ isolation: 'isolate' }}
       >
         <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wider">
@@ -566,7 +560,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
       </section>
 
       {/* ── DEVICE TABLE ── */}
-      <section className="mx-0 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800 md:mx-4">
+      <section className="border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-white dark:bg-slate-800">
         <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span>
@@ -747,9 +741,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                         className="inline-flex items-center gap-1 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white px-2.5 py-1 rounded text-[11px] font-bold transition-colors"
                       >
                         Open
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                        </svg>
+                        <ChevronRight className="h-3 w-3" strokeWidth={2.5} aria-hidden="true" />
                       </Link>
 
                       {/* ── KEBAB — independent size, stands alone ── */}
@@ -770,11 +762,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                           className="flex items-center justify-center w-7 h-7 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                         >
                           {/* Vertical 3-dot icon — sized for the button, not the row */}
-                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                            <circle cx="12" cy="5" r="1.5" />
-                            <circle cx="12" cy="12" r="1.5" />
-                            <circle cx="12" cy="19" r="1.5" />
-                          </svg>
+                          <MoreVertical className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </div>
                     </div>
@@ -800,19 +788,14 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
               onClick={() => { setDetailCamera(cam); setActiveMenuId(null) }}
               className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
-              <svg className="h-3.5 w-3.5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
+              <Eye className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
               View Details
             </button>
             <button
               onClick={() => { openEdit(cam) }}
               className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
-              <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
+              <Pencil className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
               Edit Camera
             </button>
             <button
@@ -836,9 +819,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
               onClick={() => { generatePairCode(cam); setActiveMenuId(null) }}
               className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/20 transition-colors font-semibold"
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
+              <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
               Pair Remote Device
             </button>
             <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
@@ -846,9 +827,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
               onClick={() => { setDeleteCamera(cam); setConfirmName(''); setDeleteError(''); setActiveMenuId(null) }}
               className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
             >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
               Delete Camera
             </button>
           </div>
@@ -877,9 +856,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                 onClick={() => setDetailCamera(null)}
                 className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
               </button>
             </div>
 
@@ -942,9 +919,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                 onClick={() => { setDetailCamera(null); openEdit(detailCamera) }}
                 className="px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                 Edit Node
               </button>
               <button
@@ -978,9 +953,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                 onClick={() => setEditCamera(null)}
                 className="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
               </button>
             </div>
 
@@ -1266,9 +1239,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
             {/* Header */}
             <div className="flex items-center gap-3 px-5 py-4 border-b border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 shrink-0">
               <div className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 shrink-0">
-                <svg className="h-4.5 w-4.5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+                <AlertTriangle className="h-[18px] w-[18px] text-red-600 dark:text-red-400" strokeWidth={2.5} aria-hidden="true" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-red-700 dark:text-red-400">Permanent Node Deletion</h3>
@@ -1294,9 +1265,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                 </p>
 
                 <div className="flex gap-3 p-3.5 rounded border-l-4 border-red-500 bg-red-50 dark:bg-red-950/20">
-                  <svg className="h-4 w-4 text-red-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
+                  <Info className="h-4 w-4 text-red-500 shrink-0 mt-0.5" aria-hidden="true" />
                   <p className="text-red-700 dark:text-red-400 text-[11px] leading-relaxed">
                     <strong>All {deleteCamera.video_count} video feed record{deleteCamera.video_count !== 1 ? 's' : ''}</strong> associated with this camera will be permanently erased from the database. Video files on disk are not automatically removed, but forensic metadata and search index entries will be gone.
                   </p>
@@ -1351,26 +1320,21 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
           ════════════════════════════════════════════════════════════════ */}
       {pairCamera && (
         <Modal onClose={closePairModal}>
-          <div className="relative w-full max-w-md mx-4 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+          <div className="relative w-full max-w-md mx-4 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-md shadow-2xl flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
               <div className="flex items-center gap-2.5">
-                <svg className="h-4 w-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
+                <Link2 className="h-4 w-4 text-sky-500" aria-hidden="true" />
                 <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Pair Remote Device</span>
                 <span className="text-[10px] font-mono bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 px-2 py-0.5 rounded">{pairCamera.camera_id}</span>
               </div>
               <button onClick={closePairModal} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
             <div className="p-6 flex flex-col items-center gap-5">
               {pairLoading ? (
                 <div className="py-8 flex flex-col items-center gap-3 text-slate-400">
-                  <svg className="h-8 w-8 animate-spin text-sky-500" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
+                  <Loader2 className="h-8 w-8 animate-spin text-sky-500" aria-hidden="true" />
                   <span className="text-sm">Generating pair code…</span>
                 </div>
               ) : pairCode ? (
@@ -1402,7 +1366,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
                   <button onClick={() => generatePairCode(pairCamera)} className="w-full py-2 text-xs font-semibold rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
                     Apply settings &amp; regenerate code
                   </button>
-                  <div className="bg-slate-900 dark:bg-slate-950 rounded-xl px-8 py-5 text-center w-full">
+                  <div className="bg-slate-900 dark:bg-slate-950 rounded-md px-8 py-5 text-center w-full">
                     <div className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Pair Code</div>
                     <div className="text-4xl font-black font-mono tracking-[0.35em] text-sky-400">{pairCode}</div>
                     <div className={`text-xs mt-2 font-mono ${pairSecondsLeft < 60 ? 'text-rose-400' : 'text-slate-400'}`}>

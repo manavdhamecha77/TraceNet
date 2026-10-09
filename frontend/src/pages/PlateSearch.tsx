@@ -310,7 +310,7 @@ export default function PlateSearch({ onPlayVideoAtTime }: PlateSearchProps) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.7fr_1.3fr]">
-        <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="space-y-4 rounded-md border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex w-fit rounded border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800">
             {tabButton('text', 'Search by plate text')}
             {tabButton('blurry', 'Unreadable plates')}

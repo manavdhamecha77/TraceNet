@@ -105,7 +105,7 @@ function ChainSnatchingCard({
 
   return (
     <div
-      className={`rounded-xl border transition-all ${
+      className={`rounded-md border transition-all ${
         alert.acknowledged
           ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60'
           : 'border-rose-500/40 bg-rose-50/60 dark:border-rose-500/30 dark:bg-rose-950/20 shadow-sm'
@@ -565,7 +565,7 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
 
       {/* Settings Drawer */}
       {showSettings && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-sm">
+        <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4 shadow-sm">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-rose-500" />
@@ -666,7 +666,7 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
 
       {/* Analysis Run Progress Section */}
       {csAnalysisLog.length > 0 && (
-        <div className="rounded-xl border border-rose-500/30 bg-rose-50/40 dark:bg-rose-950/10 p-4 space-y-3">
+        <div className="rounded-md border border-rose-500/30 bg-rose-50/40 dark:bg-rose-950/10 p-4 space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-2">
             <Loader2 className={`w-3.5 h-3.5 ${isRunning ? 'animate-spin' : ''}`} />
             Theft Analysis Execution Progress
@@ -702,7 +702,7 @@ export default function TheftAlerts({ cameras: _cameras = [], onPlayVideoAtTime 
           <span>Loading Theft Alerts...</span>
         </div>
       ) : alerts.length === 0 ? (
-        <div className="py-16 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+        <div className="py-16 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-md">
           <ShieldAlert className="w-8 h-8 text-slate-400 mx-auto mb-2" />
           <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300">No Outdoor Theft Anomaly Detected</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
@@ -835,7 +835,7 @@ function EvidenceViewerModal({
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      <div className="bg-slate-900 border border-slate-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
         <div className="p-4 border-b border-slate-850 flex justify-between items-center bg-slate-950/30">
           <div>
@@ -858,7 +858,7 @@ function EvidenceViewerModal({
         {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col lg:flex-row gap-6 items-center lg:items-start justify-center">
           {/* Image & Overlays */}
-          <div className="relative flex-1 bg-black rounded-xl overflow-hidden border border-slate-800 max-w-[640px] w-full flex items-center justify-center min-h-[300px]">
+          <div className="relative flex-1 bg-black rounded-md overflow-hidden border border-slate-800 max-w-[640px] w-full flex items-center justify-center min-h-[300px]">
             <img
               ref={imgRef}
               src={imageUrl}
@@ -925,7 +925,7 @@ function EvidenceViewerModal({
           </div>
 
           {/* Controls Panel */}
-          <div className="w-full lg:w-72 bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4 shrink-0">
+          <div className="w-full lg:w-72 bg-slate-900 border border-slate-800 rounded-md p-4 space-y-4 shrink-0">
             <div className="space-y-2">
               <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider">Highlight Controls</span>
               <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-800 bg-slate-950/40">

@@ -78,6 +78,77 @@ class TrajectoryEngine:
         min_visual_similarity: float = 0.45
     ) -> Dict[str, Any]:
         """
+        Public entry point. With no tracklet id and no embedding ("auto-link" in the UI) the target is chosen
+        automatically: the most recent active hot target, else the most recently indexed tracklet. The choice
+        is reported in ``auto_selected`` so the operator sees what was linked.
+        """
+        auto_selected: Optional[Dict[str, Any]] = None
+        if not target_tracklet_id and query_embedding is None:
+            target_tracklet_id, query_embedding, auto_selected, auto_mode = self._auto_select_target()
+            if auto_selected is None:
+                return {"status": "error",
+                        "message": "No target to link: tag a hot target or enter a tracklet ID. "
+                                   "Nothing is indexed yet if the camera videos have not finished processing."}
+            if speed_mode == "pedestrian" and auto_mode:
+                speed_mode = auto_mode
+        result = self._reconstruct(
+            target_tracklet_id=target_tracklet_id,
+            query_embedding=query_embedding,
+            speed_mode=speed_mode,
+            top_k_candidates=top_k_candidates,
+            min_visual_similarity=min_visual_similarity,
+        )
+        if auto_selected is not None and isinstance(result, dict):
+            result["auto_selected"] = auto_selected
+        return result
+
+    def _auto_select_target(self):
+        """Returns (tracklet_id, embedding, auto_selected_info, speed_mode) or (None, None, None, None)."""
+        from app.db.models import HotTarget
+
+        hot = (
+            self.db.query(HotTarget)
+            .filter(HotTarget.status == "active")
+            .order_by(HotTarget.created_at.desc())
+            .all()
+        )
+        priority_rank = {"CRITICAL": 0, "HIGH": 1, "NORMAL": 2}
+        hot.sort(key=lambda h: (priority_rank.get((h.priority or "NORMAL").upper(), 3), -(h.created_at.timestamp() if h.created_at else 0)))
+        for h in hot:
+            mode = "vehicle" if h.object_type == "vehicle" else "pedestrian"
+            info = {"source": "hot_target", "target_id": h.id, "label": h.label, "tracklet_id": h.origin_tracklet_id,
+                    "camera_id": h.origin_camera_id, "object_type": h.object_type, "priority": h.priority}
+            if h.origin_tracklet_id and self.db.query(Tracklet).filter(Tracklet.id == h.origin_tracklet_id).first():
+                return h.origin_tracklet_id, None, info, mode
+            try:
+                vec = json.loads(h.embedding_vector) if h.embedding_vector else None
+            except Exception:
+                vec = None
+            if vec:
+                return None, vec, info, mode
+
+        latest = (
+            self.db.query(Tracklet)
+            .filter(Tracklet.qdrant_point_id.isnot(None))
+            .order_by(Tracklet.indexed_at.desc())
+            .first()
+        )
+        if latest:
+            mode = "vehicle" if latest.object_type == "vehicle" else "pedestrian"
+            info = {"source": "latest_tracklet", "tracklet_id": latest.id, "camera_id": latest.camera_id,
+                    "object_type": latest.object_type, "class_name": latest.class_name, "video_id": latest.video_id}
+            return latest.id, None, info, mode
+        return None, None, None, None
+
+    def _reconstruct(
+        self,
+        target_tracklet_id: Optional[str] = None,
+        query_embedding: Optional[List[float]] = None,
+        speed_mode: str = "pedestrian",
+        top_k_candidates: int = 50,
+        min_visual_similarity: float = 0.45
+    ) -> Dict[str, Any]:
+        """
         Reconstruct the target's journey across the camera network.
 
         1. Candidates: sightings of the same object type in other videos, ranked by visual similarity.

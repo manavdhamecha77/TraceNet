@@ -369,27 +369,27 @@ export const LumpiReplayPanel: React.FC = () => {
 
   // ──────────────────────────────────────────────────────────────────────────
   return (
-    <div className="h-full w-full overflow-y-auto bg-slate-950 text-slate-100">
+    <div className="h-full w-full overflow-y-auto bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       <div className="max-w-[1700px] mx-auto px-5 py-4 space-y-4">
 
         {/* Header row */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               Multi-Camera Fusion Replay
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">LIVE DETECTOR OUTPUT</span>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">LIVE DETECTOR OUTPUT</span>
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5 max-w-4xl leading-relaxed">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-4xl leading-relaxed">
               Three synchronized LUMPI intersection cameras. Boxes are TraceNet's detector + ByteTrack on each feed; every detection is projected through the real camera calibration onto one ground plane, and tracks that occupy the same spot at the same time are fused into one identity. Same colour and ID in every view means one physical object. No dataset labels are used.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <select value={experimentId} onChange={(e) => setExperimentId(parseInt(e.target.value, 10))} disabled={status?.building}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-white text-xs focus:outline-none focus:border-sky-500">
+              className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-sky-500">
               {experiments.map((ex) => <option key={ex.experiment_id} value={ex.experiment_id}>Measurement {ex.experiment_id} ({ex.camera_count} cams)</option>)}
             </select>
             <button type="button" onClick={() => startBuild(!!status?.built)} disabled={status?.building}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-50">
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50">
               {status?.building ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
               {status?.building ? `Building ${Math.round(status.progress)}%` : status?.built ? 'Rebuild' : 'Build replay'}
             </button>
@@ -397,27 +397,27 @@ export const LumpiReplayPanel: React.FC = () => {
         </div>
 
         {status?.building && (
-          <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 px-4 py-2.5 text-xs text-sky-200">
+          <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 px-4 py-2.5 text-xs text-sky-800 dark:text-sky-200">
             <div className="flex justify-between"><span>{status.message ?? 'working…'}</span><span className="font-mono">{Math.round(status.progress)}%</span></div>
-            <div className="mt-1.5 h-1.5 rounded bg-slate-800 overflow-hidden"><div className="h-full bg-sky-400 transition-all" style={{ width: `${status.progress}%` }} /></div>
+            <div className="mt-1.5 h-1.5 rounded bg-slate-100 dark:bg-slate-800 overflow-hidden"><div className="h-full bg-sky-400 transition-all" style={{ width: `${status.progress}%` }} /></div>
           </div>
         )}
         {status?.error && !status.building && (
-          <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-4 py-2.5 text-xs text-rose-300">Last build failed: {status.error}</div>
+          <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-4 py-2.5 text-xs text-rose-700 dark:text-rose-300">Last build failed: {status.error}</div>
         )}
 
         {!replay ? (
-          <div className="rounded-xl border border-dashed border-slate-800 py-20 text-center text-xs text-slate-500">
+          <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 py-20 text-center text-xs text-slate-500">
             {loadingReplay ? 'Loading replay…' : status?.building ? 'Detector running on all cameras — this takes about a minute.' : 'No replay built for this experiment yet. Click Build replay.'}
           </div>
         ) : (
           <>
             {/* Stats strip */}
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-              <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">{replay.model.weights} · {replay.model.tracker}</span>
-              <span>{replay.stats.detections.toLocaleString()} detections</span><span className="text-slate-700">·</span>
-              <span>{replay.stats.local_tracks} per-camera tracks</span><span className="text-slate-700">·</span>
-              <span className="text-emerald-400 font-semibold">{replay.stats.fused_tracks} fused identities, {replay.stats.multi_camera_tracks} seen by 2+ cameras</span><span className="text-slate-700">·</span>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300">{replay.model.weights} · {replay.model.tracker}</span>
+              <span>{replay.stats.detections.toLocaleString()} detections</span><span className="text-slate-300 dark:text-slate-700">·</span>
+              <span>{replay.stats.local_tracks} per-camera tracks</span><span className="text-slate-300 dark:text-slate-700">·</span>
+              <span className="text-emerald-700 dark:text-emerald-400 font-semibold">{replay.stats.fused_tracks} fused identities, {replay.stats.multi_camera_tracks} seen by 2+ cameras</span><span className="text-slate-300 dark:text-slate-700">·</span>
               <span>now on screen: {visibleNow.ids} objects, {visibleNow.multi} cross-camera</span>
               <span className="ml-auto">built {formatDisplayDate(replay.generated_at)} in {replay.stats.build_seconds}s</span>
             </div>
@@ -427,9 +427,9 @@ export const LumpiReplayPanel: React.FC = () => {
               <div className="space-y-3">
                 <div className={`grid gap-3 items-start ${replay.cameras.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
                   {replay.cameras.map((cam) => (
-                    <div key={cam.camera_id} className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-1.5 text-[11px] border-b border-slate-800">
-                        <span className="font-semibold text-slate-200">{cam.name}</span>
+                    <div key={cam.camera_id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-1.5 text-[11px] border-b border-slate-200 dark:border-slate-800">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{cam.name}</span>
                         <span className="text-slate-500 font-mono">{cam.width}×{cam.height} · {cam.sightings} ids</span>
                       </div>
                       {/* padding-bottom trick keeps the box exactly the clip's aspect ratio regardless of grid row height */}
@@ -452,31 +452,31 @@ export const LumpiReplayPanel: React.FC = () => {
                 </div>
 
                 {/* Transport */}
-                <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 flex flex-wrap items-center gap-3 text-xs">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 px-4 py-3 flex flex-wrap items-center gap-3 text-xs">
                   <button type="button" onClick={togglePlay} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold">
                     {playing ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}{playing ? 'Pause' : 'Play all'}
                   </button>
-                  <button type="button" onClick={() => stepFrame(-1)} className="px-2 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800" title="Previous frame">‹</button>
-                  <button type="button" onClick={() => stepFrame(1)} className="px-2 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800" title="Next frame">›</button>
+                  <button type="button" onClick={() => stepFrame(-1)} className="px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" title="Previous frame">‹</button>
+                  <button type="button" onClick={() => stepFrame(1)} className="px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" title="Next frame">›</button>
                   <input type="range" min={0} max={replay.frame_count - 1} value={frame}
                     onChange={(e) => { allVideos().forEach((v) => v.pause()); setPlaying(false); seekToFrame(parseInt(e.target.value, 10)) }}
                     className="flex-1 min-w-[160px] accent-sky-400" />
-                  <span className="font-mono text-slate-300 tabular-nums">{(frame / replay.fps).toFixed(2)}s / {replay.duration_s.toFixed(2)}s · f{frame}</span>
-                  <div className="flex items-center rounded-lg bg-slate-800 p-0.5 border border-slate-700">
+                  <span className="font-mono text-slate-700 dark:text-slate-300 tabular-nums">{(frame / replay.fps).toFixed(2)}s / {replay.duration_s.toFixed(2)}s · f{frame}</span>
+                  <div className="flex items-center rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-300 dark:border-slate-700">
                     {[0.25, 0.5, 1].map((r) => (
-                      <button key={r} type="button" onClick={() => setRate(r)} className={`px-2 py-1 rounded-md font-medium ${rate === r ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}>{r}×</button>
+                      <button key={r} type="button" onClick={() => setRate(r)} className={`px-2 py-1 rounded-md font-medium ${rate === r ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>{r}×</button>
                     ))}
                   </div>
-                  <label className="flex items-center gap-1.5 text-slate-300"><input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} className="accent-sky-400" />Boxes</label>
-                  <label className="flex items-center gap-1.5 text-slate-300"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} className="accent-sky-400" />Labels</label>
-                  <label className="flex items-center gap-1.5 text-slate-300"><input type="checkbox" checked={dimOthers} onChange={(e) => setDimOthers(e.target.checked)} className="accent-sky-400" />Dim others when following</label>
+                  <label className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300"><input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} className="accent-sky-400" />Boxes</label>
+                  <label className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300"><input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} className="accent-sky-400" />Labels</label>
+                  <label className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300"><input type="checkbox" checked={dimOthers} onChange={(e) => setDimOthers(e.target.checked)} className="accent-sky-400" />Dim others when following</label>
                 </div>
               </div>
 
               {/* Right column: BEV + selection */}
               <div className="space-y-3">
-                <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
-                  <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-300 border-b border-slate-800 flex justify-between">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+                  <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex justify-between">
                     <span>Fused ground-plane view</span><span className="text-slate-500 font-normal">ring = seen by 2+ cams</span>
                   </div>
                   <div className="relative w-full" style={{ height: 340 }}>
@@ -484,28 +484,28 @@ export const LumpiReplayPanel: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 p-3 text-xs">
                   {selectedTrack ? (
                     <>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="inline-block w-3.5 h-3.5 rounded-sm" style={{ background: selectedTrack.color }} />
-                          <span className="font-bold text-white">#{selectedTrack.gid} {selectedTrack.class_name}</span>
+                          <span className="font-bold text-slate-900 dark:text-white">#{selectedTrack.gid} {selectedTrack.class_name}</span>
                           <span className="text-slate-500">({selectedTrack.object_type})</span>
                         </div>
-                        <button type="button" onClick={() => setSelectedGid(null)} className="text-slate-400 hover:text-white">clear</button>
+                        <button type="button" onClick={() => setSelectedGid(null)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">clear</button>
                       </div>
-                      <div className="mt-2 text-slate-400">Seen by <span className="text-emerald-400 font-semibold">{selectedTrack.cameras.length}</span> of {replay.cameras.length} cameras · frames {selectedTrack.first_frame}–{selectedTrack.last_frame}</div>
+                      <div className="mt-2 text-slate-500 dark:text-slate-400">Seen by <span className="text-emerald-700 dark:text-emerald-400 font-semibold">{selectedTrack.cameras.length}</span> of {replay.cameras.length} cameras · frames {selectedTrack.first_frame}–{selectedTrack.last_frame}</div>
                       <table className="w-full mt-2">
                         <thead className="text-[10px] uppercase tracking-wider text-slate-500"><tr><th className="text-left py-1">Camera</th><th className="text-right py-1">Local track</th><th className="text-right py-1">Frames</th></tr></thead>
-                        <tbody className="divide-y divide-slate-800">
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                           {selectedTrack.members.map((m) => {
                             const cam = replay.cameras.find((c) => c.camera_id === m.camera_id)
                             return (
                               <tr key={`${m.camera_id}-${m.track_id}`}>
-                                <td className="py-1 text-slate-200">{cam?.name ?? m.camera_id}</td>
-                                <td className="py-1 text-right font-mono text-slate-400">trk {m.track_id}</td>
-                                <td className="py-1 text-right font-mono text-slate-400">{m.first_frame}–{m.last_frame}</td>
+                                <td className="py-1 text-slate-800 dark:text-slate-200">{cam?.name ?? m.camera_id}</td>
+                                <td className="py-1 text-right font-mono text-slate-500 dark:text-slate-400">trk {m.track_id}</td>
+                                <td className="py-1 text-right font-mono text-slate-500 dark:text-slate-400">{m.first_frame}–{m.last_frame}</td>
                               </tr>
                             )
                           })}
@@ -514,19 +514,19 @@ export const LumpiReplayPanel: React.FC = () => {
                       <div className="mt-2 text-[10px] text-slate-500 leading-relaxed">Fused because its ground-plane positions from different cameras stayed within {replay.fusion.radius_m[selectedTrack.object_type]} m of each other for at least {replay.fusion.min_common_frames} shared frames.</div>
                     </>
                   ) : (
-                    <div className="text-slate-400 leading-relaxed">
-                      <div className="font-semibold text-slate-200 mb-1">Follow an object</div>
+                    <div className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                      <div className="font-semibold text-slate-800 dark:text-slate-200 mb-1">Follow an object</div>
                       Click any box in any camera. The same identity lights up in every view and on the ground-plane map; everything else dims.
                     </div>
                   )}
                 </div>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-[11px] text-slate-400 space-y-1">
-                  <div className="font-semibold text-slate-300 text-xs">Cross-camera identities on screen</div>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 p-3 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 text-xs">Cross-camera identities on screen</div>
                   <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto">
                     {replay.tracks.filter((t) => t.cameras.length > 1 && t.first_frame <= frame && t.last_frame >= frame).map((t) => (
                       <button key={t.gid} type="button" onClick={() => setSelectedGid(t.gid === selectedGid ? null : t.gid)}
-                        className={`px-1.5 py-0.5 rounded border text-[10px] font-mono transition-colors ${selectedGid === t.gid ? 'border-white text-white' : 'border-slate-700 text-slate-300 hover:border-slate-500'}`}
+                        className={`px-1.5 py-0.5 rounded border text-[10px] font-mono transition-colors ${selectedGid === t.gid ? 'border-slate-900 dark:border-white text-slate-900 dark:text-white' : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500'}`}
                         style={{ background: `${t.color}22`, borderColor: selectedGid === t.gid ? '#fff' : `${t.color}66` }}>
                         #{t.gid} {t.class_name} ·{t.cameras.length}
                       </button>
@@ -539,7 +539,7 @@ export const LumpiReplayPanel: React.FC = () => {
 
             <div className="text-[10px] text-slate-500">
               Annotated exports: {replay.cameras.map((c, i) => (
-                <span key={c.camera_id}>{i > 0 && ' · '}<a className="text-sky-400 hover:underline" href={`${API_BASE}${c.annotated_video_url}`} target="_blank" rel="noreferrer">{c.name}</a></span>
+                <span key={c.camera_id}>{i > 0 && ' · '}<a className="text-sky-700 dark:text-sky-400 hover:underline" href={`${API_BASE}${c.annotated_video_url}`} target="_blank" rel="noreferrer">{c.name}</a></span>
               ))}
             </div>
           </>

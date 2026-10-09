@@ -338,25 +338,25 @@ export default function CCTVWall() {
   return (
     <div
       ref={wallContainerRef}
-      className="flex flex-col h-full bg-slate-950 text-slate-100 min-h-screen selection:bg-teal-500 selection:text-white pb-12"
+      className="flex flex-col h-full bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen selection:bg-teal-500 selection:text-white pb-12"
     >
       {/* ─── Top Master Command Header ────────────────────────────────────── */}
-      <header className="px-6 py-4 border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40 flex flex-wrap items-center justify-between gap-4">
+      <header className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur sticky top-0 z-40 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400">
+          <div className="p-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-700 dark:text-emerald-400">
             <Shield className="h-5 w-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
+              <h1 className="text-base font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                 Surveillance Operations Center (SOC)
               </h1>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 5 EDGE FEEDS ONLINE (1080p / 24 FPS)
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Live Multi-Stream Feed Wall · SMC Central Surveillance Command
             </p>
           </div>
@@ -365,8 +365,8 @@ export default function CCTVWall() {
         {/* Master Controls */}
         <div className="flex items-center gap-2.5 flex-wrap">
           {/* Timeline Timecode */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-mono text-slate-300">
-            <Clock className="h-3.5 w-3.5 text-teal-400" />
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-700 dark:text-slate-300">
+            <Clock className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
             <span>
               {formatTime(masterTime)} / {formatTime(masterDuration)}
             </span>
@@ -389,9 +389,9 @@ export default function CCTVWall() {
           <button
             onClick={handleResyncAll}
             title="Re-synchronize all feed clocks"
-            className="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg flex items-center gap-1.5 transition-all"
+            className="px-3 py-1.5 text-xs font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg flex items-center gap-1.5 transition-all"
           >
-            <RefreshCw className="h-3.5 w-3.5 text-teal-400" />
+            <RefreshCw className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
             <span>Sync Clocks</span>
           </button>
 
@@ -400,8 +400,8 @@ export default function CCTVWall() {
             onClick={() => setShowBoxes(!showBoxes)}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 ${
               showBoxes
-                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40 shadow-sm'
-                : 'bg-slate-800 text-slate-400 border-slate-700'
+                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/40 shadow-sm'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'
             }`}
           >
             <Layers className="h-3.5 w-3.5" />
@@ -411,16 +411,16 @@ export default function CCTVWall() {
           {/* Mute Toggle */}
           <button
             onClick={toggleMute}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all"
+            className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 rounded-lg transition-all"
             title={isMuted ? 'Unmute feeds' : 'Mute feeds'}
           >
-            {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4 text-teal-400" />}
+            {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4 text-teal-700 dark:text-teal-400" />}
           </button>
 
           {/* Fullscreen Toggle */}
           <button
             onClick={toggleFullscreen}
-            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all"
+            className="p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 rounded-lg transition-all"
             title="Toggle Fullscreen"
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -438,8 +438,8 @@ export default function CCTVWall() {
       </header>
 
       {/* ─── Master Timeline Scrubber Bar ─────────────────────────────────── */}
-      <div className="px-6 py-2 bg-slate-900/60 border-b border-slate-800/80 flex items-center gap-3">
-        <span className="text-[11px] font-mono text-slate-400 shrink-0">
+      <div className="px-6 py-2 bg-white/70 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80 flex items-center gap-3">
+        <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 shrink-0">
           TIMELINE: {formatTime(masterTime)}
         </span>
         <input
@@ -449,10 +449,10 @@ export default function CCTVWall() {
           step={0.5}
           value={masterTime}
           onChange={(e) => handleMasterSeek(parseFloat(e.target.value))}
-          className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-500"
+          className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-500"
         />
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/50">
+          <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-800/50">
             BUFFER: {bufferInterval}s ({Math.floor(masterTime / bufferInterval) + 1}/5)
           </span>
         </div>
@@ -461,13 +461,13 @@ export default function CCTVWall() {
       {/* ─── Main Video Matrix Grid (3x2 Grid) ────────────────────────────── */}
       <main className="flex-1 p-6">
         {loading ? (
-          <div className="flex flex-col items-center justify-center min-h-[460px] gap-3 text-slate-400">
-            <RefreshCw className="h-7 w-7 animate-spin text-teal-400" />
+          <div className="flex flex-col items-center justify-center min-h-[460px] gap-3 text-slate-500 dark:text-slate-400">
+            <RefreshCw className="h-7 w-7 animate-spin text-teal-700 dark:text-teal-400" />
             <p className="text-sm font-medium">Connecting to Edge Camera Matrix...</p>
           </div>
         ) : error ? (
-          <div className="p-6 bg-rose-950/30 border border-rose-800 rounded-lg text-rose-300 max-w-xl mx-auto my-12 text-center">
-            <AlertTriangle className="h-6 w-6 text-rose-400 mx-auto mb-2" />
+          <div className="p-6 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800 rounded-lg text-rose-700 dark:text-rose-300 max-w-xl mx-auto my-12 text-center">
+            <AlertTriangle className="h-6 w-6 text-rose-700 dark:text-rose-400 mx-auto mb-2" />
             <p className="text-sm font-semibold">{error}</p>
           </div>
         ) : (
@@ -480,7 +480,7 @@ export default function CCTVWall() {
               return (
                 <div
                   key={feed.camera_id}
-                  className="group relative bg-slate-900/90 border border-slate-800 hover:border-teal-500/50 rounded-xl overflow-hidden shadow-xl flex flex-col transition-all duration-200"
+                  className="group relative bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 hover:border-teal-500/50 rounded-xl overflow-hidden shadow-xl flex flex-col transition-all duration-200"
                 >
                   {/* Video Tile Header Overlay */}
                   <div className="absolute top-0 inset-x-0 z-20 px-3 py-2 bg-gradient-to-b from-slate-950/90 via-slate-950/60 to-transparent flex items-center justify-between text-[11px] pointer-events-none">
@@ -548,20 +548,20 @@ export default function CCTVWall() {
                   </div>
 
                   {/* Video Tile Footer */}
-                  <div className="p-3 bg-slate-900 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                  <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs">
                     <div className="truncate pr-2">
-                      <p className="font-semibold text-slate-200 truncate" title={feed.camera_name}>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200 truncate" title={feed.camera_name}>
                         {feed.camera_name}
                       </p>
-                      <p className="text-[11px] text-slate-400 truncate">{feed.area_name}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{feed.area_name}</p>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                           isAiActive
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                            : 'bg-slate-800 text-slate-400 border-slate-700'
+                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'
                         }`}
                       >
                         AI: {isAiActive ? 'ONLINE' : 'STANDBY'}
@@ -573,34 +573,34 @@ export default function CCTVWall() {
             })}
 
             {/* Tile 6: Forensic Telemetry & Incident Activity Ticker */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col">
-              <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+            <div className="bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col">
+              <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-950/60 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-teal-400 animate-pulse" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                  <Activity className="h-4 w-4 text-teal-700 dark:text-teal-400 animate-pulse" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                     Live Forensic Telemetry & Incident Stream
                   </h3>
                 </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-teal-950 text-teal-300 border border-teal-800">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-300 dark:border-teal-800">
                   REALTIME
                 </span>
               </div>
 
               {/* Telemetry Stream List */}
               <div className="flex-1 p-3 overflow-y-auto space-y-2.5 max-h-[220px]">
-                <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 text-[11px] flex flex-col gap-1">
-                  <div className="flex items-center justify-between text-slate-400 font-mono text-[10px]">
-                    <span className="text-emerald-400 font-bold">● DISPATCH BUFFER ACTIVE</span>
+                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 text-[11px] flex flex-col gap-1">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 font-mono text-[10px]">
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">● DISPATCH BUFFER ACTIVE</span>
                     <span>{formatTime(masterTime)}</span>
                   </div>
-                  <p className="text-slate-300 font-medium">
+                  <p className="text-slate-700 dark:text-slate-300 font-medium">
                     Continuous 5-camera stream operational across SMC Central Zone.
                   </p>
-                  <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
-                    <span className="bg-slate-900 px-1.5 py-0.5 rounded">
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 dark:text-slate-400">
+                    <span className="bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded">
                       Buffer: {bufferInterval}s
                     </span>
-                    <span className="bg-slate-900 px-1.5 py-0.5 rounded">
+                    <span className="bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded">
                       Mode: {streamMode === 'accelerated' ? 'Temporal Stream' : 'Raw Edge Slicing'}
                     </span>
                   </div>
@@ -609,32 +609,32 @@ export default function CCTVWall() {
                 {telemetryEvents.map((evt, i) => (
                   <div
                     key={i}
-                    className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80 text-[11px] flex flex-col gap-1"
+                    className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 text-[11px] flex flex-col gap-1"
                   >
-                    <div className="flex items-center justify-between text-slate-400 font-mono text-[10px]">
-                      <span className="text-teal-400 font-bold">● {evt.camera_name}</span>
+                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 font-mono text-[10px]">
+                      <span className="text-teal-700 dark:text-teal-400 font-bold">● {evt.camera_name}</span>
                       <span>{formatTime(evt.timestamp_seconds)}</span>
                     </div>
-                    <p className="text-slate-300">{evt.description}</p>
+                    <p className="text-slate-700 dark:text-slate-300">{evt.description}</p>
                   </div>
                 ))}
 
-                <div className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/50 text-[11px] text-slate-400">
-                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                <div className="p-2.5 rounded-lg bg-slate-100/80 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/50 text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400">
                     <span>SURAT RAILWAY CONCOURSE</span>
                     <span>PASSIVE</span>
                   </div>
-                  <p className="text-slate-300 mt-0.5">
+                  <p className="text-slate-700 dark:text-slate-300 mt-0.5">
                     Plate recognition and vehicle classification engines nominal.
                   </p>
                 </div>
               </div>
 
               {/* Quick Navigation to System Hubs */}
-              <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
+              <div className="p-3 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                 <Link
                   to="/alerts"
-                  className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-center text-xs font-semibold transition-all"
+                  className="flex-1 py-1.5 px-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded text-center text-xs font-semibold transition-all"
                 >
                   Unified Alerts
                 </Link>
@@ -653,31 +653,31 @@ export default function CCTVWall() {
       {/* ─── Stream Dispatch Settings Modal ───────────────────────────────── */}
       {showSettingsModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Sliders className="h-4 w-4 text-teal-400" />
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sliders className="h-4 w-4 text-teal-700 dark:text-teal-400" />
                   Edge Ingestion & Analytics Dispatch Settings
                 </h2>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Configure continuous stream buffer windows and edge AI inference dispatch.
                 </p>
               </div>
               <button
                 onClick={() => setShowSettingsModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1 rounded-lg"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-6 text-xs text-slate-300">
+            <div className="p-6 space-y-6 text-xs text-slate-700 dark:text-slate-300">
               {/* Rolling Archival Buffer Selection */}
               <div>
-                <label className="block text-xs font-bold text-white mb-2">
+                <label className="block text-xs font-bold text-slate-900 dark:text-white mb-2">
                   Rolling Stream Archival Buffer (Ingestion Window)
                 </label>
                 <div className="grid grid-cols-3 gap-2">
@@ -696,14 +696,14 @@ export default function CCTVWall() {
                       className={`py-2 px-3 rounded-lg font-semibold border transition-all text-center ${
                         bufferInterval === item.sec
                           ? 'bg-teal-600 text-white border-teal-500 shadow'
-                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                       }`}
                     >
                       {item.label}
                     </button>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1.5">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
                   Duration of video slices archived into persistent storage and indexed for forensic
                   search.
                 </p>
@@ -711,7 +711,7 @@ export default function CCTVWall() {
 
               {/* Stream Processing Mode */}
               <div>
-                <label className="block text-xs font-bold text-white mb-2">
+                <label className="block text-xs font-bold text-slate-900 dark:text-white mb-2">
                   Stream Processing Pipeline
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -720,17 +720,17 @@ export default function CCTVWall() {
                     onClick={() => setStreamMode('accelerated')}
                     className={`p-3 rounded-lg border text-left transition-all ${
                       streamMode === 'accelerated'
-                        ? 'bg-teal-950/70 text-white border-teal-500 shadow-sm'
-                        : 'bg-slate-800/60 text-slate-300 border-slate-700 hover:bg-slate-800'
+                        ? 'bg-teal-100 dark:bg-teal-950/70 text-slate-900 dark:text-white border-teal-500 shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     <div className="font-bold flex items-center justify-between text-xs">
                       <span>Accelerated Temporal Stream</span>
                       {streamMode === 'accelerated' && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-teal-400" />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
                       )}
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                       Optimal for client responsiveness. Realtime playback with zero latency.
                     </p>
                   </button>
@@ -740,17 +740,17 @@ export default function CCTVWall() {
                     onClick={() => setStreamMode('raw_slicing')}
                     className={`p-3 rounded-lg border text-left transition-all ${
                       streamMode === 'raw_slicing'
-                        ? 'bg-teal-950/70 text-white border-teal-500 shadow-sm'
-                        : 'bg-slate-800/60 text-slate-300 border-slate-700 hover:bg-slate-800'
+                        ? 'bg-teal-100 dark:bg-teal-950/70 text-slate-900 dark:text-white border-teal-500 shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
                     <div className="font-bold flex items-center justify-between text-xs">
                       <span>Raw Edge Slicing Engine</span>
                       {streamMode === 'raw_slicing' && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-teal-400" />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
                       )}
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                       Executes background FFmpeg chunk cutting at exact buffer intervals.
                     </p>
                   </button>
@@ -759,20 +759,20 @@ export default function CCTVWall() {
 
               {/* Camera Analytics Dispatch Toggles */}
               <div>
-                <label className="block text-xs font-bold text-white mb-2">
+                <label className="block text-xs font-bold text-slate-900 dark:text-white mb-2">
                   Edge AI Analytics Dispatch (Per Camera Node)
                 </label>
-                <div className="space-y-2 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                <div className="space-y-2 bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
                   {feeds.map((feed) => (
                     <div
                       key={feed.camera_id}
-                      className="flex items-center justify-between py-1 border-b border-slate-800/50 last:border-0"
+                      className="flex items-center justify-between py-1 border-b border-slate-200 dark:border-slate-800/50 last:border-0"
                     >
                       <div>
-                        <span className="font-semibold text-slate-200 block">
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 block">
                           {feed.camera_id} — {feed.camera_name}
                         </span>
-                        <span className="text-[10px] text-slate-400">{feed.area_name}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400">{feed.area_name}</span>
                       </div>
                       <button
                         type="button"
@@ -785,7 +785,7 @@ export default function CCTVWall() {
                         className={`px-3 py-1 rounded text-[11px] font-bold transition-all ${
                           activeCameras[feed.camera_id]
                             ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-800 text-slate-400'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                         }`}
                       >
                         {activeCameras[feed.camera_id] ? 'ACTIVE' : 'OFF'}
@@ -797,11 +797,11 @@ export default function CCTVWall() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-3 border-t border-slate-800 bg-slate-950 flex items-center justify-end gap-3">
+            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setShowSettingsModal(false)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-all"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all"
               >
                 Cancel
               </button>

@@ -859,7 +859,7 @@ export default function VideoDetail() {
       )}
 
       {/* ── 1. HEADER & METADATA BANNER ───────────────────────────────────────── */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
         <div className="flex items-center gap-2.5 flex-wrap">
           <span className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">
             {camera.name || camera_id}

@@ -133,7 +133,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
 
       {/* MODEL STATUS */}
       {modelStatus && (
-        <div className={`rounded-xl border p-4 backdrop-blur-sm ${
+        <div className={`rounded-md border p-4 backdrop-blur-sm ${
           modelStatus.model_loaded
             ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20'
             : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20'
@@ -166,7 +166,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
       {/* STATISTICS CARDS */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-1 shadow-xs">
+          <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-1 shadow-xs">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               Feeds Evaluated
             </div>
@@ -175,7 +175,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
             </div>
           </div>
 
-          <div className="rounded-xl border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20 p-4 space-y-1 shadow-xs">
+          <div className="rounded-md border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20 p-4 space-y-1 shadow-xs">
             <div className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center justify-between">
               <span>Assaults Detected</span>
               <ShieldAlert className="w-4 h-4 text-rose-500" />
@@ -185,7 +185,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
             </div>
           </div>
 
-          <div className="rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 p-4 space-y-1 shadow-xs">
+          <div className="rounded-md border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 p-4 space-y-1 shadow-xs">
             <div className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center justify-between">
               <span>High Confidence</span>
               <AlertTriangle className="w-4 h-4 text-amber-500" />
@@ -195,7 +195,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
             </div>
           </div>
 
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-50/50 dark:bg-cyan-950/20 p-4 space-y-1 shadow-xs">
+          <div className="rounded-md border border-cyan-500/30 bg-cyan-50/50 dark:bg-cyan-950/20 p-4 space-y-1 shadow-xs">
             <div className="text-xs font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wider">
               Avg Score
             </div>
@@ -207,7 +207,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
       )}
 
       {/* FILTER BAR */}
-      <div className="flex items-center gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <div className="flex items-center gap-3 p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <Filter className="w-4 h-4 text-slate-500" />
         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">
           Filter Node:
@@ -227,7 +227,7 @@ export default function AssaultDetection({ cameras = [] }: AssaultDetectionProps
       </div>
 
       {/* ALERTS TABLE */}
-      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+      <div className="border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
         <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
           <span>Physical Assault Alert Feed</span>
           <span className="font-mono text-cyan-400">{alerts.length} Incidents Logged</span>

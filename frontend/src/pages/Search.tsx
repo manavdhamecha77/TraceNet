@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { PageHeader } from '../components/ui'
 import {
   Search as SearchIcon,
   Download,
@@ -407,14 +408,11 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     <div className="space-y-6 animate-in fade-in duration-200">
       
       {/* HEADER ROW */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Forensic Search &amp; Rank</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Submit natural language queries to search, rank, and explain CCTV tracklets using persistent Qdrant vector indices.
-          </p>
-        </div>
-        {/* Compact 2×2 system status and maintenance actions */}
+      <PageHeader
+        title={<>Forensic Search &amp; Rank</>}
+        subtitle="Submit natural language queries to search, rank, and explain CCTV tracklets using persistent Qdrant vector indices."
+        className="lg:items-start"
+        actions={
         <div className="grid w-full grid-cols-2 gap-1.5 lg:w-[390px] lg:shrink-0">
           <div className="min-h-8 min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 flex items-center gap-1.5 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             <Cpu className="h-3 w-3 shrink-0 text-slate-400" />
@@ -449,14 +447,15 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
             <RefreshCw className="h-3 w-3" />
             Re-index All Feeds
           </button>
-      </div>
-      </div>
+        </div>
+        }
+      />
 
       {/* SEARCH INTERFACE PANEL */}
       <div className="space-y-4">
         
         {/* Search query box */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-5 space-y-4">
           
           {/* Mode Toggle */}
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded p-1 w-fit border border-slate-200 dark:border-slate-700">
@@ -745,7 +744,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
         {/* SCORE INTERPRETATION GUIDANCE BAR */}
         {visibleResults.length > 0 && (
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-semibold">
               <span>Match Score Guidance:</span>
             </div>
@@ -960,7 +959,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       </div>
 
       {/* AUDIT LOG TRAIL SECTION */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-5 space-y-4">
         <div>
           <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Evidentiary Search Audit Logs</h3>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Logs of recent transactions for Smart City surveillance compliance audits.</p>
@@ -1009,7 +1008,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           />
 
           {/* Panel */}
-          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
             
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">

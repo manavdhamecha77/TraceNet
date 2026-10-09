@@ -298,7 +298,7 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
 
       {/* MODEL STATUS */}
       {modelStatus && (
-        <div className={`rounded-xl border p-4 backdrop-blur-sm ${
+        <div className={`rounded-md border p-4 backdrop-blur-sm ${
           modelStatus.model_loaded
             ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20'
             : 'border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20'
@@ -335,25 +335,25 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
       {/* STATISTICS CARDS */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-1 shadow-xs">
+          <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-1 shadow-xs">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Sightings</div>
             <div className="text-2xl font-black text-slate-900 dark:text-slate-100 font-mono">{stats.total_detections}</div>
           </div>
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-50/50 dark:bg-cyan-950/20 p-4 space-y-1 shadow-xs">
+          <div className="rounded-md border border-cyan-500/30 bg-cyan-50/50 dark:bg-cyan-950/20 p-4 space-y-1 shadow-xs">
             <div className="text-xs font-bold text-cyan-700 dark:text-cyan-400 uppercase tracking-wider flex items-center justify-between">
               <span>Unique Plates</span>
               <Car className="w-4 h-4 text-cyan-500" />
             </div>
             <div className="text-2xl font-black text-cyan-600 dark:text-cyan-400 font-mono">{stats.unique_plates}</div>
           </div>
-          <div className="rounded-xl border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20 p-4 space-y-1 shadow-xs">
+          <div className="rounded-md border border-rose-500/30 bg-rose-50/50 dark:bg-rose-950/20 p-4 space-y-1 shadow-xs">
             <div className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center justify-between">
               <span>Watchlist Hits</span>
               <ShieldAlert className="w-4 h-4 text-rose-500" />
             </div>
             <div className="text-2xl font-black text-rose-600 dark:text-rose-400 font-mono">{stats.watchlist_hits}</div>
           </div>
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 space-y-1 shadow-xs">
+          <div className="rounded-md border border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 space-y-1 shadow-xs">
             <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Avg Confidence</div>
             <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
               {(stats.average_confidence * 100).toFixed(1)}%
@@ -363,7 +363,7 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
       )}
 
       {/* SCAN PANEL */}
-      <div className="flex flex-wrap items-end gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <div className="flex flex-wrap items-end gap-3 p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div>
           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Camera Node</label>
           <select
@@ -428,7 +428,7 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
       {tab === 'detections' ? (
         <>
           {/* FILTER BAR */}
-          <div className="flex flex-wrap items-center gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <div className="flex flex-wrap items-center gap-3 p-3.5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             <Filter className="w-4 h-4 text-slate-500" />
             <select
               value={filterCamera}
@@ -462,7 +462,7 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
           </div>
 
           {/* DETECTIONS TABLE */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
             <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
               <span>Plate Sighting Log</span>
               <span className="font-mono text-cyan-400">{detections.length} Records</span>
@@ -540,7 +540,7 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
       ) : (
         <>
           {/* ADD TO WATCHLIST */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-5 shadow-xs">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3">Add Plate to Watchlist</h3>
             <form onSubmit={handleAddWatchlist} className="flex flex-wrap items-end gap-3">
               <div>
@@ -587,7 +587,7 @@ export default function PlateDetection({ cameras = [] }: PlateDetectionProps) {
           </div>
 
           {/* WATCHLIST TABLE */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
             <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Watchlisted Plates
             </div>

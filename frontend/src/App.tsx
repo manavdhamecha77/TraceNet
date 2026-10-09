@@ -1339,7 +1339,7 @@ function App() {
                     }`}
                   />
                   {isPipelineActive 
-                    ? `${t('topbar.pipelineActive')}: ${activeJobs[0].name.substring(0, 18)}${activeJobs[0].name.length > 18 ? '...' : ''}`
+                    ? `${t('topbar.pipelineActive')}: ${activeJobs[0].name.substring(0, 28)}${activeJobs[0].name.length > 28 ? '...' : ''}`
                     : t('topbar.pipelineIdle')}
                 </span>
               );
