@@ -455,7 +455,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       <div className="space-y-4">
         
         {/* Search query box */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-5 space-y-4">
+        <div data-tour="search-query" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-5 space-y-4">
           
           {/* Mode Toggle */}
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded p-1 w-fit border border-slate-200 dark:border-slate-700">
@@ -483,7 +483,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
             </button>
           </div>
 
-          <form onSubmit={searchMode === 'text' ? handleSearch : handlePhotoSearch} className="space-y-4">
+          <form data-tour="search-filters" onSubmit={searchMode === 'text' ? handleSearch : handlePhotoSearch} className="space-y-4">
             <div>
           <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
                 {searchMode === 'text' ? 'Natural Language Query descriptor' : 'Reference Target Photo (Person or Vehicle)'}
@@ -698,7 +698,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       )}
 
       {/* SEARCH RESULTS PANEL */}
-      <div className="space-y-4">
+      <div data-tour="search-results" className="space-y-4">
         
         {/* Results title & actions bar */}
         {visibleResults.length > 0 && (
@@ -959,7 +959,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       </div>
 
       {/* AUDIT LOG TRAIL SECTION */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-5 space-y-4">
+      <div data-tour="search-audit" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-5 space-y-4">
         <div>
           <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Evidentiary Search Audit Logs</h3>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Logs of recent transactions for Smart City surveillance compliance audits.</p>

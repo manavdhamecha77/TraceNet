@@ -116,24 +116,50 @@ const CONFIG_METADATA = [
   }
 ]
 
-function TrackletThumb({ trackletId, label }: { trackletId: string; label: string }) {
+function TrackletThumb({
+  trackletId,
+  label,
+  videoId,
+  customThumbUrl,
+}: {
+  trackletId: string
+  label: string
+  videoId?: string
+  customThumbUrl?: string | null
+}) {
   const [err, setErr] = useState(false)
+  const isObject = label.toLowerCase().includes('object') || label.toLowerCase().includes('luggage') || label.toLowerCase().includes('bag')
+  
+  // Calculate source thumbnail URL
+  let thumbSrc = customThumbUrl
+  if (!thumbSrc) {
+    if (videoId && !trackletId.includes('/')) {
+      thumbSrc = `${API_BASE}/data/processed/detections/${videoId}/crops/${trackletId}.jpg`
+    } else {
+      thumbSrc = TRACKLET_THUMB(trackletId)
+    }
+  }
+
   return (
     <div className="flex flex-col items-center gap-1">
-      {!err ? (
+      {!err && thumbSrc ? (
         <img
-          src={TRACKLET_THUMB(trackletId)}
+          src={thumbSrc}
           alt={label}
           className="w-12 h-12 rounded object-cover border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
           onError={() => setErr(true)}
         />
       ) : (
         <div className="w-12 h-12 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-          <UserX className="w-4 h-4 text-slate-400 dark:text-slate-600" />
+          {isObject ? (
+            <Package className="w-5 h-5 text-amber-500/70" />
+          ) : (
+            <UserX className="w-4 h-4 text-slate-400 dark:text-slate-600" />
+          )}
         </div>
       )}
       <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono leading-none max-w-[52px] truncate">
-        {trackletId.split('_trk_')[1] || trackletId.substring(0, 6)}
+        {trackletId.includes('_trk_') ? trackletId.split('_trk_')[1] : trackletId.substring(0, 6)}
       </span>
     </div>
   )
@@ -192,12 +218,17 @@ function AbandonedAlertCard({
         {/* Object thumbnail + Track Object action */}
         <div className="shrink-0 flex flex-col items-center gap-1.5">
           {isLoitering ? (
-            <TrackletThumb trackletId={alert.tracklet_id} label="Person" />
+            <TrackletThumb trackletId={alert.tracklet_id} label="Person" videoId={alert.video_id} />
           ) : alert.object_tracklet_id ? (
-            <TrackletThumb trackletId={alert.object_tracklet_id} label="Object" />
+            <TrackletThumb
+              trackletId={alert.object_tracklet_id}
+              label="Object"
+              videoId={alert.video_id}
+              customThumbUrl={alert.thumbnail_url ? `${API_BASE}${alert.thumbnail_url}` : null}
+            />
           ) : (
             <div className="w-12 h-12 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-              <Package className="w-5 h-5 text-slate-400 dark:text-slate-600" />
+              <Package className="w-5 h-5 text-amber-500/70" />
             </div>
           )}
 
@@ -1204,12 +1235,13 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
           {/* Settings toggle */}
           <button
             onClick={() => setShowSettings(p => !p)}
-            className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${
-              showSettings ? 'border-teal-500/40 bg-teal-500/10 text-teal-600 dark:text-teal-400' : 'border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800'
+            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-semibold transition-colors ${
+              showSettings ? 'border-teal-500/40 bg-teal-500/10 text-teal-600 dark:text-teal-400' : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
-            title="Analysis Settings"
+            title="Analysis Settings & Configuration"
           >
-            <SlidersHorizontal className="w-4 h-4" />
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Configure Thresholds</span>
           </button>
 
           {/* Clear Logs Button */}

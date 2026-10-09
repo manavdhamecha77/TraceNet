@@ -55,6 +55,14 @@
     </button>
 
     <div id="pairError" class="hidden text-rose-400 text-sm text-center px-2"></div>
+
+    <div id="insecureNotice" class="hidden p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs leading-relaxed mt-2">
+      <div class="font-bold flex items-center gap-1.5 mb-1">
+        <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        Mobile Camera Permission Notice
+      </div>
+      <span>Mobile browsers restrict camera access over unencrypted HTTP (except localhost). If the camera fails to open, enable <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> in Chrome for this IP, or connect via HTTPS.</span>
+    </div>
   </div>
 </div>
 
@@ -227,17 +235,35 @@ async function launchStreamScreen() {
 }
 
 async function startCameraPreview(front = true) {
-  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  if (localStream) {
+    try {
+      localStream.getTracks().forEach(t => t.stop());
+    } catch {}
+  }
+  
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    const errorMsg = 'Camera access blocked: Mobile browsers require HTTPS or Chrome flag (chrome://flags/#unsafely-treat-insecure-origin-as-secure) when running over plain HTTP.';
+    console.error(errorMsg);
+    setStatus('NO CAMERA API (HTTPS REQUIRED)', '#ef4444');
+    alert(errorMsg);
+    return;
+  }
+
   const constraints = {
     video: { facingMode: front ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
     audio: false
   };
   try {
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
-    document.getElementById('videoPreview').srcObject = localStream;
-    document.getElementById('videoPreview').style.transform = front ? 'scaleX(-1)' : 'scaleX(1)';
+    const videoEl = document.getElementById('videoPreview');
+    if (videoEl) {
+      videoEl.srcObject = localStream;
+      videoEl.style.transform = front ? 'scaleX(-1)' : 'scaleX(1)';
+    }
+    setStatus('READY', '#94a3b8');
   } catch (e) {
     console.error('Camera access error:', e);
+    setStatus(`CAM ERROR: ${e.message ? e.message.slice(0, 30) : 'Denied'}`, '#ef4444');
   }
 }
 
@@ -249,6 +275,9 @@ async function handleStartStream() {
   try {
     pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
 
+    if (!localStream) {
+      throw new Error('No active camera preview. Please grant camera permission.');
+    }
     // Add video track only
     localStream.getVideoTracks().forEach(track => pc.addTrack(track, localStream));
 
@@ -406,18 +435,22 @@ function stopTelemetryPolling() {
 
 // ===================== BATTERY =====================
 async function startBatteryPolling() {
-  if ('getBattery' in navigator) {
+  if (navigator && typeof navigator.getBattery === 'function') {
     try {
       const battery = await navigator.getBattery();
+      if (!battery) return;
       const updateBattery = () => {
-        const pct = Math.round(battery.level * 100);
+        const pct = Math.round((battery.level || 0) * 100);
         const chargingIcon = battery.charging ? '⚡' : '';
-        document.getElementById('batteryVal').textContent = `${pct}%${chargingIcon}`;
+        const el = document.getElementById('batteryVal');
+        if (el) el.textContent = `${pct}%${chargingIcon}`;
       };
       updateBattery();
       battery.addEventListener('levelchange', updateBattery);
       battery.addEventListener('chargingchange', updateBattery);
-    } catch {}
+    } catch (e) {
+      console.warn('Battery API unavailable:', e);
+    }
   }
 }
 
@@ -448,6 +481,10 @@ function setStatus(label, color) {
     const currentOrigin = window.location.origin;
     if (!currentOrigin.includes('localhost:5173')) {
       document.getElementById('backendUrl').value = currentOrigin;
+    }
+    if (window.isSecureContext === false && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      const notice = document.getElementById('insecureNotice');
+      if (notice) notice.classList.remove('hidden');
     }
   }
 })();

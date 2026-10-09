@@ -2,6 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Driver.js popovers follow the compact TraceNet operator interface. */
+.tracenet-tour-popover.driver-popover {
+  max-width: min(380px, calc(100vw - 28px));
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #1e293b;
+  font-family: inherit;
+  z-index: 100001;
+}
+.tracenet-tour-popover .driver-popover-title { padding-right: 28px; font-size: 15px; }
+.tracenet-tour-popover .driver-popover-description { margin-top: 6px; font-size: 13px; line-height: 1.55; }
+.tracenet-tour-popover .driver-popover-progress-text { font-size: 11px; white-space: nowrap; }
+.tracenet-tour-popover .driver-popover-footer-btn { border-radius: 4px; }
+.tracenet-tour-skip-stage {
+  all: unset;
+  box-sizing: border-box;
+  margin-right: 8px;
+  padding: 4px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #475569;
+  cursor: pointer;
+  font-size: 11px;
+}
+.tracenet-tour-skip-stage:hover { background: #f1f5f9; }
+.dark .tracenet-tour-popover.driver-popover { border-color: #475569; background: #1e293b; color: #f1f5f9; }
+.dark .tracenet-tour-popover .driver-popover-title,
+.dark .tracenet-tour-popover .driver-popover-description { color: #f1f5f9; }
+.dark .tracenet-tour-popover .driver-popover-progress-text { color: #cbd5e1; }
+.dark .tracenet-tour-popover .driver-popover-footer-btn { border-color: #64748b; background: #334155; color: #f1f5f9; }
+.dark .tracenet-tour-popover .driver-popover-arrow-side-bottom { border-top-color: #1e293b; }
+.dark .tracenet-tour-popover .driver-popover-arrow-side-top { border-bottom-color: #1e293b; }
+.dark .tracenet-tour-skip-stage { border-color: #64748b; color: #e2e8f0; }
+.dark .tracenet-tour-skip-stage:hover { background: #334155; }
+
 @layer base {
   :root {
     /* Cool slate Light theme defaults */

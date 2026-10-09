@@ -375,6 +375,7 @@ export default function CCTVWall() {
 
   return (
     <div
+      data-tour="cctv-wall"
       ref={wallContainerRef}
       className="flex flex-col h-full bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen selection:bg-teal-500 selection:text-white pb-12"
     >
@@ -466,6 +467,7 @@ export default function CCTVWall() {
 
           {/* Settings Trigger */}
           <button
+            data-tour="cctv-wall-settings"
             onClick={() => setShowSettingsModal(true)}
             className="px-3 py-1.5 text-xs font-medium bg-teal-600 hover:bg-teal-500 text-white rounded-lg flex items-center gap-1.5 transition-all shadow-sm"
           >

@@ -4,6 +4,7 @@ import { JourneyMapScrubber, type JourneyStep, type RejectedCamera } from '../co
 import { PursuitWaveHUD, type PursuitSession } from '../components/PursuitWaveHUD'
 import { LumpiBenchmarkPanel } from '../components/LumpiBenchmarkPanel'
 import { LumpiReplayPanel } from '../components/LumpiReplayPanel'
+import { useLocation } from 'react-router-dom'
 
 import { useToast } from '../components/Toast'
 
@@ -15,6 +16,7 @@ declare global {
 
 export const MultiCameraTracking: React.FC = () => {
   const toast = useToast()
+  const location = useLocation()
   // Deep-linkable tab for demos: /multicam?tab=replay | pursuit | benchmark
   const initialTab = (() => {
     try {
@@ -23,6 +25,12 @@ export const MultiCameraTracking: React.FC = () => {
     } catch { return 'journey' }
   })() as 'journey' | 'pursuit' | 'replay' | 'benchmark'
   const [activeTab, setActiveTab] = useState<'journey' | 'pursuit' | 'replay' | 'benchmark'>(initialTab)
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(location.search).get('tab')
+    if (requestedTab === 'journey' || requestedTab === 'pursuit' || requestedTab === 'replay' || requestedTab === 'benchmark') {
+      setActiveTab(requestedTab)
+    }
+  }, [location.search])
   const isOverlayTab = activeTab === 'replay' || activeTab === 'benchmark'
   const [speedMode, setSpeedMode] = useState<'pedestrian' | 'vehicle'>('pedestrian')
   const [trackletIdInput, setTrackletIdInput] = useState<string>('')
@@ -320,7 +328,7 @@ export const MultiCameraTracking: React.FC = () => {
   }
 
   return (
-    <div className="relative flex flex-col h-screen w-full overflow-hidden bg-[#F8F9FA] text-slate-800 dark:bg-[#111827] dark:text-slate-100">
+    <div data-tour={activeTab === 'replay' ? 'multicam-replay' : activeTab === 'benchmark' ? 'multicam-benchmark' : 'multicam-overview'} className="relative flex flex-col h-screen w-full overflow-hidden bg-[#F8F9FA] text-slate-800 dark:bg-[#111827] dark:text-slate-100">
       {/* Top Controls Header */}
       <div className="z-20 flex flex-wrap items-center justify-between gap-4 px-6 py-3 bg-white border-b border-slate-200 dark:bg-slate-800/95 dark:border-slate-700">
         <div>

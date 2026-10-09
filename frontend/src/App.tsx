@@ -21,6 +21,7 @@ import EvidenceVault from './pages/EvidenceVault'
 import PlateSearch from './pages/PlateSearch'
 import { MultiCameraTracking } from './pages/MultiCameraTracking'
 import GlobalSearchBar from './components/GlobalSearchBar'
+import ProductTour from './components/ProductTour'
 import AICopilotOverlay from './components/AICopilotOverlay'
 import LanguageSettings from './pages/LanguageSettings'
 import CCTVWall from './pages/CCTVWall'
@@ -1291,6 +1292,7 @@ function App() {
 
           {/* AI Copilot global search bar */}
           <GlobalSearchBar onOpenCopilot={() => setIsCopilotOpen(true)} />
+          <ProductTour />
 
           {/* Pipeline status pill, quick language toggle & theme toggle */}
           <div className="flex items-center gap-2.5">

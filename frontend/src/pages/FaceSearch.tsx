@@ -173,7 +173,7 @@ export default function FaceSearch() {
   }
 
   return (
-    <div className="mx-auto w-[90vw] lg:w-[70vw] max-w-full space-y-5 text-slate-800 dark:text-slate-100">
+    <div data-tour="face-search" className="mx-auto w-[90vw] lg:w-[70vw] max-w-full space-y-5 text-slate-800 dark:text-slate-100">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>

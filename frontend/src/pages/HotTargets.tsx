@@ -186,7 +186,7 @@ export default function HotTargets({ onPlayVideoAtTime }: HotTargetsProps) {
   const criticalCount = targets.filter((t) => t.priority === 'CRITICAL' && t.status === 'active').length
 
   return (
-    <div className="space-y-6 pb-20 animate-in fade-in duration-200">
+    <div data-tour="targets-page" className="space-y-6 pb-20 animate-in fade-in duration-200">
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
         <div>

@@ -168,7 +168,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
   const theftCount = summary?.by_type?.['chain_snatching'] || 0
 
   return (
-    <div className="space-y-6 pb-24 text-slate-800 dark:text-slate-100">
+    <div data-tour="alerts-page" className="space-y-6 pb-24 text-slate-800 dark:text-slate-100">
       {/* Overview Header */}
       <PageHeader
         title="Aggregated Security Alerts"

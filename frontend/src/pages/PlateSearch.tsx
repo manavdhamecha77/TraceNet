@@ -299,7 +299,7 @@ export default function PlateSearch({ onPlayVideoAtTime }: PlateSearchProps) {
   const counts = data?.counts_by_distance ?? {}
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div data-tour="plate-search" className="space-y-6 animate-in fade-in duration-200">
       <div>
         <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-800 dark:text-slate-100">
           <Car className="h-5 w-5 text-teal-600" /> Vehicle Plate Search

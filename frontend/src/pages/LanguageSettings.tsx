@@ -116,7 +116,7 @@ export default function LanguageSettings() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-100 dark:bg-slate-950 p-6">
+    <div data-tour="language-settings" className="flex-1 overflow-y-auto bg-slate-100 dark:bg-slate-950 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         
         <div className="flex items-center space-x-4 mb-8">

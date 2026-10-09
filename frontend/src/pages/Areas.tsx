@@ -124,7 +124,7 @@ export default function Areas() {
   const sortedAreas = useMemo(() => areas.slice().sort((a, b) => a.name.localeCompare(b.name)), [areas])
 
   return (
-    <div className="space-y-5 pb-16 text-slate-800 dark:text-slate-100">
+    <div data-tour="areas-page" className="space-y-5 pb-16 text-slate-800 dark:text-slate-100">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">{t('areas.title')}</h2>

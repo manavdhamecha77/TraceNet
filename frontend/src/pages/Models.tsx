@@ -289,7 +289,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
   }
 
   return (
-    <div className="space-y-6 text-slate-800 dark:text-slate-100">
+    <div data-tour="model-registry" className="space-y-6 text-slate-800 dark:text-slate-100">
       
       {/* ── PAGE HEADER ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">

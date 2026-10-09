@@ -52,7 +52,7 @@ export default function Dashboard({ metrics }: DashboardProps) {
         }
       />
 
-      <section aria-label="System metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section data-tour="dashboard-metrics" aria-label="System metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metricCards.map((card) => (
           <div key={card.label} className="rounded border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
             <div className="flex items-start justify-between gap-3">
@@ -82,7 +82,7 @@ export default function Dashboard({ metrics }: DashboardProps) {
       </section>
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
-        <section className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 xl:col-span-2">
+          <section data-tour="dashboard-pipeline" className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 xl:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
             <div>
               <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t('dashboard.pipeline')}</h2>
@@ -108,7 +108,7 @@ export default function Dashboard({ metrics }: DashboardProps) {
         </section>
 
         <div className="space-y-4">
-          <section className="overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+          <section data-tour="dashboard-assistant" className="overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
               <div>
                 <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">AI operational assistant</h2>
@@ -138,7 +138,7 @@ export default function Dashboard({ metrics }: DashboardProps) {
             </div>
           </section>
 
-          <section className="rounded border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <section data-tour="dashboard-audit" className="rounded border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-600" />
               <h2 className="text-xs font-semibold text-slate-700 dark:text-slate-200">Audit logging active</h2>
