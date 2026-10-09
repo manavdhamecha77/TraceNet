@@ -1,11 +1,13 @@
 import json
+import os
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.db.models import Area, CameraProfile, VideoAsset
+from app.config import get_data_path
 
 router = APIRouter(prefix="/api/v1", tags=["cameras"])
 
@@ -21,6 +23,8 @@ class CameraCreate(BaseModel):
     status: Optional[str] = Field("active", example="active")
     altitude: Optional[float] = Field(None, example=45.2)
     model_id: Optional[str] = Field(None, example="yolov8-person")
+    thumbnail_path: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 class CameraUpdate(BaseModel):
     name: Optional[str] = Field(None, example="Intersection East", min_length=2)
@@ -36,6 +40,8 @@ class CameraUpdate(BaseModel):
     abandoned_model_id: Optional[str] = Field(None, example="yolov8-luggage")
     assault_model_id: Optional[str] = Field(None, example="yolov8-fight")
     participate_in_alerts: Optional[bool] = None
+    thumbnail_path: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 class CameraResponse(BaseModel):
     camera_id: str
@@ -53,6 +59,8 @@ class CameraResponse(BaseModel):
     abandoned_model_id: Optional[str]
     assault_model_id: Optional[str]
     participate_in_alerts: Optional[bool]
+    thumbnail_path: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     video_count: int
 
     class Config:
@@ -113,7 +121,9 @@ def create_camera(payload: CameraCreate, db: Session = Depends(get_db)):
             is_active=True,
             status=payload.status or "active",
             altitude=payload.altitude,
-            model_id=payload.model_id
+            model_id=payload.model_id,
+            thumbnail_path=payload.thumbnail_path,
+            thumbnail_url=payload.thumbnail_url
         )
         db.add(camera)
         db.commit()
@@ -227,6 +237,10 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
             camera.assault_model_id = payload.assault_model_id
         if payload.participate_in_alerts is not None:
             camera.participate_in_alerts = payload.participate_in_alerts
+        if "thumbnail_path" in payload.model_fields_set:
+            camera.thumbnail_path = payload.thumbnail_path
+        if "thumbnail_url" in payload.model_fields_set:
+            camera.thumbnail_url = payload.thumbnail_url
         
         db.commit()
         db.refresh(camera)
@@ -237,6 +251,56 @@ def update_camera(camera_id: str, payload: CameraUpdate, db: Session = Depends(g
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to update camera: {str(e)}"
         )
+
+
+@router.post("/cameras/{camera_id}/thumbnail", response_model=CameraResponse)
+def upload_camera_thumbnail(
+    camera_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Uploads a custom preview thumbnail for a camera."""
+    camera = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+    if not camera:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera profile with ID '{camera_id}' does not exist."
+        )
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Camera thumbnail must be an image file.")
+
+    extension = os.path.splitext(file.filename or "")[1].lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise HTTPException(status_code=400, detail="Supported thumbnail formats: JPG, PNG, or WebP.")
+
+    camera_dir = get_data_path(os.path.join("cameras", camera.camera_id))
+    os.makedirs(camera_dir, exist_ok=True)
+    target_name = f"thumbnail{extension}"
+    target_path = os.path.join(camera_dir, target_name)
+    with open(target_path, "wb") as output:
+        output.write(file.file.read())
+
+    camera.thumbnail_path = os.path.join("cameras", camera.camera_id, target_name).replace("\\", "/")
+    camera.thumbnail_url = None
+    db.commit()
+    db.refresh(camera)
+    return camera.to_dict()
+
+
+@router.delete("/cameras/{camera_id}/thumbnail", response_model=CameraResponse)
+def delete_camera_thumbnail(camera_id: str, db: Session = Depends(get_db)):
+    """Resets custom thumbnail for a camera."""
+    camera = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
+    if not camera:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Camera profile with ID '{camera_id}' does not exist."
+        )
+    camera.thumbnail_path = None
+    camera.thumbnail_url = None
+    db.commit()
+    db.refresh(camera)
+    return camera.to_dict()
 
 @router.delete("/cameras/{camera_id}", status_code=status.HTTP_200_OK)
 def delete_camera(camera_id: str, db: Session = Depends(get_db)):

@@ -578,7 +578,7 @@ export default function LiveCameraView() {
                 or when the backend in-memory dict is reset while the camera keeps streaming. */}
             {streamStatus !== null && streamStatus.is_streaming === false && !videoPlaying && (
               <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-white z-10 p-6">
-                <div className="bg-slate-900/90 border border-slate-700 p-6 rounded-xl text-center max-w-md shadow-2xl flex flex-col items-center">
+                <div className="bg-slate-900/90 border border-slate-700 p-6 rounded-md text-center max-w-md shadow-2xl flex flex-col items-center">
                   <div className="w-12 h-12 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center mb-3 border border-teal-500/30">
                     <QrCode className="w-6 h-6" />
                   </div>

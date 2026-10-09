@@ -855,19 +855,19 @@ export default function CameraDetail({
                 </div>
               ) : detectionModal.result ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
+                  <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
                     <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Frames</div>
                     <div className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{detectionModal.result.frame_count}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
+                  <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
                     <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Tracklets</div>
                     <div className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{detectionModal.result.tracklets.length}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
+                  <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
                     <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Processed FPS</div>
                     <div className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{detectionModal.result.fps.toFixed(1)}</div>
                   </div>
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
+                  <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs">
                     <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Object Types</div>
                     <div className="text-sm font-extrabold text-slate-700 dark:text-slate-300 mt-1 capitalize truncate" title={Array.from(new Set(detectionModal.result.tracklets.map((t) => t.object_type))).join(', ')}>
                       {Array.from(new Set(detectionModal.result.tracklets.map((t) => t.object_type))).join(', ') || 'None'}
@@ -875,7 +875,7 @@ export default function CameraDetail({
                   </div>
                   
                   {/* Model Details & Artifact info (takes 2 columns) */}
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs sm:col-span-2 lg:col-span-2 flex flex-col justify-center gap-1">
+                  <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-white dark:bg-slate-900 shadow-xs sm:col-span-2 lg:col-span-2 flex flex-col justify-center gap-1">
                     <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Model & Artifact Files</div>
                     <div className="text-[10px] text-slate-600 dark:text-slate-350 truncate">
                       <span className="font-semibold text-teal-600 dark:text-teal-400">Model:</span> <span className="font-mono">{detectionModal.result.model_path}</span>
@@ -1008,7 +1008,7 @@ export default function CameraDetail({
                             <div
                               key={tracklet.tracklet_id}
                               onClick={() => onInspectTracklet(tracklet, detectionModal.video)}
-                              className="group flex flex-col rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 hover:border-teal-400 dark:hover:border-teal-500 hover:-translate-y-0.5 cursor-pointer ring-0 hover:ring-2 hover:ring-teal-400/30 active:scale-[0.98]"
+                              className="group flex flex-col rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 hover:border-teal-400 dark:hover:border-teal-500 hover:-translate-y-0.5 cursor-pointer ring-0 hover:ring-2 hover:ring-teal-400/30 active:scale-[0.98]"
                             >
                               {/* Card Crop Header */}
                               <div className="relative w-full h-24 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">

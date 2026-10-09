@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { PageHeader } from '../components/ui'
 import {
   Search as SearchIcon,
   Download,
@@ -15,6 +16,7 @@ import {
   Upload,
   X,
   SlidersHorizontal,
+  Globe,
 } from 'lucide-react'
 
 import { API_BASE } from '../config/api'
@@ -58,6 +60,14 @@ interface ParsedConstraint {
 }
 
 type AttributeMode = 'boost' | 'strict' | 'off'
+
+interface QueryParseMeta {
+  is_multilingual: boolean
+  detected_language: string
+  language_code: string
+  normalized_query: string
+  backend_used: string
+}
 
 const COLOR_SWATCHES: { name: string; hex: string }[] = [
   { name: 'black', hex: '#111827' }, { name: 'white', hex: '#f9fafb' }, { name: 'gray', hex: '#9ca3af' },
@@ -167,7 +177,8 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
   const [attributeMode, setAttributeMode]     = useState<AttributeMode>('boost')
   const [selectedColors, setSelectedColors]   = useState<string[]>([])
   const [parsedConstraints, setParsedConstraints] = useState<ParsedConstraint[]>([])
-  const [lastSearch, setLastSearch]           = useState<{ query: string; filters: Record<string, unknown> }>({ query: '', filters: {} })
+  const [queryParseMeta, setQueryParseMeta]   = useState<QueryParseMeta | null>(null)
+  const [lastSearch, setLastSearch]           = useState<{ query: string; filters: Record<string, unknown>; multilingual?: QueryParseMeta | null }>({ query: '', filters: {}, multilingual: null })
 
   const loadMetadata = async () => {
     try {
@@ -196,8 +207,9 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
   // Live preview of which attributes the system will verify for the typed query
   useEffect(() => {
     const text = query.trim()
-    if (text.length < 3) {
+    if (text.length < 2) {
       setParsedConstraints([])
+      setQueryParseMeta(null)
       return
     }
     const handle = window.setTimeout(async () => {
@@ -206,11 +218,23 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
         if (res.ok) {
           const data = await res.json()
           setParsedConstraints([...(data.verifiable || []), ...(data.unverifiable || [])])
+          if (data.is_multilingual) {
+            setQueryParseMeta({
+              is_multilingual: true,
+              detected_language: data.detected_language || 'Indic',
+              language_code: data.language_code || 'hi',
+              normalized_query: data.normalized_query || text,
+              backend_used: data.backend_used || 'offline_ai',
+            })
+          } else {
+            setQueryParseMeta(null)
+          }
         }
       } catch {
         setParsedConstraints([])
+        setQueryParseMeta(null)
       }
-    }, 350)
+    }, 300)
     return () => window.clearTimeout(handle)
   }, [query])
 
@@ -283,6 +307,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           camera_ids: payload.camera_ids, time_start: payload.time_start, time_end: payload.time_end,
           object_type: payload.object_type, colors: payload.colors, attribute_mode: payload.attribute_mode,
         },
+        multilingual: queryParseMeta,
       })
 
       const logRes = await fetch(`${API_BASE}/api/v1/search/logs`)
@@ -383,14 +408,11 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
     <div className="space-y-6 animate-in fade-in duration-200">
       
       {/* HEADER ROW */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Forensic Search &amp; Rank</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Submit natural language queries to search, rank, and explain CCTV tracklets using persistent Qdrant vector indices.
-          </p>
-        </div>
-        {/* Compact 2×2 system status and maintenance actions */}
+      <PageHeader
+        title={<>Forensic Search &amp; Rank</>}
+        subtitle="Submit natural language queries to search, rank, and explain CCTV tracklets using persistent Qdrant vector indices."
+        className="lg:items-start"
+        actions={
         <div className="grid w-full grid-cols-2 gap-1.5 lg:w-[390px] lg:shrink-0">
           <div className="min-h-8 min-w-0 rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 flex items-center gap-1.5 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
             <Cpu className="h-3 w-3 shrink-0 text-slate-400" />
@@ -425,14 +447,15 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
             <RefreshCw className="h-3 w-3" />
             Re-index All Feeds
           </button>
-      </div>
-      </div>
+        </div>
+        }
+      />
 
       {/* SEARCH INTERFACE PANEL */}
       <div className="space-y-4">
         
         {/* Search query box */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-5 space-y-4">
           
           {/* Mode Toggle */}
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded p-1 w-fit border border-slate-200 dark:border-slate-700">
@@ -467,48 +490,91 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
               </label>
 
               {searchMode === 'text' ? (
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <SearchIcon className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-700 dark:text-teal-400" />
-                    <input
-                      type="text"
-                      required
-                      placeholder={t('search.placeholder')}
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      className="h-12 w-full rounded border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm transition focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 dark:focus:ring-teal-400/20"
-                    />
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <SearchIcon className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-700 dark:text-teal-400" />
+                      <input
+                        type="text"
+                        required
+                        placeholder={t('search.placeholder')}
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        className="h-12 w-full rounded border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm transition focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 dark:focus:ring-teal-400/20"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={searching || loadingMetadata}
+                      className="h-12 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white px-6 rounded text-sm font-semibold transition-all shrink-0 shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {searching ? (
+                        <RefreshCw className="animate-spin h-3.5 w-3.5" />
+                      ) : (
+                        <SearchIcon className="h-3.5 w-3.5" />
+                      )}
+                      {t('search.button')}
+                    </button>
+                    {/* Filter icon button */}
+                    <button
+                      type="button"
+                      onClick={() => setFilterModalOpen(true)}
+                      title="Filters & Scope"
+                      className={`relative h-12 w-12 shrink-0 flex items-center justify-center rounded border transition-all shadow-sm ${
+                        (selectedColors.length > 0 || attributeMode !== 'boost' || timeStart || timeEnd || objectType !== 'all' || topK !== 15 || selectedModels.length > 0 || selectedCameras.length > 0)
+                          ? 'border-teal-600 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
+                          : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-teal-600 hover:text-teal-700 dark:hover:border-teal-500 dark:hover:text-teal-300'
+                      }`}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                      {(selectedColors.length > 0 || attributeMode !== 'boost' || timeStart || timeEnd || objectType !== 'all' || topK !== 15 || selectedModels.length > 0 || selectedCameras.length > 0) && (
+                        <span className="absolute -top-1.5 -right-1.5 h-4 w-4 flex items-center justify-center rounded-full bg-teal-600 text-white text-[8px] font-bold leading-none">
+                          {[selectedColors.length > 0, attributeMode !== 'boost', timeStart, timeEnd, objectType !== 'all', topK !== 15, selectedModels.length > 0, selectedCameras.length > 0].filter(Boolean).length}
+                        </span>
+                      )}
+                    </button>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={searching || loadingMetadata}
-                    className="h-12 bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-700 text-white px-6 rounded text-sm font-semibold transition-all shrink-0 shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {searching ? (
-                      <RefreshCw className="animate-spin h-3.5 w-3.5" />
-                    ) : (
-                      <SearchIcon className="h-3.5 w-3.5" />
-                    )}
-                    {t('search.button')}
-                  </button>
-                  {/* Filter icon button */}
-                  <button
-                    type="button"
-                    onClick={() => setFilterModalOpen(true)}
-                    title="Filters &amp; Scope"
-                    className={`relative h-12 w-12 shrink-0 flex items-center justify-center rounded border transition-all shadow-sm ${
-                      (selectedColors.length > 0 || attributeMode !== 'boost' || timeStart || timeEnd || objectType !== 'all' || topK !== 15 || selectedModels.length > 0 || selectedCameras.length > 0)
-                        ? 'border-teal-600 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300'
-                        : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-teal-600 hover:text-teal-700 dark:hover:border-teal-500 dark:hover:text-teal-300'
-                    }`}
-                  >
-                    <SlidersHorizontal className="h-4 w-4" />
-                    {(selectedColors.length > 0 || attributeMode !== 'boost' || timeStart || timeEnd || objectType !== 'all' || topK !== 15 || selectedModels.length > 0 || selectedCameras.length > 0) && (
-                      <span className="absolute -top-1.5 -right-1.5 h-4 w-4 flex items-center justify-center rounded-full bg-teal-600 text-white text-[8px] font-bold leading-none">
-                        {[selectedColors.length > 0, attributeMode !== 'boost', timeStart, timeEnd, objectType !== 'all', topK !== 15, selectedModels.length > 0, selectedCameras.length > 0].filter(Boolean).length}
+
+                  {/* Live Multilingual Translation Banner */}
+                  {queryParseMeta?.is_multilingual && queryParseMeta?.normalized_query && (
+                    <div className="flex items-center justify-between text-xs bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded px-3 py-1.5 text-indigo-900 dark:text-indigo-200 transition-all">
+                      <div className="flex items-center gap-2 truncate">
+                        <Globe className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        <span className="font-semibold uppercase tracking-wider text-[10px] bg-indigo-200 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 px-1.5 py-0.5 rounded">
+                          {queryParseMeta.detected_language}
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400 text-[11px]">Normalized:</span>
+                        <span className="font-mono font-medium truncate text-slate-800 dark:text-slate-100">
+                          "{queryParseMeta.normalized_query}"
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-indigo-500 dark:text-indigo-400 hidden sm:inline shrink-0 font-medium ml-2">
+                        Offline Multilingual Vector + Attribute Mapping
                       </span>
-                    )}
-                  </button>
+                    </div>
+                  )}
+
+                  {/* Multilingual Quick Suggestion Chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium mr-1 flex items-center gap-1">
+                      <Globe className="h-3 w-3" /> Quick queries:
+                    </span>
+                    {[
+                      { label: 'लाल शर्ट में आदमी', lang: 'Hindi' },
+                      { label: 'સફેદ કાર ગેટ 3 પાસે', lang: 'Gujarati' },
+                      { label: 'kaala backpack leke ladka', lang: 'Hinglish' },
+                      { label: 'laal jacket valo maanas', lang: 'Gujlish' },
+                    ].map((chip) => (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        onClick={() => setQuery(chip.label)}
+                        className="text-[11px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/50 hover:text-teal-700 dark:hover:text-teal-300 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -645,6 +711,15 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                     <ImageIcon className="h-3 w-3" /> PHOTO RE-ID SEARCH
                   </span>
                 )}
+                {lastSearch.multilingual?.is_multilingual && (
+                  <span
+                    className="text-[9px] bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded font-bold flex items-center gap-1"
+                    title={`Original: "${lastSearch.query}" → Normalized: "${lastSearch.multilingual.normalized_query}"`}
+                  >
+                    <Globe className="h-3 w-3" />
+                    MULTILINGUAL: {lastSearch.multilingual.detected_language?.toUpperCase()} → EN
+                  </span>
+                )}
               </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Found {visibleResults.length} matching candidate tracklets</p>
             </div>
@@ -669,7 +744,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
 
         {/* SCORE INTERPRETATION GUIDANCE BAR */}
         {visibleResults.length > 0 && (
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-semibold">
               <span>Match Score Guidance:</span>
             </div>
@@ -884,7 +959,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
       </div>
 
       {/* AUDIT LOG TRAIL SECTION */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded p-5 space-y-4">
         <div>
           <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Evidentiary Search Audit Logs</h3>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Logs of recent transactions for Smart City surveillance compliance audits.</p>
@@ -933,7 +1008,7 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
           />
 
           {/* Panel */}
-          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
             
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">

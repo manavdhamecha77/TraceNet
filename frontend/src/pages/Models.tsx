@@ -311,7 +311,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
       </div>
 
       {/* ── SEARCH & FILTER CONTROLS BAR ── */}
-      <section className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3">
+      <section className="p-4 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
             <svg className="w-4 h-4 text-teal-600 dark:text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -411,7 +411,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
       </section>
 
       {/* ── MODELS LIST TABLE ── */}
-      <section className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+      <section className="border border-slate-200 dark:border-slate-800/80 rounded-md overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
           <span>Registered Models Directory — Showing {filteredModels.length} of {models.length} Models</span>
         </div>
@@ -675,7 +675,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
       {/* ── DETECTABLE CLASSES FULL DETAILS MODAL ── */}
       {selectedClassesModel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-lg rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-lg rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Supported Classes: {selectedClassesModel.name}</h3>
@@ -719,7 +719,7 @@ export default function Models({ models, onRefreshModels }: ModelsProps) {
       {/* ── REGISTER MODEL MODAL ── */}
       {isRegisterOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-md rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 shadow-lg animate-in fade-in zoom-in-95 duration-100">
+          <div className="w-full max-w-md rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 shadow-lg animate-in fade-in zoom-in-95 duration-100">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-700">
               <h3 className="text-sm font-bold text-slate-850 dark:text-slate-100">Register ML Model Node</h3>
               <button

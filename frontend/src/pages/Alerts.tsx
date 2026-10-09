@@ -177,7 +177,7 @@ function AbandonedAlertCard({
 
   return (
     <div
-      className={`rounded-xl border transition-all ${
+      className={`rounded-md border transition-all ${
         alert.acknowledged
           ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60'
           : isLoitering
@@ -386,7 +386,7 @@ function AnalysisLogPanel({ entries }: { entries: AnalysisLogEntry[] }) {
   const overallPercentage = total > 0 ? Math.round((completed / total) * 100) : 0
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+    <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
       <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2">
           <Radio className={`w-3.5 h-3.5 ${runningEntry ? 'text-teal-600 dark:text-teal-400 animate-pulse' : 'text-slate-400 dark:text-slate-500'}`} />
@@ -498,7 +498,7 @@ function DetectedObjectCard({
   const duration = (obj.timestamp_end_seconds - obj.timestamp_start_seconds).toFixed(1)
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 flex gap-3.5 items-start shadow-sm hover:border-teal-500/40 transition-all">
+    <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 flex gap-3.5 items-start shadow-sm hover:border-teal-500/40 transition-all">
       <div className="shrink-0 flex flex-col items-center gap-1.5">
         {!err ? (
           <img
@@ -571,7 +571,7 @@ function CrashReconstructionModal({
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/60">
           <div className="flex items-center gap-2.5">
@@ -615,7 +615,7 @@ function CrashReconstructionModal({
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {/* Pre-Crash */}
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2.5 flex flex-col">
+              <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2.5 flex flex-col">
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 px-0.5">
                   <span>1. Pre-Impact</span>
                   <span className="text-[10px] font-mono text-slate-400">T - 1.5s</span>
@@ -633,7 +633,7 @@ function CrashReconstructionModal({
               </div>
 
               {/* Point of Impact */}
-              <div className="rounded-xl border border-rose-500/40 bg-rose-500/[0.04] dark:bg-rose-950/20 p-2.5 flex flex-col shadow-sm ring-1 ring-rose-500/30">
+              <div className="rounded-md border border-rose-500/40 bg-rose-500/[0.04] dark:bg-rose-950/20 p-2.5 flex flex-col shadow-sm ring-1 ring-rose-500/30">
                 <div className="flex items-center justify-between text-[11px] font-bold text-rose-600 dark:text-rose-400 mb-1.5 px-0.5">
                   <span className="flex items-center gap-1"><Siren className="w-3.5 h-3.5 animate-pulse" /> 2. Impact Instant</span>
                   <span className="text-[10px] font-mono text-rose-600 dark:text-rose-300 font-bold">T = 0.0s</span>
@@ -651,7 +651,7 @@ function CrashReconstructionModal({
               </div>
 
               {/* Post-Crash */}
-              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2.5 flex flex-col">
+              <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-2.5 flex flex-col">
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400 mb-1.5 px-0.5">
                   <span>3. Post-Collision Scene</span>
                   <span className="text-[10px] font-mono text-slate-400">T + 2.5s</span>
@@ -671,7 +671,7 @@ function CrashReconstructionModal({
           </div>
 
           {/* Incident Telemetry Details */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-100/60 dark:bg-slate-950/40 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-100/60 dark:bg-slate-950/40 p-3.5 rounded-md border border-slate-200 dark:border-slate-800">
             <div>
               <div className="text-[10px] uppercase font-bold text-slate-500">Involved Vehicles</div>
               <div className="text-sm font-bold font-mono text-slate-800 dark:text-slate-200 mt-0.5">~{vehiclesCount} Unit(s)</div>
@@ -751,7 +751,7 @@ function AccidentAlertCard({
   const isDispatched = logData.dispatch_status === 'dispatched'
 
   return (
-    <div className={`rounded-xl border p-4 transition-all duration-200 relative overflow-hidden ${
+    <div className={`rounded-md border p-4 transition-all duration-200 relative overflow-hidden ${
       !alert.acknowledged
         ? 'border-rose-500/50 bg-rose-500/[0.04] dark:border-rose-500/40 dark:bg-rose-950/20 shadow-sm ring-1 ring-rose-500/20'
         : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 shadow-xs'
@@ -1290,7 +1290,7 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-4 shadow-sm">
+        <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-4 shadow-sm">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Settings2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
@@ -1375,29 +1375,29 @@ export default function Alerts({ cameras = [], onPlayVideoAtTime }: AlertsPagePr
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
+          <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
             <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Alerts</div>
             <div className="text-2xl font-bold font-mono text-slate-800 dark:text-slate-100 mt-1">{summary.total_alerts}</div>
           </div>
-          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 dark:border-rose-500/30 dark:bg-rose-950/30 p-4 text-rose-700 dark:text-rose-400 shadow-xs">
+          <div className="rounded-md border border-rose-500/40 bg-rose-500/10 dark:border-rose-500/30 dark:bg-rose-950/30 p-4 text-rose-700 dark:text-rose-400 shadow-xs">
             <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
               <Siren className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 animate-pulse" /> Traffic Collisions
             </div>
             <div className="text-2xl font-bold font-mono text-rose-800 dark:text-rose-300 mt-1">{summary.by_type?.accident || 0}</div>
           </div>
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 dark:border-amber-500/30 dark:bg-amber-950/30 p-4 text-amber-700 dark:text-amber-400 shadow-xs">
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 dark:border-amber-500/30 dark:bg-amber-950/30 p-4 text-amber-700 dark:text-amber-400 shadow-xs">
             <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Unacknowledged
             </div>
             <div className="text-2xl font-bold font-mono text-amber-800 dark:text-amber-300 mt-1">{summary.unacknowledged_alerts}</div>
           </div>
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 dark:border-emerald-500/30 dark:bg-emerald-950/30 p-4 text-emerald-700 dark:text-emerald-400 shadow-xs">
+          <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 dark:border-emerald-500/30 dark:bg-emerald-950/30 p-4 text-emerald-700 dark:text-emerald-400 shadow-xs">
             <div className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Acknowledged
             </div>
             <div className="text-2xl font-bold font-mono text-emerald-800 dark:text-emerald-300 mt-1">{acked}</div>
           </div>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
+          <div className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
             <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
               <Users className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Persons of Interest
             </div>

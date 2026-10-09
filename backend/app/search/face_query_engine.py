@@ -1,4 +1,5 @@
 import os
+from loguru import logger
 import tempfile
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -46,7 +47,20 @@ class FaceQueryEngine:
             # Facenet doesn't do text-to-image
             return []
             
-        vector = self.embedder.embed_text_query(query)
+        # Multilingual queries (Hindi / Gujarati / Hinglish / Gujlish): normalise to English first and, when the
+        # offline multilingual CLIP is available and the active encoder is 512-d, blend both vectors exactly as
+        # the main tracklet search does. English queries pass through unchanged.
+        from app.search.multilingual import normalize_query, encode_multilingual_query
+        norm_res = normalize_query(query)
+        effective_query = norm_res[0] if norm_res and norm_res[0] else query
+        vector = self.embedder.embed_text_query(effective_query)
+        if norm_res and getattr(norm_res, "details", {}).get("is_multilingual") and len(vector) == 512:
+            try:
+                blended = encode_multilingual_query(query, effective_query, target_dim=512)
+                if blended:
+                    vector = blended
+            except Exception as exc:  # never let the optional model break face search
+                logger.warning(f"Multilingual face-query encoding fell back to English CLIP: {exc}")
         points = self.index.search_similar(vector, top_k=top_k * 2) # get more to filter
         enriched = self._enrich_results(points, db)
         filtered = self._filter_by_camera_and_video(enriched, camera_ids, video_id)

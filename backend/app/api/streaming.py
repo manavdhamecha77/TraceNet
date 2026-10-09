@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 import urllib.parse
 import urllib.request
 import os
+import socket
+import time
 
 import httpx
 
@@ -35,6 +37,26 @@ HTTP_PORT = int(os.getenv("TRACENET_HTTP_PORT", "8000"))
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+_https_probe_cache: dict = {"at": 0.0, "up": False}
+
+
+def _https_listener_active(ttl_sec: float = 3.0) -> bool:
+    """True only when something is actually accepting connections on the HTTPS port.
+    The certificate file under backend/data/certs persists between runs, so its existence says nothing
+    about whether the current process was started through serve.py (plain uvicorn never opens :8443)."""
+    now = time.monotonic()
+    if now - _https_probe_cache["at"] < ttl_sec:
+        return _https_probe_cache["up"]
+    up = False
+    try:
+        with socket.create_connection(("127.0.0.1", HTTPS_PORT), timeout=0.3):
+            up = True
+    except OSError:
+        up = False
+    _https_probe_cache.update(at=now, up=up)
+    return up
+
 
 def _public_base(request: Request) -> str:
     """Origin the caller reached us on (scheme + host + port). WHIP/WHEP are proxied through this
@@ -106,10 +128,12 @@ def list_chunks(session_id: str, db: Session = Depends(get_db)):
 @router.get("/access-urls")
 def access_urls(request: Request):
     """Where a phone / edge device on the LAN should open the edge camera app.
-    HTTPS is required for camera access on anything but localhost; the HTTPS listener exists when the
-    backend runs through serve.py (self-signed certificate under backend/data/certs)."""
+    HTTPS is required for camera access on anything but localhost; the HTTPS listener exists only when the
+    backend runs through serve.py (self-signed certificate under backend/data/certs). The flag is based on a
+    live probe of the HTTPS port, not on the certificate file, so a stale cert never advertises a dead URL."""
     ips = lan_ipv4_addresses()
-    https_available = os.path.exists(CERT_FILE)
+    cert_present = os.path.exists(CERT_FILE)
+    https_available = cert_present and _https_listener_active()
     urls = []
     for ip in ips:
         if https_available:
@@ -123,8 +147,10 @@ def access_urls(request: Request):
         "reached_via": _public_base(request),
         "recommended": next((u["url"] for u in urls if u["secure"]), (urls[0]["url"] if urls else f"{_public_base(request)}/camera-app")),
         "urls": urls,
+        "https_cert_present": cert_present,
         "note": ("Phones need the HTTPS URL (accept the self-signed certificate once). "
-                 "Start the backend with `python serve.py` to enable it." if not https_available else
+                 f"Nothing is listening on :{HTTPS_PORT} right now: start the backend with `python serve.py` "
+                 "(not plain uvicorn) to enable it." if not https_available else
                  "Phones: open the HTTPS URL and accept the self-signed certificate once."),
     }
 

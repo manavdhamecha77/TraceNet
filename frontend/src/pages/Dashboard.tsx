@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageHeader } from '../components/ui'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -40,16 +41,16 @@ export default function Dashboard({ metrics }: DashboardProps) {
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-5 pb-10 text-slate-800 dark:text-slate-100">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="mb-1 text-xs font-medium text-slate-500 dark:text-slate-400">{t('dashboard.category')}</p>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-800 dark:text-slate-100">{t('dashboard.title')}</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{t('dashboard.subtitle')}</p>
-        </div>
-        <Link to="/cameras" className="inline-flex h-9 items-center gap-2 rounded border border-teal-700 bg-teal-700 px-3 text-sm font-medium text-white hover:bg-teal-800">
-          {t('dashboard.viewCameraRegistry')} <span aria-hidden="true">→</span>
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow={t('dashboard.category')}
+        title={t('dashboard.title')}
+        subtitle={t('dashboard.subtitle')}
+        actions={
+          <Link to="/cameras" className="inline-flex h-9 items-center gap-2 rounded border border-teal-700 bg-teal-700 px-3 text-sm font-medium text-white hover:bg-teal-800">
+            {t('dashboard.viewCameraRegistry')} <span aria-hidden="true">→</span>
+          </Link>
+        }
+      />
 
       <section aria-label="System metrics" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metricCards.map((card) => (

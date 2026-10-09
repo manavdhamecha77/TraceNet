@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   AlertTriangle, ShieldAlert, Package, CheckCheck,
   RefreshCw, Filter, ChevronRight,
-  ShieldCheck, Loader2, ArrowUpRight, CheckSquare, Square, Car
+  ShieldCheck, ArrowUpRight, CheckSquare, Square, Car
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { PageHeader, StatusBadge, Button, StatTile, CardSkeleton, TableSkeleton } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { formatDisplayDate } from '../utils/dateFormatter'
 import type { AlertEntry, Camera } from '../types/alerts'
@@ -169,69 +170,31 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
   return (
     <div className="space-y-6 pb-24 text-slate-800 dark:text-slate-100">
       {/* Overview Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <span>Aggregated Security Alerts</span>
-            <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-300">
-              Overview Dashboard
-            </span>
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Unified real-time feed of all security alerts across cameras. Click a dedicated page to run analysis or configure parameters.
-          </p>
-        </div>
-
-        <button
-          onClick={loadData}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shrink-0"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh Feed
-        </button>
-      </div>
+      <PageHeader
+        title="Aggregated Security Alerts"
+        badges={<StatusBadge tone="brand" dot={false}>Overview dashboard</StatusBadge>}
+        subtitle="Unified real-time feed of all security alerts across cameras. Open a dedicated page to run analysis or configure parameters."
+        actions={<Button icon={RefreshCw} onClick={loadData}>Refresh feed</Button>}
+        className="border-b border-slate-200 pb-4 dark:border-slate-700"
+      />
 
       {/* Aggregated Stat Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Alerts</div>
-          <div className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 mt-1">{totalCount}</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">All logged incidents</div>
+      {loading && !summary ? (
+        <CardSkeleton count={4} />
+      ) : (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <StatTile label="Total alerts" value={totalCount} detail="All logged incidents" tone="neutral" />
+          <StatTile label="Unacknowledged" value={unackCount} detail="Requires security review" tone={unackCount > 0 ? 'warning' : 'neutral'} icon={AlertTriangle} />
+          <StatTile label="Abandoned / unattended" value={abandonedCount + unattendedCount} detail="Luggage and static items" tone="neutral" icon={Package} to="/alerts/abandoned" />
+          <StatTile label="Outdoor theft" value={theftCount} detail="Chain snatching and violent theft" tone={theftCount > 0 ? 'danger' : 'neutral'} icon={ShieldAlert} to="/alerts/theft" />
         </div>
-
-        <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>Unacknowledged</span>
-            <AlertTriangle className="w-4 h-4 text-teal-700 dark:text-teal-300" />
-          </div>
-          <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mt-1">{unackCount}</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Requires security review</div>
-        </div>
-
-        <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>Abandoned / Unattended</span>
-            <Package className="w-4 h-4 text-teal-700 dark:text-teal-300" />
-          </div>
-          <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mt-1">{abandonedCount + unattendedCount}</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Luggage &amp; static items</div>
-        </div>
-
-        <div className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>Outdoor Theft</span>
-            <ShieldAlert className="w-4 h-4 text-teal-700 dark:text-teal-300" />
-          </div>
-          <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mt-1">{theftCount}</div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Chain snatching &amp; violent theft</div>
-        </div>
-      </div>
+      )}
 
       {/* Dedicated Execution Banners */}
       <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-3">
         <Link
           to="/alerts/abandoned"
-          className="min-h-[190px] p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-amber-400 dark:hover:border-amber-600 transition-colors group flex flex-col items-start"
+          className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-amber-400 dark:hover:border-amber-600 transition-colors group flex flex-col items-start"
         >
           <div className="flex items-start gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300"><Package className="w-4 h-4" /></span>
@@ -248,7 +211,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
 
         <Link
           to="/alerts/theft"
-          className="min-h-[190px] p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-rose-400 dark:hover:border-rose-700 transition-colors group flex flex-col items-start"
+          className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-rose-400 dark:hover:border-rose-700 transition-colors group flex flex-col items-start"
         >
           <div className="flex items-start gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300"><ShieldAlert className="w-4 h-4" /></span>
@@ -265,7 +228,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
 
         <Link
           to="/assault-detection"
-          className="min-h-[190px] p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-violet-400 dark:hover:border-violet-700 transition-colors group flex flex-col items-start"
+          className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-violet-400 dark:hover:border-violet-700 transition-colors group flex flex-col items-start"
         >
           <div className="flex items-start gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-300"><ShieldCheck className="w-4 h-4" /></span>
@@ -282,7 +245,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
 
         <Link
           to="/alerts/plates"
-          className="min-h-[190px] p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-teal-400 dark:hover:border-teal-600 transition-colors group flex flex-col items-start"
+          className="p-4 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-teal-400 dark:hover:border-teal-600 transition-colors group flex flex-col items-start"
         >
           <div className="flex items-start gap-3">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900 dark:bg-teal-950/50 dark:text-teal-300"><Car className="w-4 h-4" /></span>
@@ -365,9 +328,8 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
 
       {/* Feed Grid */}
       {loading ? (
-        <div className="py-12 flex justify-center items-center text-slate-400 gap-2">
-          <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
-          <span>Loading Aggregated Alerts Feed...</span>
+        <div className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+          <TableSkeleton rows={5} columns={6} label="Loading alerts" />
         </div>
       ) : alerts.length === 0 ? (
         <div className="py-12 text-center border border-dashed border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-800">
@@ -389,7 +351,7 @@ export default function AlertsDashboard({ cameras = [], onPlayVideoAtTime }: Ale
             return (
               <div
                 key={alert.id}
-                className={`p-4 rounded-xl border transition-all ${
+                className={`p-4 rounded-md border transition-all ${
                   alert.acknowledged
                     ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
                     : isTheft

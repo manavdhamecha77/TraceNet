@@ -18,6 +18,7 @@ import os
 import re
 import tempfile
 import threading
+import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
@@ -92,14 +93,23 @@ def _s3():
     return get_s3_client(), get_bucket()
 
 
+# rel -> time.monotonic() until which "not in S3" is trusted. Without it, a missing model is looked up in
+# S3 on every use (the plate pass asked ~100 times per video, ~1 s per round trip to the bucket).
+MISSING_TTL_SECONDS = 300.0
+_missing_until: dict[str, float] = {}
+
+
 def _remote_size(rel: str) -> Optional[int]:
     from botocore.exceptions import ClientError
 
+    if _missing_until.get(rel, 0.0) > time.monotonic():
+        return None
     s3, bucket = _s3()
     try:
         return s3.head_object(Bucket=bucket, Key=_key(rel))["ContentLength"]
     except ClientError as exc:
         if exc.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+            _missing_until[rel] = time.monotonic() + MISSING_TTL_SECONDS
             return None
         raise
 
@@ -157,6 +167,7 @@ def put(local_path: str, metadata: Optional[dict[str, str]] = None) -> bool:
         if metadata:
             extra["Metadata"] = metadata
         s3.upload_file(str(local_path), bucket, _key(rel), ExtraArgs=extra)
+        _missing_until.pop(rel, None)
         logger.info(f"Media store: uploaded {rel} to S3")
         return True
     except Exception as exc:
@@ -177,7 +188,20 @@ def put_background(local_path: str, metadata: Optional[dict[str, str]] = None) -
         from concurrent.futures import ThreadPoolExecutor
 
         _upload_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="media-upload")
-    _upload_pool.submit(put, local_path, metadata)
+    _upload_pool.submit(_put_with_retries, local_path, metadata)
+
+
+UPLOAD_RETRY_DELAYS = (5.0, 15.0)  # slow / flaky uplinks: two more tries before leaving it to `migrate`
+
+
+def _put_with_retries(local_path: str, metadata: Optional[dict[str, str]] = None) -> bool:
+    for delay in (0.0, *UPLOAD_RETRY_DELAYS):
+        if delay:
+            time.sleep(delay)
+        if put(local_path, metadata):
+            return True
+    logger.warning(f"Media store: giving up on {rel_of(local_path)} for now; `python -m app.storage.media migrate` uploads it later.")
+    return False
 
 
 def delete(local_path: Optional[str]) -> None:

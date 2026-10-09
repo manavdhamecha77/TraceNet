@@ -89,6 +89,7 @@ ffmpeg -re -stream_loop -1 -i some_clip.mp4 -c:v libx264 -preset ultrafast -tune
 |---|---|
 | Boxes but black video | Fixed (2026-10-08): the page never started WHEP after React's dev double-mount, and the proxy deadlocked on the auth hook. If it recurs, check the browser console for `WHEP error` and `GET /api/v1/stream/mediamtx-status`. |
 | Phone: "camera not available / permission denied" | Opened over `http://` on a LAN IP. Use the `https://…:8443/camera-app` link from the pair dialog (requires `serve.py`). |
+| Pair dialog shows `https://…:8443/camera-app` but the phone / browser gets `ERR_CONNECTION_REFUSED` | The backend was started with plain `uvicorn` (or `dev.ps1`), which opens only :8000; the HTTPS listener exists only under `serve.py`. Fixed (2026-10-09): `/access-urls` now probes :8443 for a live listener instead of trusting the leftover certificate file, so it falls back to the `http://…:8000` link plus a "start with serve.py" note. Restart via `backend\serve.ps1` to get HTTPS. |
 | Phone: certificate warning | Expected for the self-signed dev certificate; accept once per device. |
 | WHIP returns 401 | Pair code expired or reused; generate a new one. |
 | WHEP 404 "No publisher" | Phone has not pressed Start streaming yet; the dashboard retries automatically. |

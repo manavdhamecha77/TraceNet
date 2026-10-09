@@ -112,8 +112,8 @@ export const MultiCameraTracking: React.FC = () => {
         zoomControl: true
       })
 
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
+      window.L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri',
         maxZoom: 19
       }).addTo(map)
 
@@ -224,6 +224,16 @@ export const MultiCameraTracking: React.FC = () => {
 
       if (res.ok) {
         const data = await res.json()
+        if (data.auto_selected) {
+          const a = data.auto_selected
+          if (a.tracklet_id && !trackletIdInput.trim()) setTrackletIdInput(a.tracklet_id)
+          toast.info(
+            'Auto-linked target',
+            a.source === 'hot_target'
+              ? `Using hot target "${a.label}"${a.tracklet_id ? ` (${a.tracklet_id})` : ''}.`
+              : `No ID given: using the latest indexed ${a.object_type || 'tracklet'} ${a.tracklet_id} on ${a.camera_id}.`
+          )
+        }
         setJourneySteps(data.journey_steps || [])
         setJourneyMeta({ rejected: data.rejected_cameras || [], limitation: data.limitation })
         setTotalDistance(data.total_distance_meters || 0)

@@ -39,6 +39,7 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setattr(media, "get_data_path", lambda rel: str(tmp_path / rel))
     monkeypatch.setattr(media, "_s3", lambda: (fake, "bucket"))
     monkeypatch.setattr(media, "store_enabled", lambda: True)
+    monkeypatch.setattr(media, "_missing_until", {})
     return fake, tmp_path
 
 
@@ -83,7 +84,8 @@ def test_presigned_only_when_object_exists(store):
     fake, root = store
     path = str(root / "minio_mock" / "a.mp4")
     assert media.presigned_url(path) is None
-    fake.objects["media/minio_mock/a.mp4"] = b"x"
+    fake.objects["media/minio_mock/a.mp4"] = b"x"   # uploaded by another machine...
+    media._missing_until.clear()                    # ...and seen here once the "missing" memory expires
     assert media.presigned_url(path).startswith("https://s3.example/media/minio_mock/a.mp4")
 
 
@@ -105,3 +107,41 @@ def test_local_mode_never_touches_s3(tmp_path, monkeypatch):
     assert media.ensure_local(str(path))
     assert not media.put(str(path))
     assert media.presigned_url(str(path)) is None
+
+
+def test_missing_files_are_not_looked_up_in_s3_every_time(store, monkeypatch):
+    fake, root = store
+    calls = []
+    real_head = fake.head_object
+    fake.head_object = lambda **kw: (calls.append(kw["Key"]), real_head(**kw))[1]
+    path = str(root / "models" / "license_plate_detector.pt")
+    for _ in range(50):
+        assert not media.ensure_local(path)
+    assert len(calls) == 1  # remembered as missing
+
+    path_obj = root / "models" / "license_plate_detector.pt"
+    path_obj.parent.mkdir(parents=True, exist_ok=True)
+    path_obj.write_bytes(b"w")
+    assert media.put(str(path_obj))  # uploading forgets the "missing" verdict
+    path_obj.unlink()
+    assert media.ensure_local(path)
+
+
+def test_background_upload_retries_then_succeeds(store, monkeypatch):
+    fake, root = store
+    f = root / "minio_mock" / "clip.mp4"
+    f.parent.mkdir(parents=True)
+    f.write_bytes(b"v")
+    attempts = []
+    real_upload = fake.upload_file
+
+    def flaky(src, bucket, key, ExtraArgs=None):
+        attempts.append(key)
+        if len(attempts) < 3:
+            raise ConnectionError("Connection was closed before we received a valid response")
+        return real_upload(src, bucket, key, ExtraArgs)
+
+    fake.upload_file = flaky
+    monkeypatch.setattr(media, "UPLOAD_RETRY_DELAYS", (0.0, 0.0))
+    assert media._put_with_retries(str(f))
+    assert len(attempts) == 3 and "media/minio_mock/clip.mp4" in fake.objects

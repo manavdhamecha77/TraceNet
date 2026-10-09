@@ -112,7 +112,7 @@ export default function EvidenceVault() {
       </div>
 
       {/* External bundle verification */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-5 shadow-sm space-y-3">
         <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Verify an evidence bundle</h3>
         <input ref={fileRef} type="file" accept=".zip,application/zip" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) verifyUpload(f) }} />
         <div
@@ -138,7 +138,7 @@ export default function EvidenceVault() {
       </div>
 
       {/* Registry */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-5 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Issued bundles</h3>
           <button onClick={() => { setLoading(true); load() }} className="text-[11px] font-bold text-slate-500 hover:text-teal-700 flex items-center gap-1">

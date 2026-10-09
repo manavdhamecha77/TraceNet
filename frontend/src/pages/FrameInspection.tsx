@@ -99,7 +99,7 @@ export default function FrameInspection() {
         </div>
 
         {/* Alert Summary */}
-        <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 shadow-sm">
+        <div className="bg-slate-900/80 rounded-md border border-slate-800 p-5 shadow-sm">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">
               <p className="text-xs text-slate-400 uppercase font-mono">Peak Confidence</p>
@@ -129,7 +129,7 @@ export default function FrameInspection() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Timeline */}
           <div className="md:col-span-2">
-            <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-4">
+            <div className="bg-slate-900/80 rounded-md border border-slate-800 p-5 space-y-4">
               <h2 className="text-base font-bold text-slate-100">Detection Timeline</h2>
               <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                 {data.detected_frames.map((frame, idx) => (
@@ -177,7 +177,7 @@ export default function FrameInspection() {
           </div>
 
           {/* Frame Details */}
-          <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5 space-y-4">
+          <div className="bg-slate-900/80 rounded-md border border-slate-800 p-5 space-y-4">
             <h2 className="text-base font-bold text-slate-100">Frame Details</h2>
             {selectedFrame ? (
               <div className="space-y-3 text-xs">
@@ -222,7 +222,7 @@ export default function FrameInspection() {
         </div>
 
         {/* Statistics */}
-        <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-5">
+        <div className="bg-slate-900/80 rounded-md border border-slate-800 p-5">
           <h2 className="text-base font-bold text-slate-100 mb-3">Detection Statistics</h2>
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800">

@@ -99,6 +99,8 @@ class CameraProfile(Base):
     stream_auth_token = Column(String, nullable=True)
     stream_token_expires_at = Column(DateTime, nullable=True)
     stream_started_at = Column(DateTime, nullable=True)
+    thumbnail_path = Column(String, nullable=True)
+    thumbnail_url = Column(String, nullable=True)
 
     videos = relationship("VideoAsset", back_populates="camera", cascade="all, delete-orphan")
     area = relationship("Area", back_populates="cameras")
@@ -125,6 +127,8 @@ class CameraProfile(Base):
             "theft_model_id": self.theft_model_id,
             "abandoned_model_id": self.abandoned_model_id,
             "assault_model_id": self.assault_model_id,
+            "thumbnail_path": self.thumbnail_path,
+            "thumbnail_url": self.thumbnail_url,
             "video_count": len(self.videos) if self.videos else 0,
             "is_streaming": self.is_streaming,
             "stream_key": self.stream_key,

@@ -57,6 +57,7 @@ class QueryEngine:
         user_id: str = "demo",
         constraints: Optional[Sequence[AttributeConstraint]] = None,
         attribute_mode: str = "boost",
+        multilingual_info: Optional[dict] = None,
     ) -> list[dict]:
         """
         Hybrid semantic + metadata search:
@@ -235,6 +236,7 @@ class QueryEngine:
                 time_end=time_end,
                 object_type=object_type,
                 video_id=video_id,
+                multilingual_info=multilingual_info,
             )
 
             filtered_results.append({
@@ -294,13 +296,29 @@ class QueryEngine:
         colors: Optional[Sequence[str]] = None,
         vehicle_type: Optional[str] = None,
         attribute_mode: str = "boost",
+        original_query: Optional[str] = None,
+        multilingual_info: Optional[dict] = None,
     ) -> list[dict]:
         """
         Text search wrapper:
-        Encodes query text to vector using CLIP, then delegates to search_by_vector().
+        Encodes query text to vector using Multilingual CLIP (for non-English queries)
+        or active CLIP encoder, then delegates to search_by_vector().
         """
-        logger.info(f"QueryEngine: text search query='{query_text}'")
-        query_vector = get_clip_encoder().embed_text(query_text)
+        logger.info(f"QueryEngine: text search query='{query_text}', original='{original_query}'")
+        
+        # 1. Generate query vector (using offline multilingual CLIP if query is Indic / multilingual)
+        query_vector = None
+        source_text = original_query or query_text
+        if original_query and (original_query.strip() != query_text.strip() or (multilingual_info and multilingual_info.get("is_multilingual"))):
+            try:
+                from app.search.multilingual import encode_multilingual_query
+                query_vector = encode_multilingual_query(original_query, query_text, target_dim=512)
+            except Exception as e:
+                logger.warning(f"Offline multilingual vector encoding error: {e}")
+
+        if query_vector is None:
+            query_vector = get_clip_encoder().embed_text(query_text)
+
         constraints = None
         if attribute_mode != "off":
             constraints = merge_constraints(
@@ -310,7 +328,7 @@ class QueryEngine:
         return self.search_by_vector(
             db=db,
             query_vector=query_vector,
-            query_label=query_text,
+            query_label=original_query or query_text,
             camera_ids=camera_ids,
             time_start=time_start,
             time_end=time_end,
@@ -320,6 +338,7 @@ class QueryEngine:
             user_id=user_id,
             constraints=constraints,
             attribute_mode=attribute_mode,
+            multilingual_info=multilingual_info,
         )
 
     @staticmethod
@@ -337,6 +356,7 @@ class QueryEngine:
         attribute_verdicts: Optional[list[dict]] = None,
         attribute_mode: str = "off",
         final_score: Optional[float] = None,
+        multilingual_info: Optional[dict] = None,
     ) -> dict:
         """Return transparent retrieval evidence; it is not an identity determination."""
         attribute_verdicts = attribute_verdicts or []
@@ -358,6 +378,12 @@ class QueryEngine:
             "detail": f"Detected as {class_name}",
             "value_percent": round(max(0.0, min(mean_confidence or 0.0, 1.0)) * 100, 1),
         }]
+        if multilingual_info and multilingual_info.get("is_multilingual"):
+            evidence.insert(0, {
+                "label": f"Multilingual query ({multilingual_info.get('detected_language', 'Indic')})",
+                "detail": f"Translated '{multilingual_info.get('original_query', '')}' → '{multilingual_info.get('normalized_query', '')}' via {multilingual_info.get('backend_used', 'Offline AI')}",
+                "value_percent": None,
+            })
         for v in attribute_verdicts:
             label = {
                 "matched": "Attribute verified",
@@ -392,7 +418,7 @@ class QueryEngine:
         unknown_terms = [t for t in unknown_terms if t not in attribute_terms]
         matched_terms = [t for t in matched_terms if t not in attribute_terms]
 
-        return {
+        exp_dict = {
             "retrieval_method": "reference-image similarity" if is_image_search else "text-to-image semantic similarity",
             "attribute_mode": attribute_mode,
             "attribute_checks": attribute_verdicts,
@@ -403,6 +429,9 @@ class QueryEngine:
             "applied_filters": applied_filters,
             "limitation": "Similarity ranks candidates for human review; it does not verify identity or prove an attribute is present or absent.",
         }
+        if multilingual_info and multilingual_info.get("is_multilingual"):
+            exp_dict["multilingual"] = multilingual_info
+        return exp_dict
 
     def _log_search(
         self,

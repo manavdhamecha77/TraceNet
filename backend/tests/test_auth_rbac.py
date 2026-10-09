@@ -131,6 +131,8 @@ def test_admin_only_copilot_tools_need_an_admin_to_confirm(secure, db):
     ("GET", "/data/cameras/x/original_assets/a.mp4", USER),
     ("POST", "/api/v1/models", ADMIN),
     ("PUT", "/api/v1/cameras/CAM_1", ADMIN),
+    ("POST", "/api/v1/cameras/CAM_1/thumbnail", ADMIN),
+    ("DELETE", "/api/v1/cameras/CAM_1/thumbnail", ADMIN),
     ("DELETE", "/api/v1/videos/abc/delete", ADMIN),
     ("POST", "/api/v1/reindex-all", ADMIN),
     ("PATCH", "/api/v1/auth/users/abc", ADMIN),

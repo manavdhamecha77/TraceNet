@@ -36,8 +36,15 @@ class BLIPCaptioner:
                 self.device = get_device()
 
             logger.info(f"Loading BLIP Captioner model '{self.model_name}' on device={self.device}...")
-            self.processor = BlipProcessor.from_pretrained(self.model_name)
-            self.model = BlipForConditionalGeneration.from_pretrained(self.model_name).to(self.device)
+            try:
+                # Cached copy first: no network round trips (and works offline / behind TLS-scanning antivirus)
+                self.processor = BlipProcessor.from_pretrained(self.model_name, local_files_only=True)
+                model = BlipForConditionalGeneration.from_pretrained(self.model_name, local_files_only=True)
+            except OSError:
+                logger.info(f"BLIP model '{self.model_name}' not cached yet; downloading from Hugging Face.")
+                self.processor = BlipProcessor.from_pretrained(self.model_name)
+                model = BlipForConditionalGeneration.from_pretrained(self.model_name)
+            self.model = model.to(self.device)
             self.model.eval()
             self._is_loaded = True
             logger.info(f"BLIP Captioner successfully loaded ({self.model_name}).")

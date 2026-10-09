@@ -55,6 +55,7 @@ _ADMIN_RULES = [
     ("POST", r"/api/v1/create-new-camera"),
     ("PUT|DELETE", r"/api/v1/cameras/[^/]+"),
     ("POST", r"/api/v1/cameras/[^/]+/sync-detection"),
+    ("POST|DELETE", r"/api/v1/cameras/[^/]+/thumbnail"),
     ("POST|PUT|DELETE", r"/api/v1/areas(/.*)?"),
     ("POST|PUT|DELETE", r"/api/v1/webhooks(/.*)?"),
     ("POST", r"/api/v1/assistant/config"),

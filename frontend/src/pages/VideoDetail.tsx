@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { MultilingualQueryHint, MultilingualBadge, type QueryParseMeta } from '../components/MultilingualQueryHint'
 import { useParams, useSearchParams } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import {
@@ -128,6 +129,8 @@ export default function VideoDetail() {
 
   // Local search
   const [localQuery, setLocalQuery]         = useState('')
+  const [localQueryMeta, setLocalQueryMeta] = useState<QueryParseMeta | null>(null)
+  const [faceQueryMeta, setFaceQueryMeta] = useState<QueryParseMeta | null>(null)
   const [topK, setTopK]                     = useState(25)
   const [localResults, setLocalResults]     = useState<TrackletItem[]>([])
   const [searching, setSearching]           = useState(false)
@@ -856,7 +859,7 @@ export default function VideoDetail() {
       )}
 
       {/* ── 1. HEADER & METADATA BANNER ───────────────────────────────────────── */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
         <div className="flex items-center gap-2.5 flex-wrap">
           <span className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">
             {camera.name || camera_id}
@@ -1275,11 +1278,13 @@ export default function VideoDetail() {
             </button>
           )}
         </form>
+        <MultilingualQueryHint query={localQuery} onMeta={setLocalQueryMeta} className="mt-2" />
 
         {/* Results count */}
         {localResults.length > 0 && (
           <p className="text-xs text-slate-500">
             <span className="font-bold text-teal-700 dark:text-teal-400">{localResults.length}</span> results for &ldquo;<em>{localQuery}</em>&rdquo;
+            {localQueryMeta && <span className="ml-2"><MultilingualBadge meta={localQueryMeta} originalQuery={localQuery} /></span>}
           </p>
         )}
 
@@ -1472,11 +1477,13 @@ export default function VideoDetail() {
               </button>
             )}
           </form>
+          <MultilingualQueryHint query={faceSearchQuery} onMeta={setFaceQueryMeta} className="mt-2" />
 
           {/* Results count indicator */}
           {localFaceResults.length > 0 && (
             <p className="text-xs text-slate-500">
               <span className="font-bold text-emerald-600 dark:text-emerald-400">{localFaceResults.length}</span> face results for &ldquo;<em>{faceSearchQuery}</em>&rdquo;
+              {faceQueryMeta && <span className="ml-2"><MultilingualBadge meta={faceQueryMeta} originalQuery={faceSearchQuery} /></span>}
             </p>
           )}
 
