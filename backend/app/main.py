@@ -621,6 +621,22 @@ def load_startup_singletons() -> None:
     """Start infrastructure without blocking API readiness on optional ML downloads."""
     print("Startup: CLIP encoder will load lazily when search or embedding work begins.")
     try:
+        from app.auth.middleware import auth_enabled
+        from app.db.models import UserAccount
+
+        with SessionLocal() as db:
+            if auth_enabled() and db.query(UserAccount).count() == 0:
+                print("Startup: login is enabled but no accounts exist yet. Create the first Admin with:\n"
+                      "    python -m app.auth.users add <username> --role admin --name \"<Name / Badge>\"")
+    except Exception as exc:
+        print(f"Startup Warning: could not check user accounts: {exc}")
+    try:
+        from app.runtime.device import log_device
+
+        log_device()
+    except Exception as exc:
+        print(f"Startup Warning: could not determine compute device: {exc}")
+    try:
         from app.search.vector_index import normalize_legacy_object_types
 
         with SessionLocal() as db:
@@ -629,12 +645,28 @@ def load_startup_singletons() -> None:
             print(f"Startup: normalised object_type on {fixed} legacy tracklets (person/vehicle filter).")
     except Exception as exc:
         print(f"Startup Warning: legacy object_type normalisation skipped: {exc}")
+    try:
+        from app.storage.media import normalize_model_paths
+
+        with SessionLocal() as db:
+            fixed = normalize_model_paths(db)
+        if fixed:
+            print(f"Startup: stored {fixed} model path(s) relative to backend/data (portable across machines).")
+    except Exception as exc:
+        print(f"Startup Warning: model path normalisation skipped: {exc}")
     start_mediamtx_server()
 
 # Enable CORS for frontend integration (allow all origins for LAN / multi-device access)
+# Login + Operator/Admin access control on every request (app/auth/policy.py). Registered before CORS so
+# that CORS wraps it and even 401/403 responses carry CORS headers.
+from app.auth.middleware import auth_middleware
+app.middleware("http")(auth_middleware)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    # Reflect the requesting origin (LAN / multi-device access) — "*" cannot be combined with the
+    # credentialed requests that carry the session cookie.
+    allow_origin_regex=r".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -657,7 +689,9 @@ from app.api.areas import router as areas_router
 from app.api.cctv_wall import router as cctv_wall_router
 
 # Register routes
+from app.api.auth import router as auth_router
 app.include_router(health_router, tags=["Health"])
+app.include_router(auth_router, tags=["Auth"])
 app.include_router(cameras_router, prefix=settings.api_prefix, tags=["Cameras"])
 app.include_router(areas_router, tags=["Areas"])
 app.include_router(cctv_wall_router, tags=["CCTV Wall"])

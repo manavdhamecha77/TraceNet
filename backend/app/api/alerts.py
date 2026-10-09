@@ -1,6 +1,7 @@
 import os
 import json
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
+from app.auth.middleware import actor_name
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
@@ -660,6 +661,7 @@ def delete_alert(alert_id: int, db: Session = Depends(get_db)):
 @router.put("/alerts/{alert_id}/acknowledge")
 def acknowledge_alert(
     alert_id: int,
+    request: Request,
     acknowledged_by: Optional[str] = "Operator (Badge #4082)",
     db: Session = Depends(get_db)
 ):
@@ -667,7 +669,7 @@ def acknowledge_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found.")
     alert.acknowledged = True
-    alert.acknowledged_by = acknowledged_by
+    alert.acknowledged_by = actor_name(request, acknowledged_by)  # logged-in user when login is enabled
     alert.acknowledged_at = datetime.now(timezone.utc)
     db.commit()
     return alert.to_dict()

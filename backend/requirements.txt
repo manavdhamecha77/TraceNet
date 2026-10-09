@@ -56,6 +56,9 @@ requests
 boto3
 certifi
 
+# Login (password hashing)
+bcrypt
+
 # Testing
 pytest
 httpx

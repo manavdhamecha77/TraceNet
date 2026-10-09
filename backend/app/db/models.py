@@ -912,3 +912,30 @@ class ForensicExport(Base):
             "last_verification": self.last_verification,
             "download_url": f"/api/v1/exports/{self.id}/download",
         }
+
+
+class UserAccount(Base):
+    """Login account. Two roles: 'operator' (investigation work) and 'admin' (also configuration,
+    ML models, cameras, maintenance and permanent deletion)."""
+
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, index=True)
+    username = Column(String, unique=True, nullable=False, index=True)
+    display_name = Column(String, nullable=False)              # e.g. "J. Doe / Badge #4082", used on records
+    role = Column(String, nullable=False, default="operator")  # 'operator' | 'admin'
+    password_hash = Column(String, nullable=False)             # bcrypt
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_login_at = Column(DateTime, nullable=True)
+
+    def to_public(self) -> dict:
+        return {
+            "id": self.id,
+            "username": self.username,
+            "display_name": self.display_name,
+            "role": self.role,
+            "is_active": bool(self.is_active),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
+        }

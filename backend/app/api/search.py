@@ -3,7 +3,8 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from typing import Any, Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, File, UploadFile, Form
+from app.auth.middleware import current_user
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -88,6 +89,7 @@ class SetMultilingualBackendRequest(BaseModel):
 @router.post("/search", response_model=List[SearchQueryResultItem])
 def search_footage(
     payload: SearchQueryRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> List[SearchQueryResultItem]:
     """
@@ -124,7 +126,17 @@ def search_footage(
 
     # Multilingual normalization: Hinglish/Gujlish -> English passthrough
     # English queries pass through unchanged (empty substitutions list)
-    _normalized_query, _substitutions = normalize_query(payload.query)
+    query_text = (payload.query or "").strip()
+    if not query_text:
+        # A blank text query is only meaningful with explicit attribute filters (e.g. colours = red)
+        subject = payload.vehicle_type or (payload.object_type if payload.object_type not in (None, "all") else "")
+        query_text = " ".join([*(payload.colors or []), subject]).strip()
+        if not payload.colors and not payload.vehicle_type:
+            raise HTTPException(
+                status_code=422,
+                detail="Search query is empty. Describe the person or vehicle (e.g. 'man in red jacket') or use photo search.",
+            )
+    _normalized_query, _substitutions = normalize_query(query_text)
     effective_query = _normalized_query  # always English after this point
 
     try:
@@ -132,6 +144,7 @@ def search_footage(
         results = engine.search_tracklets(
             db=db,
             query_text=effective_query,
+            user_id=(current_user(request) or {}).get("username", "demo"),  # audit: who searched
             camera_ids=payload.camera_ids,
             time_start=parsed_start,
             time_end=parsed_end,
@@ -145,7 +158,7 @@ def search_footage(
         if _substitutions:
             latest_log = db.query(SearchLog).order_by(SearchLog.id.desc()).first()
             if latest_log and latest_log.query_text == effective_query:
-                latest_log.query_text = payload.query + f" [normalized: {_normalized_query}]"
+                latest_log.query_text = query_text + f" [normalized: {_normalized_query}]"
                 db.commit()
         return results
     except Exception as exc:

@@ -42,7 +42,9 @@ import {
   Video,
   Sparkles,
   Lock,
+  LogOut,
 } from 'lucide-react'
+import { useAuth } from './auth'
 
 const API_BASE = typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000'
 
@@ -278,7 +280,9 @@ function App() {
 
   const [unackAlertCount, setUnackAlertCount] = useState<number>(0)
   const [copilotInitialPrompt, setCopilotInitialPrompt] = useState<string>('')
-  const [isAdminMode, setIsAdminMode] = useState<boolean>(false)
+  // Admin-only sections follow the logged-in user's role (enforced again by the backend)
+  const { user: authUser, authEnabled, isAdmin: isAdminMode, logout } = useAuth()
+  const userInitials = authUser.display_name.split(/[\s/]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase()
 
   useEffect(() => {
     setIsCopilotOpen(false)
@@ -1181,16 +1185,15 @@ function App() {
                 {!isSidebarCollapsed ? 'ML ADMIN' : 'ML'}
               </span>
               {!isSidebarCollapsed && (
-                <button
-                  onClick={() => setIsAdminMode(!isAdminMode)}
-                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                <span
+                  className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
                     isAdminMode
                       ? 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/40'
-                      : 'bg-slate-100 text-slate-600 border-slate-300 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:text-white'
+                      : 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
                   }`}
                 >
-                  {isAdminMode ? 'UNLOCKED' : 'LOCKED'}
-                </button>
+                  {isAdminMode ? 'ADMIN' : 'LOCKED'}
+                </span>
               )}
             </div>
 
@@ -1232,13 +1235,10 @@ function App() {
               </div>
             ) : (
               !isSidebarCollapsed && (
-                <button
-                  onClick={() => setIsAdminMode(true)}
-                  className="w-full text-left px-2.5 py-1.5 rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[10px] font-semibold uppercase tracking-wide text-slate-600 hover:text-slate-900 transition-colors flex items-center gap-2 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-slate-300 dark:hover:text-white"
-                >
+                <div className="w-full px-2.5 py-1.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-2 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400">
                   <Lock className="h-3 w-3 shrink-0" />
-                  <span>Unlock ML Controls</span>
-                </button>
+                  <span>Admin role required</span>
+                </div>
               )
             )}
           </div>
@@ -1254,13 +1254,24 @@ function App() {
             <div
               className="h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20"
             >
-              JD
+              {userInitials || '?'}
             </div>
             {!isSidebarCollapsed && (
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-800 dark:text-slate-300 truncate">J. Doe</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-600 truncate font-mono">{t('nav.operatorRole')}</p>
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-300 truncate">{authUser.display_name}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-600 truncate font-mono">
+                  {authUser.role === 'admin' ? 'Admin' : 'Operator'}
+                </p>
               </div>
+            )}
+            {authEnabled && (
+              <button
+                onClick={logout}
+                title="Sign out"
+                className="ml-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
             )}
           </div>
         </div>
@@ -1405,8 +1416,8 @@ function App() {
                   />
                 }
               />
-              <Route path="/models" element={<Models models={models} onRefreshModels={fetchModels} />} />
-              <Route path="/embedding-models" element={<EmbeddingModels />} />
+              <Route path="/models" element={isAdminMode ? <Models models={models} onRefreshModels={fetchModels} /> : <div className="p-8 text-sm text-slate-500 dark:text-slate-400">This page requires the Admin role.</div>} />
+              <Route path="/embedding-models" element={isAdminMode ? <EmbeddingModels /> : <div className="p-8 text-sm text-slate-500 dark:text-slate-400">This page requires the Admin role.</div>} />
               <Route path="/alerts" element={<AlertsDashboard cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/alerts/abandoned" element={<Alerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/alerts/theft" element={<TheftAlerts cameras={cameras} onPlayVideoAtTime={handlePlayVideoAtTime} />} />
@@ -1418,7 +1429,7 @@ function App() {
               <Route path="/anpr-alerts" element={<PlateDetection cameras={cameras} />} />
               <Route path="/plate-detection" element={<PlateDetection cameras={cameras} />} />
               <Route path="/frame-inspection/:alertId" element={<FrameInspection />} />
-              <Route path="/finetuning" element={<FineTuning />} />
+              <Route path="/finetuning" element={isAdminMode ? <FineTuning /> : <div className="p-8 text-sm text-slate-500 dark:text-slate-400">This page requires the Admin role.</div>} />
               <Route path="/language-settings" element={<LanguageSettings />} />
               <Route path="/search" element={<Search onPlayVideoAtTime={handlePlayVideoAtTime} />} />
               <Route path="/face-search" element={<FaceSearch />} />

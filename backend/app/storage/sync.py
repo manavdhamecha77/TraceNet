@@ -49,6 +49,7 @@ EXCLUDED_TOP_LEVEL = {
     "anpr_config.json",       # OCR engine choice depends on what is installed locally
     "mediamtx",               # streaming server binary, downloaded per OS
     "certs",                  # per-machine dev TLS cert + private key (app/tls.py), SANs are this host's IPs
+    ".auth_secret",           # signs login sessions on this machine
     "audit_logs",             # per-machine audit trail
     "_backups",               # local safety copies made by `pull`
     "myagent.info",

@@ -109,6 +109,14 @@ def attach_session(action_id: str, session_id: str) -> None:
             _pending[action_id]["session_id"] = session_id
 
 
+def peek(action_id: str) -> Optional[Dict[str, Any]]:
+    """The pending action without consuming it; None if unknown or expired."""
+    now = datetime.now(timezone.utc)
+    with _lock:
+        _purge_expired(now)
+        return _pending.get(action_id)
+
+
 def take(action_id: str) -> Optional[Dict[str, Any]]:
     """Remove and return a pending action (each proposal can be decided once); None if unknown or expired."""
     now = datetime.now(timezone.utc)

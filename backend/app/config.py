@@ -50,12 +50,20 @@ class Settings(BaseSettings):
     detection_confidence_threshold: float = 0.25
     detection_iou_threshold: float = 0.45
     detection_max_frames: int = 0
+    # Compute device for all models: auto (GPU if available, else CPU) | cpu | cuda | cuda:N | mps
+    tracenet_device: str = "auto"
 
     # Shared S3 storage (golden data snapshot); values come from backend/.env
     aws_access_key_id: str | None = None
     aws_secret_access_key: str | None = None
     aws_region: str = "ap-southeast-2"
     s3_bucket: str | None = None
+
+    # Login + role-based access (Operator / Admin). AUTH_SECRET signs session tokens; if unset, a random
+    # secret is generated once and kept in backend/data/.auth_secret (never synced).
+    auth_enabled: bool = True
+    auth_secret: str | None = None
+    auth_session_hours: int = 12
 
     # Optional cloud translation for multilingual search; set only in backend/.env, never via the API
     openrouter_api_key: str | None = None

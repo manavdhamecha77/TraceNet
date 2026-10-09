@@ -7,7 +7,9 @@ import base64
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from app.auth.middleware import actor_name, current_user
+from app.auth.policy import ADMIN_COPILOT_TOOLS
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -344,8 +346,13 @@ def _record_decision(db: Session, action: Dict[str, Any], status_: str, message:
 
 
 @router.post("/actions/{action_id}/confirm")
-def confirm_copilot_action(action_id: str, payload: ActionDecision, db: Session = Depends(get_db)):
+def confirm_copilot_action(action_id: str, payload: ActionDecision, request: Request, db: Session = Depends(get_db)):
     """Run a write action the Copilot proposed. Only the server-stored proposal is executed, at most once."""
+    pending = confirmations.peek(action_id)
+    user = current_user(request)
+    if pending and user and pending["tool"] in ADMIN_COPILOT_TOOLS and user["role"] != "admin":
+        # Rejected without consuming the proposal, so an Admin can still confirm it
+        raise HTTPException(status_code=403, detail="Confirming this action requires the Admin role.")
     action = confirmations.take(action_id)
     if not action:
         raise HTTPException(status_code=404, detail="This action has expired or was already decided. Ask the Copilot again.")
@@ -356,7 +363,7 @@ def confirm_copilot_action(action_id: str, payload: ActionDecision, db: Session 
     message = f"Done: {action['summary']}." if ok else f"Could not complete: {action['summary']}. {detail}".strip()
     if ok and detail:
         message += f" {detail}"
-    _record_decision(db, action, status_, message, payload.decided_by, result)
+    _record_decision(db, action, status_, message, actor_name(request, payload.decided_by), result)
     return {
         "status": status_,
         "action": {**confirmations.public(action), "status": status_},
@@ -367,13 +374,13 @@ def confirm_copilot_action(action_id: str, payload: ActionDecision, db: Session 
 
 
 @router.post("/actions/{action_id}/cancel")
-def cancel_copilot_action(action_id: str, payload: ActionDecision, db: Session = Depends(get_db)):
+def cancel_copilot_action(action_id: str, payload: ActionDecision, request: Request, db: Session = Depends(get_db)):
     """Discard a write action the Copilot proposed; nothing is executed."""
     action = confirmations.take(action_id)
     if not action:
         raise HTTPException(status_code=404, detail="This action has expired or was already decided.")
     message = f"Cancelled: {action['summary']}. Nothing was changed."
-    _record_decision(db, action, "cancelled", message, payload.decided_by)
+    _record_decision(db, action, "cancelled", message, actor_name(request, payload.decided_by))
     return {
         "status": "cancelled",
         "action": {**confirmations.public(action), "status": "cancelled"},

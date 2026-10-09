@@ -1,6 +1,10 @@
 """Pytest configuration and shared fixtures for DRISHTI backend tests."""
 
 import os
+
+# Login is enforced by default; the existing API tests run without it. tests/test_auth_rbac.py turns it on.
+os.environ.setdefault("AUTH_ENABLED", "false")
+
 import pytest
 import tempfile
 from sqlalchemy import create_engine
