@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Eye,
   Crosshair,
+  Tag,
 } from 'lucide-react'
 import { classColor } from '../utils/colors'
 import { useToast } from '../components/Toast'
@@ -1402,7 +1403,10 @@ export default function VideoDetail() {
                       className="flex items-center justify-center gap-0.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 py-1 rounded text-[10px] font-bold transition-all"
                       title="Tag as Hot Target for Multi-Camera Persistent Pursuit"
                     >
-                      <span>🎯 Tag</span>
+                      <>
+                        <Tag className="h-3 w-3" aria-hidden="true" />
+                        <span>Tag</span>
+                      </>
                     </button>
                   </div>
                 </div>

@@ -17,6 +17,7 @@ import {
   X,
   SlidersHorizontal,
   Globe,
+  Tag,
 } from 'lucide-react'
 
 import { API_BASE } from '../config/api'
@@ -940,7 +941,10 @@ export default function Search({ onPlayVideoAtTime }: SearchProps) {
                       className="flex items-center justify-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30 py-1.5 rounded text-[10px] font-bold transition-all"
                       title="Tag as Hot Target for Multi-Camera Persistent Pursuit"
                     >
-                      <span>🎯 Tag Target</span>
+                      <>
+                        <Tag className="h-3 w-3" aria-hidden="true" />
+                        <span>Tag Target</span>
+                      </>
                     </button>
                   </div>
 
