@@ -19,9 +19,17 @@ router = APIRouter(prefix="/api/v1", tags=["attributes"])
 @router.get("/search/parse")
 def preview_query_attributes(q: str = ""):
     """Show which attributes the system will verify for a query, and which it cannot verify."""
-    constraints = [c.to_dict() for c in parse_query(q)]
+    from app.search.multilingual import normalize_query
+    norm_res = normalize_query(q)
+    effective_q = norm_res[0] if norm_res else q
+    constraints = [c.to_dict() for c in parse_query(effective_q)]
     return {
         "query": q,
+        "normalized_query": effective_q,
+        "is_multilingual": norm_res.details.get("is_multilingual", False) if norm_res else False,
+        "detected_language": norm_res.details.get("detected_language", "English") if norm_res else "English",
+        "language_code": norm_res.details.get("language_code", "en") if norm_res else "en",
+        "backend_used": norm_res.details.get("backend_used", "offline_ai") if norm_res else "offline_ai",
         "verifiable": [c for c in constraints if c["verifiable"]],
         "unverifiable": [c for c in constraints if not c["verifiable"]],
     }

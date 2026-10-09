@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { MultilingualQueryHint, MultilingualBadge, type QueryParseMeta } from '../components/MultilingualQueryHint'
 import { Search, Upload, Image as ImageIcon, Camera as CameraIcon, Crosshair, Tag, ChevronDown, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -25,6 +26,7 @@ interface FaceResult {
 export default function FaceSearch() {
   const [activeTab, setActiveTab] = useState<'text' | 'image' | 'label'>('text')
   const [textQuery, setTextQuery] = useState('')
+  const [textQueryMeta, setTextQueryMeta] = useState<QueryParseMeta | null>(null)
   const [labelQuery, setLabelQuery] = useState('')
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -291,13 +293,16 @@ export default function FaceSearch() {
         {/* Tab Content */}
         <div className="p-4 space-y-4">
           {activeTab === 'text' && (
-            <input
+            <div className="space-y-2">
+              <input
               type="text"
               value={textQuery}
               onChange={e => setTextQuery(e.target.value)}
               placeholder="Describe the face (e.g., man with glasses and beard)..."
               className="w-full rounded border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 shadow-sm focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400 dark:focus:ring-teal-400/20"
             />
+              <MultilingualQueryHint query={textQuery} onMeta={setTextQueryMeta} />
+            </div>
           )}
 
           {activeTab === 'image' && (
@@ -386,6 +391,12 @@ export default function FaceSearch() {
       </div>
 
       {/* Results */}
+      {results.length > 0 && activeTab === 'text' && textQueryMeta && (
+        <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+          <span><span className="font-bold text-teal-700 dark:text-teal-400">{results.length}</span> face results for &ldquo;<em>{textQuery}</em>&rdquo;</span>
+          <MultilingualBadge meta={textQueryMeta} originalQuery={textQuery} />
+        </p>
+      )}
       {results.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {results.map((r: any, idx) => {

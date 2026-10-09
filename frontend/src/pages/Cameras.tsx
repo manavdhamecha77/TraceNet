@@ -323,7 +323,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
     try {
       const map = window.L.map(mainMapRef.current, { zoomControl: true }).setView(center, 12)
       mainMapInstanceRef.current = map
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      window.L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
         attribution: '© OpenStreetMap contributors',
       }).addTo(map)
 
@@ -391,7 +391,7 @@ export default function Cameras({ cameras, areas, models, onOpenRegisterModal, o
         attributionControl: opts.controls ?? false,
       }).setView([lat, lon], opts.zoom ?? 14)
       mapRef.current = m
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(m)
+      window.L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}').addTo(m)
       window.L.marker([lat, lon]).addTo(m)
     } catch { /* ignore */ }
   }

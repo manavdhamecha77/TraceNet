@@ -75,6 +75,9 @@ class MultilingualConfigResponse(BaseModel):
     backend: str
     available_backends: list[str]
     openrouter_configured: bool
+    offline_models_available: bool = True
+    offline_translation_model: Optional[str] = None
+    offline_multilingual_clip: Optional[str] = None
 
 
 class SetMultilingualBackendRequest(BaseModel):
@@ -82,7 +85,7 @@ class SetMultilingualBackendRequest(BaseModel):
     # the OpenRouter key is read from OPENROUTER_API_KEY in backend/.env.
     model_config = ConfigDict(extra="forbid")
 
-    backend: str  # 'dictionary' or 'openrouter'
+    backend: str  # 'offline_ai', 'dictionary', or 'openrouter'
 
 
 @router.post("/search", response_model=List[SearchQueryResultItem])
@@ -122,10 +125,11 @@ def search_footage(
             detail="attribute_mode must be 'boost', 'strict' or 'off'",
         )
 
-    # Multilingual normalization: Hinglish/Gujlish -> English passthrough
-    # English queries pass through unchanged (empty substitutions list)
-    _normalized_query, _substitutions = normalize_query(payload.query)
-    effective_query = _normalized_query  # always English after this point
+    # Multilingual normalization: Hindi/Gujarati/Hinglish/Gujlish -> English
+    norm_res = normalize_query(payload.query)
+    effective_query = norm_res[0] if norm_res else payload.query
+    multi_details = getattr(norm_res, "details", {})
+    substitutions = norm_res[1] if norm_res else []
 
     try:
         engine = QueryEngine()
@@ -141,11 +145,14 @@ def search_footage(
             colors=payload.colors,
             vehicle_type=payload.vehicle_type,
             attribute_mode=payload.attribute_mode,
+            original_query=payload.query,
+            multilingual_info=multi_details,
         )
-        if _substitutions:
+        if multi_details.get("is_multilingual") or substitutions:
             latest_log = db.query(SearchLog).order_by(SearchLog.id.desc()).first()
-            if latest_log and latest_log.query_text == effective_query:
-                latest_log.query_text = payload.query + f" [normalized: {_normalized_query}]"
+            if latest_log:
+                lang_code = multi_details.get("language_code", "indic")
+                latest_log.query_text = f"{payload.query} [normalized: {effective_query}] [lang: {lang_code}]"
                 db.commit()
         return results
     except Exception as exc:
