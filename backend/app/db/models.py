@@ -343,6 +343,18 @@ class Alert(Base):
         except Exception:
             visitors = []
             
+        crop_url = None
+        if self.tracklet and self.tracklet.best_crop_path:
+            norm = self.tracklet.best_crop_path.replace("\\", "/")
+            d_idx = norm.find("/data/")
+            if d_idx != -1:
+                crop_url = norm[d_idx:]
+            elif norm:
+                crop_url = f"/data/{norm.lstrip('/')}"
+        elif self.video_id and (self.object_tracklet_id or self.tracklet_id):
+            tid = self.object_tracklet_id or self.tracklet_id
+            crop_url = f"/data/processed/detections/{self.video_id}/crops/{tid}.jpg"
+
         return {
             "id": self.id,
             "alert_type": self.alert_type,
@@ -350,6 +362,7 @@ class Alert(Base):
             "camera_id": self.camera_id,
             "video_id": self.video_id,
             "object_tracklet_id": self.object_tracklet_id,
+            "thumbnail_url": crop_url,
             "owner_tracklet_ids": owners,
             "visitor_tracklet_ids": visitors,
             "reid_match_tracklet_id": self.reid_match_tracklet_id,

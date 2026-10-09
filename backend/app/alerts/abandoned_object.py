@@ -6,7 +6,7 @@ that matches one of OBJECT_CLASS_NAMES (case-insensitive). Otherwise the video
 is skipped and a log entry is returned.
 
 Algorithm: replay the frame timeline from detections.json, run the state machine
-(CARRIED → STATIONARY → UNATTENDED → ABANDONED), write Alert rows to SQLite.
+(CARRIED -> STATIONARY -> UNATTENDED -> ABANDONED), write Alert rows to SQLite.
 """
 
 import json
@@ -109,12 +109,38 @@ class AbandonedObjectAnalyzer:
         """
         log_entries = []
 
-        # 1. Eligibility check
-        model_class_names_lower = {c.lower() for c in model_classes}
-        eligible_classes = model_class_names_lower & OBJECT_CLASS_NAMES
+        # 1. Resolve detections.json
+        detections_path = get_data_path(os.path.join("processed/detections", video_id, "detections.json"))
+        if not os.path.exists(detections_path):
+            reason = f"detections.json not found at {detections_path}. Run detection first."
+            log_entries.append(f"[ERROR] {reason}")
+            return {
+                "eligible": False,
+                "skip_reason": reason,
+                "alerts_created": 0,
+                "log_entries": log_entries,
+                "evaluated_video_id": video_id,
+            }
+
+        with open(detections_path, "r", encoding="utf-8") as f:
+            det_data = json.load(f)
+
+        # 2. Eligibility check from model classes OR actual detections in video
+        model_class_names_lower = {c.lower() for c in (model_classes or [])}
+        model_eligible_classes = model_class_names_lower & OBJECT_CLASS_NAMES
+
+        # Inspect classes actually present in detections.json
+        detected_object_classes = set()
+        for fd in det_data.get("frame_detections", []):
+            for d in fd.get("detections", []):
+                cname = (d.get("class_name") or "").lower()
+                if cname in OBJECT_CLASS_NAMES or d.get("object_type") == "object":
+                    detected_object_classes.add(cname or "object")
+
+        eligible_classes = model_eligible_classes | detected_object_classes
         if not eligible_classes:
             reason = (
-                f"Model has no abandonment-eligible classes. "
+                f"No abandonment-eligible classes detected in video or assigned to model. "
                 f"Model classes: {sorted(model_class_names_lower)}. "
                 f"Required one of: {sorted(OBJECT_CLASS_NAMES)}."
             )
@@ -129,22 +155,6 @@ class AbandonedObjectAnalyzer:
             }
 
         log_entries.append(f"[OK] Eligible classes found: {sorted(eligible_classes)}")
-
-        # 2. Load detections.json
-        detections_path = get_data_path(os.path.join("processed/detections", video_id, "detections.json"))
-        if not os.path.exists(detections_path):
-            reason = f"detections.json not found at {detections_path}. Run detection first."
-            log_entries.append(f"[ERROR] {reason}")
-            return {
-                "eligible": True,
-                "skip_reason": reason,
-                "alerts_created": 0,
-                "log_entries": log_entries,
-                "evaluated_video_id": video_id,
-            }
-
-        with open(detections_path, "r", encoding="utf-8") as f:
-            det_data = json.load(f)
 
         fps = float(det_data.get("fps", 4.0)) or 4.0
         frame_detections = det_data.get("frame_detections", [])
@@ -240,7 +250,7 @@ class AbandonedObjectAnalyzer:
                     if bound:
                         obj.owner_tracker_ids = bound
                         log_entries.append(
-                            f"[OWNER_BOUND] tracker_id={trid} → owners={bound} at frame {frame_idx}"
+                            f"[OWNER_BOUND] tracker_id={trid} -> owners={bound} at frame {frame_idx}"
                         )
 
                 # C. Unattended check (Bound Owner OR Isolated Object)
@@ -326,7 +336,10 @@ class AbandonedObjectAnalyzer:
                     unattended_registry[trid] = max(unattended_registry.get(trid, 0.0), obj.abandon_duration_seconds)
 
         # 4. Write alerts to DB
-        from app.db.models import Alert
+        from app.db.models import Alert, VideoAsset
+        video_rec = db.query(VideoAsset).filter(VideoAsset.id == video_id).first()
+        cam_id = video_rec.camera_id if video_rec else ""
+
         alerts_created = 0
         for obj in alerts_to_create:
             try:
@@ -335,12 +348,14 @@ class AbandonedObjectAnalyzer:
                     Alert.object_tracklet_id == obj.tracklet_id
                 ).first()
                 if existing:
+                    if not existing.camera_id and cam_id:
+                        existing.camera_id = cam_id
                     continue  # Deduplicate
 
                 alert = Alert(
                     alert_type="abandoned_object",
                     tracklet_id=obj.tracklet_id,
-                    camera_id="",  # Will be set by the caller
+                    camera_id=cam_id,
                     video_id=video_id,
                     object_tracklet_id=obj.tracklet_id,
                     owner_tracklet_ids=json.dumps(
@@ -371,6 +386,8 @@ class AbandonedObjectAnalyzer:
                     Alert.object_tracklet_id == obj.tracklet_id
                 ).first()
                 if existing:
+                    if not existing.camera_id and cam_id:
+                        existing.camera_id = cam_id
                     if duration > (existing.abandon_duration_seconds or 0.0):
                         existing.abandon_duration_seconds = duration
                     continue
@@ -378,7 +395,7 @@ class AbandonedObjectAnalyzer:
                 unattended_alert = Alert(
                     alert_type="unattended_object",
                     tracklet_id=obj.tracklet_id,
-                    camera_id="",  # Will be set by the caller
+                    camera_id=cam_id,
                     video_id=video_id,
                     object_tracklet_id=obj.tracklet_id,
                     owner_tracklet_ids=json.dumps(

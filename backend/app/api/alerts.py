@@ -32,6 +32,7 @@ class AlertResponse(BaseModel):
     reid_match_tracklet_id: Optional[str] = None
     abandon_duration_seconds: Optional[float] = None
     analysis_log: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     timestamp: Optional[str] = None
     acknowledged: bool
 
@@ -366,13 +367,20 @@ def _run_analysis_background(video_ids: list, config_dict: dict):
                     CameraProfile.camera_id == video.camera_id
                 ).first()
                 model_classes = []
-                if camera and camera.model_id:
-                    model = db.query(MLModel).filter(MLModel.id == camera.model_id).first()
-                    if model:
-                        try:
-                            model_classes = json.loads(model.classes) if model.classes else []
-                        except Exception:
-                            model_classes = []
+                if camera:
+                    # Check camera's assigned abandoned model first, then primary model
+                    assigned_model_id = (
+                        camera.abandoned_model_id
+                        if (camera.abandoned_model_id and camera.abandoned_model_id != "OFF")
+                        else camera.model_id
+                    )
+                    if assigned_model_id:
+                        model = db.query(MLModel).filter(MLModel.id == assigned_model_id).first()
+                        if model:
+                            try:
+                                model_classes = json.loads(model.classes) if model.classes else []
+                            except Exception:
+                                model_classes = []
 
                 # Define progress callback
                 def progress_cb(frame_idx, total_frames):
