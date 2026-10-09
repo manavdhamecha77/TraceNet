@@ -12,6 +12,8 @@ The full rule table is `backend/app/auth/policy.py`; it is enforced on every req
 
 ## First-time setup
 
+See also `docs/team-setup.md` for the steps every teammate follows after pulling.
+
 No default accounts or passwords exist. Create the first Admin on the server (from `backend/`):
 
 ```
