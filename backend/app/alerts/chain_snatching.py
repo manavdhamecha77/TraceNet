@@ -184,15 +184,9 @@ class ChainSnatchingAnalyzer:
             if not video_record:
                 return mapping
                 
-            camera_id = video_record.camera_id
-            camera = db.query(CameraProfile).filter(CameraProfile.camera_id == camera_id).first()
-            camera_name = camera.name if camera else camera_id
-            camera_dir_name = f"{camera_id}_{sanitize_filename(camera_name)}"
-            camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
-            video_path = os.path.join(camera_dir, "original_assets", video_record.standardized_filename)
-
-            from app.storage.media import ensure_local
-            if not ensure_local(video_path):
+            from app.detection.detector import resolve_standardized_video_path
+            video_path = resolve_standardized_video_path(video_record)  # local, renamed-camera folder, or S3
+            if not os.path.exists(video_path):
                 return mapping
                 
             # Create folder

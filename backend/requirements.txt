@@ -29,6 +29,8 @@ supervision>=0.28.0
 # Plate text recognition: PaddleOCR PP-OCRv5 (weights download to ~/.paddlex on first use)
 paddlepaddle==3.3.1
 paddleocr==3.7.0
+# Lightweight plate OCR engine (ONNX); the shared data selects it in anpr_config.json
+fast-plate-ocr>=1.1.0
 pypdfium2
 
 # Embeddings

@@ -630,12 +630,9 @@ def delete_video_permanently(video_id: str, db: Session = Depends(get_db)):
     try:
         camera = video.camera
         if camera:
-            from app.preprocess.preprocessor import sanitize_filename
-            camera_dir_name = f"{camera.camera_id}_{sanitize_filename(camera.name)}"
-            camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
-            
-            # Standardized video file
-            standardized_video_path = os.path.join(camera_dir, "original_assets", video.standardized_filename)
+            # Where the file actually is (also after a camera rename), without fetching it from S3
+            standardized_video_path = resolve_standardized_video_path(video, fetch=False)
+            camera_dir = os.path.dirname(os.path.dirname(standardized_video_path))
             media.delete(standardized_video_path)
             if os.path.exists(standardized_video_path):
                 os.remove(standardized_video_path)

@@ -13,7 +13,7 @@ from ultralytics import YOLO
 from app.config import get_data_path
 from app.db.models import Alert, VideoAsset
 from app.detection.detector import load_detection_model
-from app.runtime.device import get_device, use_half_precision
+from app.runtime.device import get_device, yolo_precision_kwargs
 
 
 DEFAULT_ACCIDENT_MODEL = "models/accident_detection/yolo11x_epoch61.pt"
@@ -123,7 +123,7 @@ class AccidentDetectionService:
                 iou=self.iou_threshold,
                 verbose=False,
                 device=get_device(),
-                half=use_half_precision(),
+                **yolo_precision_kwargs(),
             )
 
             accident_boxes = []

@@ -83,6 +83,20 @@ def use_half_precision() -> bool:
 
 
 @lru_cache(maxsize=1)
+def yolo_precision_kwargs() -> dict:
+    """Ultralytics predict() precision argument. Newer releases replaced `half=True` with `quantize=16` and
+    warn on every frame for the old name; older releases do not know `quantize`."""
+    if not use_half_precision():
+        return {}
+    try:
+        from ultralytics.cfg import DEFAULT_CFG_DICT
+
+        return {"quantize": 16} if "quantize" in DEFAULT_CFG_DICT else {"half": True}
+    except Exception:
+        return {"half": True}
+
+
+@lru_cache(maxsize=1)
 def device_summary() -> dict:
     """What the backend runs on, plus a hint when a GPU is present but PyTorch cannot use it."""
     import torch

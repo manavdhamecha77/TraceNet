@@ -13,7 +13,7 @@ from app.config import get_settings
 from app.db.models import VideoAsset
 from app.detection.tracker import ByteTrackWrapper
 from app.detection.detector import _clip_bbox, load_detection_model
-from app.runtime.device import get_device, use_half_precision
+from app.runtime.device import get_device, yolo_precision_kwargs
 
 
 ACTIVE_FACE_MODEL_PATH = "models/face_detection/yolov8n-face-lindevs.pt"
@@ -120,7 +120,7 @@ class FaceDetectionService:
             iou=self.iou_threshold,
             verbose=False,
             device=get_device(),
-            half=use_half_precision(),
+            **yolo_precision_kwargs(),
         )
         detections = sv.Detections.from_ultralytics(results[0])
         if len(detections) == 0:

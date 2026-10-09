@@ -385,13 +385,11 @@ def sync_camera_videos_background(camera_id: str, video_ids: List[str]):
                 logger.warning(f"Sync: Failed to clear old Qdrant points for {video_id}: {e}")
 
             # 3. Build paths
-            camera_dir_name = f"{camera_id}_{sanitize_filename(camera.name)}"
-            camera_dir = get_data_path(os.path.join("cameras", camera_dir_name))
-            standardized_video_path = os.path.join(camera_dir, "original_assets", video.standardized_filename)
+            from app.detection.detector import resolve_standardized_video_path
+            standardized_video_path = resolve_standardized_video_path(video)  # local, renamed-camera folder, or S3
             detection_output_dir = get_data_path(os.path.join("processed/detections", video_id))
 
-            from app.storage.media import ensure_local
-            if not ensure_local(standardized_video_path):
+            if not os.path.exists(standardized_video_path):
                 logger.warning(f"Sync: Standardized video not found at {standardized_video_path}, skipping.")
                 video.processing_status = "failed"
                 db.commit()

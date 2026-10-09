@@ -11,7 +11,7 @@ from app.db.session import SessionLocal
 from app.db.models import LiveAlert, MLModel
 from app.streaming.alert_evaluator import RealTimeAlertEvaluator
 from app.streaming.config import StreamConfig
-from app.runtime.device import get_device, use_half_precision
+from app.runtime.device import get_device, yolo_precision_kwargs
 
 class InferenceWorker(threading.Thread):
     def __init__(self, camera_id, session_id, rtsp_url, config: StreamConfig, manager):
@@ -107,7 +107,7 @@ class InferenceWorker(threading.Thread):
                 start_inf = time.time()
                 
                 results = model.predict(frame, conf=self.config.confidence_threshold, iou=self.config.iou_threshold,
-                                        verbose=False, device=get_device(), half=use_half_precision())
+                                        verbose=False, device=get_device(), **yolo_precision_kwargs())
                 
                 detections = sv.Detections.from_ultralytics(results[0])
                 detections = tracker.update_with_detections(detections)

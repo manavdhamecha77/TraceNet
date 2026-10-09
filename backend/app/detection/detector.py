@@ -16,7 +16,7 @@ from app.config import get_settings
 from app.db.models import VideoAsset
 from app.detection.tracker import ByteTrackWrapper
 from app.preprocess.preprocessor import sanitize_filename
-from app.runtime.device import get_device, use_half_precision
+from app.runtime.device import get_device, yolo_precision_kwargs
 
 
 @dataclass
@@ -259,7 +259,7 @@ class DetectionService:
             "iou": self.iou_threshold,
             "verbose": False,
             "device": get_device(),
-            "half": use_half_precision(),
+            **yolo_precision_kwargs(),
         }
         if self._scope_class_ids:
             predict_kwargs["classes"] = self._scope_class_ids
@@ -443,6 +443,15 @@ def resolve_standardized_video_path(video_asset: VideoAsset, fetch: bool = True)
     from app.config import get_data_path
 
     path = get_data_path(os.path.join("cameras", camera_dir, "original_assets", standardized_filename))
+    if not os.path.exists(path):
+        # Camera renamed after the upload: its files stay in the folder named after the old camera name
+        import glob
+
+        pattern = os.path.join(glob.escape(get_data_path("cameras")), f"{glob.escape(video_asset.camera_id)}_*",
+                               "original_assets", glob.escape(standardized_filename))
+        matches = glob.glob(pattern)
+        if matches:
+            return matches[0]
     if fetch:
         from app.storage.media import ensure_local
 
